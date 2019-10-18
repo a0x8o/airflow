@@ -20,18 +20,19 @@
 This module contains Google Dataflow operators.
 """
 
+import copy
 import os
 import re
+import tempfile
 import uuid
-import copy
 from enum import Enum
 from typing import List, Optional
 
-from airflow.contrib.hooks.gcs_hook import GoogleCloudStorageHook
 from airflow.gcp.hooks.dataflow import DataFlowHook
+from airflow.gcp.hooks.gcs import GoogleCloudStorageHook
 from airflow.models import BaseOperator
-from airflow.version import version
 from airflow.utils.decorators import apply_defaults
+from airflow.version import version
 
 
 class CheckJobRunning(Enum):
@@ -454,8 +455,10 @@ class GoogleCloudBucketHelper:
 
         bucket_id = path_components[0]
         object_id = '/'.join(path_components[1:])
-        local_file = '/tmp/dataflow{}-{}'.format(str(uuid.uuid4())[:8],
-                                                 path_components[-1])
+        local_file = os.path.join(
+            tempfile.gettempdir(),
+            'dataflow{}-{}'.format(str(uuid.uuid4())[:8], path_components[-1])
+        )
         self._gcs_hook.download(bucket_id, object_id, local_file)
 
         if os.stat(local_file).st_size > 0:

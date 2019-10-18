@@ -21,27 +21,21 @@
 
 import datetime
 import re
-import unittest
-from unittest.mock import MagicMock, Mock, patch, PropertyMock
-from typing import Dict
-
 import time
+import unittest
 from copy import deepcopy
+from typing import Dict
+from unittest.mock import MagicMock, Mock, PropertyMock, patch
 
 from airflow import DAG, AirflowException
-from airflow.gcp.hooks.dataproc import _DataProcJobBuilder
-from airflow.gcp.operators.dataproc import \
-    DataprocClusterCreateOperator, \
-    DataprocClusterDeleteOperator, \
-    DataProcHadoopOperator, \
-    DataProcHiveOperator, \
-    DataProcPigOperator, \
-    DataProcPySparkOperator, \
-    DataProcSparkOperator, \
-    DataprocWorkflowTemplateInstantiateInlineOperator, \
-    DataprocWorkflowTemplateInstantiateOperator, \
-    DataprocClusterScaleOperator, DataProcJobBaseOperator
 from airflow.exceptions import AirflowTaskTimeout
+from airflow.gcp.hooks.dataproc import _DataProcJobBuilder
+from airflow.gcp.operators.dataproc import (
+    DataprocClusterCreateOperator, DataprocClusterDeleteOperator, DataprocClusterScaleOperator,
+    DataProcHadoopOperator, DataProcHiveOperator, DataProcJobBaseOperator, DataProcPigOperator,
+    DataProcPySparkOperator, DataProcSparkOperator, DataprocWorkflowTemplateInstantiateInlineOperator,
+    DataprocWorkflowTemplateInstantiateOperator,
+)
 from airflow.models.taskinstance import TaskInstance
 from airflow.utils.timezone import make_aware
 from airflow.version import version
@@ -399,8 +393,12 @@ class TestDataprocClusterCreateOperator(unittest.TestCase):
         self.operation = {'name': 'operation', 'done': True}
         self.mock_execute = Mock()
         self.mock_execute.execute.return_value = self.operation
+        self.mock_list = Mock()
+        self.mock_list_execute = {}
+        self.mock_list.execute.return_value = self.mock_list_execute
         self.mock_clusters = Mock()
         self.mock_clusters.create.return_value = self.mock_execute
+        self.mock_clusters.list.return_value = self.mock_list
         self.mock_regions = Mock()
         self.mock_regions.clusters.return_value = self.mock_clusters
         self.mock_projects = Mock()
@@ -522,6 +520,45 @@ class TestDataprocClusterCreateOperator(unittest.TestCase):
                     },
                     'labels': {'airflow-version': mock.ANY}})
             hook.wait.assert_called_once_with(self.operation)
+
+    def test_create_cluster_deletes_error_cluster(self):
+        # Setup service.projects().regions().clusters().create()
+        #              .execute()
+        # pylint:disable=attribute-defined-outside-init
+        self.operation = {'name': 'operation', 'done': True}
+        self.mock_execute = Mock()
+        self.mock_execute.execute.return_value = self.operation
+        self.mock_list = Mock()
+        self.mock_list_execute = {'clusters': [{'clusterName': CLUSTER_NAME, 'status': {'state': 'ERROR'}}]}
+        self.mock_list.execute.return_value = self.mock_list_execute
+        self.mock_clusters = Mock()
+        self.mock_clusters.create.return_value = self.mock_execute
+        self.mock_clusters.list.return_value = self.mock_list
+        self.mock_regions = Mock()
+        self.mock_regions.clusters.return_value = self.mock_clusters
+        self.mock_projects = Mock()
+        self.mock_projects.regions.return_value = self.mock_regions
+        self.mock_conn = Mock()
+        self.mock_conn.projects.return_value = self.mock_projects
+
+        with patch(HOOK) as mock_hook:
+            hook = mock_hook()
+            hook.get_conn.return_value = self.mock_conn
+            hook.wait.return_value = None
+            hook.get_final_cluster_state.return_value = "ERROR"
+
+            dataproc_task = DataprocClusterCreateOperator(
+                task_id=TASK_ID,
+                region=GCP_REGION,
+                cluster_name=CLUSTER_NAME,
+                project_id=GCP_PROJECT_ID,
+                num_workers=NUM_WORKERS,
+                zone=GCE_ZONE,
+                dag=self.dag
+            )
+            with patch.object(dataproc_task.log, 'info') as mock_info:
+                dataproc_task.execute(None)
+                mock_info.assert_any_call('Existing cluster in ERROR state, deleting it first')
 
     def test_build_cluster_data_internal_ip_only_without_subnetwork(self):
 
@@ -699,7 +736,7 @@ class TestDataprocClusterDeleteOperator(unittest.TestCase):
                 projectId=GCP_PROJECT_ID,
                 clusterName=CLUSTER_NAME,
                 requestId=mock.ANY)
-            hook.wait.assert_called_once_with(self.operation)
+            hook.wait.assert_called_with(self.operation)
 
     def test_render_template(self):
         task = DataprocClusterDeleteOperator(
@@ -792,7 +829,7 @@ class TestDataProcHadoopOperator(unittest.TestCase):
             schedule_interval='@daily')
 
     @mock.patch(
-        'airflow.contrib.hooks.gcp_dataproc_hook.DataProcHook.project_id',
+        'airflow.gcp.hooks.dataproc.DataProcHook.project_id',
         new_callable=PropertyMock,
         return_value=GCP_PROJECT_ID
     )
@@ -877,7 +914,7 @@ class TestDataProcHiveOperator(unittest.TestCase):
             schedule_interval='@daily')
 
     @mock.patch(
-        'airflow.contrib.hooks.gcp_dataproc_hook.DataProcHook.project_id',
+        'airflow.gcp.hooks.dataproc.DataProcHook.project_id',
         new_callable=PropertyMock,
         return_value=GCP_PROJECT_ID
     )
@@ -962,7 +999,7 @@ class TestDataProcPigOperator(unittest.TestCase):
             schedule_interval='@daily')
 
     @mock.patch(
-        'airflow.contrib.hooks.gcp_dataproc_hook.DataProcHook.project_id',
+        'airflow.gcp.hooks.dataproc.DataProcHook.project_id',
         new_callable=PropertyMock,
         return_value=GCP_PROJECT_ID
     )
@@ -1052,7 +1089,7 @@ class TestDataProcPySparkOperator(unittest.TestCase):
             schedule_interval='@daily')
 
     @mock.patch(
-        'airflow.contrib.hooks.gcp_dataproc_hook.DataProcHook.project_id',
+        'airflow.gcp.hooks.dataproc.DataProcHook.project_id',
         new_callable=PropertyMock,
         return_value=GCP_PROJECT_ID
     )
@@ -1140,7 +1177,7 @@ class TestDataProcSparkOperator(unittest.TestCase):
             schedule_interval='@daily')
 
     @mock.patch(
-        'airflow.contrib.hooks.gcp_dataproc_hook.DataProcHook.project_id',
+        'airflow.gcp.hooks.dataproc.DataProcHook.project_id',
         new_callable=PropertyMock,
         return_value=GCP_PROJECT_ID
     )

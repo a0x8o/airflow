@@ -25,10 +25,9 @@ import sys
 import textwrap
 import zipfile
 from collections import namedtuple
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from croniter import croniter, CroniterBadCronError, CroniterBadDateError, CroniterNotAlphaError
-from sqlalchemy import or_
+from croniter import CroniterBadCronError, CroniterBadDateError, CroniterNotAlphaError, croniter
 
 from airflow import settings
 from airflow.configuration import conf
@@ -37,11 +36,10 @@ from airflow.exceptions import AirflowDagCycleException
 from airflow.executors import get_default_executor
 from airflow.stats import Stats
 from airflow.utils import timezone
-from airflow.utils.dag_processing import list_py_file_paths, correct_maybe_zipped
+from airflow.utils.dag_processing import correct_maybe_zipped, list_py_file_paths
 from airflow.utils.db import provide_session
 from airflow.utils.helpers import pprinttable
 from airflow.utils.log.logging_mixin import LoggingMixin
-from airflow.utils.state import State
 from airflow.utils.timeout import timeout
 
 
@@ -72,6 +70,9 @@ class DagBag(BaseDagBag, LoggingMixin):
     CYCLE_NEW = 0
     CYCLE_IN_PROGRESS = 1
     CYCLE_DONE = 2
+    DAGBAG_IMPORT_TIMEOUT = conf.getint('core', 'DAGBAG_IMPORT_TIMEOUT')
+    UNIT_TEST_MODE = conf.getboolean('core', 'UNIT_TEST_MODE')
+    SCHEDULER_ZOMBIE_TASK_THRESHOLD = conf.getint('scheduler', 'scheduler_zombie_task_threshold')
 
     def __init__(
             self,
@@ -194,7 +195,7 @@ class DagBag(BaseDagBag, LoggingMixin):
             if mod_name in sys.modules:
                 del sys.modules[mod_name]
 
-            with timeout(conf.getint('core', "DAGBAG_IMPORT_TIMEOUT")):
+            with timeout(self.DAGBAG_IMPORT_TIMEOUT):
                 try:
                     m = imp.load_source(mod_name, filepath)
                     mods.append(m)
@@ -270,46 +271,34 @@ class DagBag(BaseDagBag, LoggingMixin):
         return found_dags
 
     @provide_session
-    def kill_zombies(self, session=None):
+    def kill_zombies(self, zombies, session=None):
         """
-        Fail zombie tasks, which are tasks that haven't
+        Fail given zombie tasks, which are tasks that haven't
         had a heartbeat for too long, in the current DagBag.
 
+        :param zombies: zombie task instances to kill.
+        :type zombies: airflow.utils.dag_processing.SimpleTaskInstance
         :param session: DB session.
         :type session: sqlalchemy.orm.session.Session
         """
-        # Avoid circular import
-        from airflow.models.taskinstance import TaskInstance as TI
-        from airflow.jobs import LocalTaskJob as LJ
+        from airflow.models.taskinstance import TaskInstance  # Avoid circular import
 
-        # How many seconds do we wait for tasks to heartbeat before mark them as zombies.
-        zombie_threshold_secs = (
-            conf.getint('scheduler', 'scheduler_zombie_task_threshold'))
-        limit_dttm = timezone.utcnow() - timedelta(
-            seconds=zombie_threshold_secs)
-        self.log.debug("Failing jobs without heartbeat after %s", limit_dttm)
-
-        tis = (
-            session.query(TI)
-            .join(LJ, TI.job_id == LJ.id)
-            .filter(TI.state == State.RUNNING)
-            .filter(TI.dag_id.in_(self.dags))
-            .filter(
-                or_(
-                    LJ.state != State.RUNNING,
-                    LJ.latest_heartbeat < limit_dttm,
-                )
-            ).all()
-        )
-        for ti in tis:
-            self.log.info("Detected zombie job with dag_id %s, task_id %s, and execution date %s",
-                          ti.dag_id, ti.task_id, ti.execution_date.isoformat())
-            ti.test_mode = conf.getboolean('core', 'unit_test_mode')
-            ti.task = self.dags[ti.dag_id].get_task(ti.task_id)
-            ti.handle_failure("{} detected as zombie".format(ti),
-                              ti.test_mode, ti.get_template_context())
-            self.log.info('Marked zombie job %s as %s', ti, ti.state)
-            Stats.incr('zombies_killed')
+        for zombie in zombies:
+            if zombie.dag_id in self.dags:
+                dag = self.dags[zombie.dag_id]
+                if zombie.task_id in dag.task_ids:
+                    task = dag.get_task(zombie.task_id)
+                    ti = TaskInstance(task, zombie.execution_date)
+                    # Get properties needed for failure handling from SimpleTaskInstance.
+                    ti.start_date = zombie.start_date
+                    ti.end_date = zombie.end_date
+                    ti.try_number = zombie.try_number
+                    ti.state = zombie.state
+                    ti.test_mode = self.UNIT_TEST_MODE
+                    ti.handle_failure("{} detected as zombie".format(ti),
+                                      ti.test_mode, ti.get_template_context())
+                    self.log.info('Marked zombie job %s as %s', ti, ti.state)
+                    Stats.incr('zombies_killed')
         session.commit()
 
     def bag_dag(self, dag, parent_dag, root_dag):
@@ -366,7 +355,6 @@ class DagBag(BaseDagBag, LoggingMixin):
         **Note**: The patterns in .airflowignore are treated as
         un-anchored regexes, not shell-like glob patterns.
         """
-        start_dttm = timezone.utcnow()
         dag_folder = dag_folder or self.dag_folder
         # Used to store stats around DagBag processing
         stats = []
@@ -389,7 +377,7 @@ class DagBag(BaseDagBag, LoggingMixin):
                 td = td.total_seconds() + (
                     float(td.microseconds) / 1000000)
                 stats.append(FileLoadStat(
-                    filepath.replace(dag_folder, ''),
+                    filepath.replace(settings.DAGS_FOLDER, ''),
                     td,
                     len(found_dags),
                     sum([len(dag.tasks) for dag in found_dags]),
@@ -397,16 +385,11 @@ class DagBag(BaseDagBag, LoggingMixin):
                 ))
             except Exception as e:
                 self.log.exception(e)
-        Stats.gauge(
-            'collect_dags', (timezone.utcnow() - start_dttm).total_seconds(), 1)
-        Stats.gauge(
-            'dagbag_size', len(self.dags), 1)
-        Stats.gauge(
-            'dagbag_import_errors', len(self.import_errors), 1)
         self.dagbag_stats = sorted(
             stats, key=lambda x: x.duration, reverse=True)
         for file_stat in self.dagbag_stats:
             # file_stat.file similar format: /subdir/dag_name.py
+            # TODO: Remove for Airflow 2.0
             filename = file_stat.file.split('/')[-1].replace('.py', '')
             Stats.timing('dag.loading-duration.{}'.
                          format(filename),

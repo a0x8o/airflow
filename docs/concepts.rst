@@ -376,7 +376,7 @@ DAGs/tasks:
 .. image:: img/task_manual_vs_scheduled.png
 
 The DAGs/tasks with a black border are scheduled runs, whereas the non-bordered
-DAGs/tasks are manually triggered, i.e. by `airflow dags trigger`.
+DAGs/tasks are manually triggered, i.e. by ``airflow dags trigger``.
 
 Workflows
 =========
@@ -792,9 +792,9 @@ detailing the list of tasks that missed their SLA. The event is also recorded
 in the database and made available in the web UI under ``Browse->SLA Misses``
 where events can be analyzed and documented.
 
-SLAs can be configured for scheduled tasks by using the `sla` parameter.
-In addition to sending alerts to the addresses specified in a task's `email` parameter,
-the `sla_miss_callback` specifies an additional `Callable`
+SLAs can be configured for scheduled tasks by using the ``sla`` parameter.
+In addition to sending alerts to the addresses specified in a task's ``email`` parameter,
+the ``sla_miss_callback`` specifies an additional ``Callable``
 object to be invoked when the SLA is not met.
 
 Email Configuration
@@ -825,6 +825,8 @@ For example a ``html_content_template`` file could look like this:
   Host: {{ti.hostname}}<br>
   Log file: {{ti.log_filepath}}<br>
   Mark success: <a href="{{ti.mark_success_url}}">Link</a><br>
+
+.. _concepts/trigger_rule:
 
 Trigger Rules
 =============
@@ -1093,6 +1095,61 @@ You can use Jinja templating with every parameter that is marked as "templated"
 in the documentation. Template substitution occurs just before the pre_execute
 function of your operator is called.
 
+You can also use Jinja templating with nested fields, as long as these nested fields
+are marked as templated in the structure they belong to: fields registered in
+``template_fields`` property will be submitted to template substitution, like the
+``path`` field in the example below:
+
+.. code:: python
+
+  class MyDataReader:
+    template_fields = ['path']
+
+    def __init__(self, my_path):
+      self.path = my_path
+
+    # [additional code here...]
+
+  t = PythonOperator(
+      task_id='transform_data',
+      python_callable=transform_data
+      op_args=[
+        MyDataReader('/tmp/{{ ds }}/my_file')
+      ],
+      dag=dag)
+
+.. note:: ``template_fields`` property can equally be a class variable or an
+   instance variable.
+
+Deep nested fields can also be substituted, as long as all intermediate fields are
+marked as template fields:
+
+.. code:: python
+
+  class MyDataTransformer:
+    template_fields = ['reader']
+
+    def __init__(self, my_reader):
+      self.reader = my_reader
+
+    # [additional code here...]
+
+  class MyDataReader:
+    template_fields = ['path']
+
+    def __init__(self, my_path):
+      self.path = my_path
+
+    # [additional code here...]
+
+  t = PythonOperator(
+      task_id='transform_data',
+      python_callable=transform_data
+      op_args=[
+        MyDataTransformer(MyDataReader('/tmp/{{ ds }}/my_file'))
+      ],
+      dag=dag)
+
 You can pass custom options to the Jinja ``Environment`` when creating your DAG.
 One common usage is to avoid Jinja from dropping a trailing newline from a
 template string:
@@ -1178,8 +1235,8 @@ For example, you can prepare a ``.airflowignore`` file with contents
     tenant_[\d]
 
 
-Then files like "project_a_dag_1.py", "TESTING_project_a.py", "tenant_1.py",
-"project_a/dag_1.py", and "tenant_1/dag_1.py" in your ``DAG_FOLDER`` would be ignored
+Then files like ``project_a_dag_1.py``, ``TESTING_project_a.py``, ``tenant_1.py``,
+``project_a/dag_1.py``, and ``tenant_1/dag_1.py`` in your ``DAG_FOLDER`` would be ignored
 (If a directory's name matches any of the patterns, this directory and all its subfolders
 would not be scanned by Airflow at all. This improves efficiency of DAG finding).
 

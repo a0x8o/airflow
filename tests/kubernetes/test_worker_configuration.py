@@ -19,8 +19,10 @@
 import unittest
 import uuid
 from datetime import datetime
+
 from tests.compat import mock
 from tests.test_utils.config import conf_vars
+
 try:
     from airflow.executors.kubernetes_executor import AirflowKubernetesScheduler
     from airflow.executors.kubernetes_executor import KubeConfig
@@ -70,6 +72,11 @@ class TestKubernetesWorkerConfiguration(unittest.TestCase):
             'operator': 'Exists'
         }
     ]
+
+    worker_annotations_config = {
+        'iam.amazonaws.com/role': 'role-arn',
+        'other/annotation': 'value'
+    }
 
     def setUp(self):
         if AirflowKubernetesScheduler is None:
@@ -310,6 +317,21 @@ class TestKubernetesWorkerConfiguration(unittest.TestCase):
 
         self.assertIsNone(init_containers[0].security_context)
 
+    def test_init_environment_using_git_sync_run_as_user_root(self):
+        # Tests if git_syn_run_as_user is '0', securityContext is created with
+        # the right uid
+
+        self.kube_config.dags_volume_claim = None
+        self.kube_config.dags_volume_host = None
+        self.kube_config.dags_in_image = None
+        self.kube_config.git_sync_run_as_user = 0
+
+        worker_config = WorkerConfiguration(self.kube_config)
+        init_containers = worker_config._get_init_containers()
+        self.assertTrue(init_containers)  # check not empty
+
+        self.assertEqual(0, init_containers[0].security_context.run_as_user)
+
     def test_make_pod_run_as_user_0(self):
         # Tests the pod created with run-as-user 0 actually gets that in it's config
         self.kube_config.worker_run_as_user = 0
@@ -425,6 +447,7 @@ class TestKubernetesWorkerConfiguration(unittest.TestCase):
     def test_make_pod_with_empty_executor_config(self):
         self.kube_config.kube_affinity = self.affinity_config
         self.kube_config.kube_tolerations = self.tolerations_config
+        self.kube_config.kube_annotations = self.worker_annotations_config
         self.kube_config.dags_folder = 'dags'
         worker_config = WorkerConfiguration(self.kube_config)
 
@@ -441,6 +464,8 @@ class TestKubernetesWorkerConfiguration(unittest.TestCase):
 
         self.assertEqual(2, len(pod.spec.tolerations))
         self.assertEqual('prod', pod.spec.tolerations[1]['key'])
+        self.assertEqual('role-arn', pod.metadata.annotations['iam.amazonaws.com/role'])
+        self.assertEqual('value', pod.metadata.annotations['other/annotation'])
 
     def test_make_pod_with_executor_config(self):
         self.kube_config.dags_folder = 'dags'
