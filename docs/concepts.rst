@@ -80,6 +80,8 @@ Sometimes this can be put to good use. For example, a common pattern with
 ``SubDagOperator`` is to define the subdag inside a function so that Airflow
 doesn't try to load it as a standalone DAG.
 
+.. _default-args:
+
 Default Arguments
 -----------------
 
@@ -122,7 +124,7 @@ actually gets done.
 An operator describes a single task in a workflow. Operators are usually (but
 not always) atomic, meaning they can stand on their own and don't need to share
 resources with any other operators. The DAG will make sure that operators run in
-the correct certain order; other than those dependencies, operators generally
+the correct order; other than those dependencies, operators generally
 run independently. In fact, they may run on two completely different machines.
 
 This is a subtle but very important point: in general, if two operators need to

@@ -114,10 +114,10 @@ class DagFileProcessor(AbstractDagFileProcessor, LoggingMixin):
         :type dag_id_white_list: list[unicode]
         :param thread_name: the name to use for the process that is launched
         :type thread_name: unicode
-        :return: the process that was launched
-        :rtype: multiprocessing.Process
         :param zombies: zombie task instances to kill
         :type zombies: list[airflow.utils.dag_processing.SimpleTaskInstance]
+        :return: the process that was launched
+        :rtype: multiprocessing.Process
         """
         # This helper runs in the newly created process
         log = logging.getLogger("airflow.processor")
@@ -499,8 +499,10 @@ class SchedulerJob(BaseJob):
             <pre><code>{blocking_task_list}\n{bug}<code></pre>
             """.format(task_list=task_list, blocking_task_list=blocking_task_list,
                        bug=asciiart.bug)
+
+            tasks_missed_sla = [dag.get_task(sla.task_id) for sla in slas]
             emails = set()
-            for task in dag.tasks:
+            for task in tasks_missed_sla:
                 if task.email:
                     if isinstance(task.email, str):
                         emails |= set(get_email_address_list(task.email))

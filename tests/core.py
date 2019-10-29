@@ -27,7 +27,6 @@ import signal
 import subprocess
 import tempfile
 import unittest
-import warnings
 from datetime import timedelta
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
@@ -55,7 +54,6 @@ from airflow.models import (
 )
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.check_operator import CheckOperator, ValueCheckOperator
-from airflow.operators.dagrun_operator import TriggerDagRunOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.python_operator import PythonOperator
 from airflow.settings import Session
@@ -63,6 +61,7 @@ from airflow.utils import timezone
 from airflow.utils.dates import days_ago, infer_time_unit, round_time, scale_time_units
 from airflow.utils.state import State
 from airflow.utils.timezone import datetime
+from airflow.version import version
 from tests.test_utils.config import conf_vars
 
 DEV_NULL = '/dev/null'
@@ -442,18 +441,32 @@ class TestCore(unittest.TestCase):
         """
         Tests that Operators reject illegal arguments
         """
-        with warnings.catch_warnings(record=True) as w:
+        msg = 'Invalid arguments were passed to BashOperator '
+        '(task_id: test_illegal_args).'
+        with conf_vars({('operators', 'allow_illegal_arguments'): 'True'}):
+            with self.assertWarns(PendingDeprecationWarning) as warning:
+                BashOperator(
+                    task_id='test_illegal_args',
+                    bash_command='echo success',
+                    dag=self.dag,
+                    illegal_argument_1234='hello?')
+                assert any(msg in str(w) for w in warning.warnings)
+
+    def test_illegal_args_forbidden(self):
+        """
+        Tests that operators raise exceptions on illegal arguments when
+        illegal arguments are not allowed.
+        """
+        with self.assertRaises(AirflowException) as ctx:
             BashOperator(
                 task_id='test_illegal_args',
                 bash_command='echo success',
                 dag=self.dag,
                 illegal_argument_1234='hello?')
-            self.assertTrue(
-                issubclass(w[0].category, PendingDeprecationWarning))
-            self.assertIn(
-                ('Invalid arguments were passed to BashOperator '
-                 '(task_id: test_illegal_args).'),
-                w[0].message.args[0])
+        self.assertIn(
+            ('Invalid arguments were passed to BashOperator '
+             '(task_id: test_illegal_args).'),
+            str(ctx.exception))
 
     def test_bash_operator(self):
         t = BashOperator(
@@ -510,18 +523,6 @@ class TestCore(unittest.TestCase):
             t.run,
             start_date=DEFAULT_DATE, end_date=DEFAULT_DATE, ignore_ti_state=True)
         self.assertTrue(data['called'])
-
-    def test_trigger_dagrun(self):
-        def trigga(_, obj):
-            if True:
-                return obj
-
-        t = TriggerDagRunOperator(
-            task_id='test_trigger_dagrun',
-            trigger_dag_id='example_bash_operator',
-            python_callable=trigga,
-            dag=self.dag)
-        t.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE, ignore_ti_state=True)
 
     def test_dryrun(self):
         t = BashOperator(
@@ -967,60 +968,6 @@ class TestCore(unittest.TestCase):
 
         self.assertEqual(run_command('echo "foo bar"'), 'foo bar\n')
         self.assertRaises(AirflowConfigException, run_command, 'bash -c "exit 1"')
-
-    def test_trigger_dagrun_with_execution_date(self):
-        utc_now = timezone.utcnow()
-        run_id = 'trig__' + utc_now.isoformat()
-
-        def payload_generator(context, object):  # pylint: disable=unused-argument
-            object.run_id = run_id
-            return object
-
-        task = TriggerDagRunOperator(task_id='test_trigger_dagrun_with_execution_date',
-                                     trigger_dag_id='example_bash_operator',
-                                     python_callable=payload_generator,
-                                     execution_date=utc_now,
-                                     dag=self.dag)
-        task.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE, ignore_ti_state=True)
-        dag_runs = DagRun.find(dag_id='example_bash_operator', run_id=run_id)
-        self.assertEqual(len(dag_runs), 1)
-        dag_run = dag_runs[0]
-        self.assertEqual(dag_run.execution_date, utc_now)
-
-    def test_trigger_dagrun_with_str_execution_date(self):
-        utc_now_str = timezone.utcnow().isoformat()
-        self.assertIsInstance(utc_now_str, (str,))
-        run_id = 'trig__' + utc_now_str
-
-        def payload_generator(context, object):  # pylint: disable=unused-argument
-            object.run_id = run_id
-            return object
-
-        task = TriggerDagRunOperator(
-            task_id='test_trigger_dagrun_with_str_execution_date',
-            trigger_dag_id='example_bash_operator',
-            python_callable=payload_generator,
-            execution_date=utc_now_str,
-            dag=self.dag)
-        task.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE, ignore_ti_state=True)
-        dag_runs = DagRun.find(dag_id='example_bash_operator', run_id=run_id)
-        self.assertEqual(len(dag_runs), 1)
-        dag_run = dag_runs[0]
-        self.assertEqual(dag_run.execution_date.isoformat(), utc_now_str)
-
-    def test_trigger_dagrun_with_templated_execution_date(self):
-        task = TriggerDagRunOperator(
-            task_id='test_trigger_dagrun_with_str_execution_date',
-            trigger_dag_id='example_bash_operator',
-            execution_date='{{ execution_date }}',
-            dag=self.dag)
-
-        self.assertTrue(isinstance(task.execution_date, str))
-        self.assertEqual(task.execution_date, '{{ execution_date }}')
-
-        ti = TaskInstance(task=task, execution_date=DEFAULT_DATE)
-        ti.render_templates()
-        self.assertEqual(timezone.parse(task.execution_date), DEFAULT_DATE)
 
     def test_externally_triggered_dagrun(self):
         TI = TaskInstance
@@ -1845,6 +1792,12 @@ class TestCli(unittest.TestCase):
         os.remove('variables2.json')
         os.remove('variables3.json')
 
+    def test_cli_version(self):
+        with mock.patch('sys.stdout', new_callable=io.StringIO) as mock_stdout:
+            cli.version(self.parser.parse_args(['version']))
+            stdout = mock_stdout.getvalue()
+        self.assertIn(version, stdout)
+
     def _wait_pidfile(self, pidfile):
         while True:
             try:
@@ -1945,6 +1898,7 @@ class FakeSnakeBiteClient:
     def ls(self, path, include_toplevel=False):
         """
         the fake snakebite client
+
         :param path: the array of path to test
         :param include_toplevel: to return the toplevel directory info
         :return: a list for path for the matching queries
