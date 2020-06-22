@@ -33,6 +33,8 @@ in_container_basic_sanity_check
 
 in_container_script_start
 
+TRAVIS=${TRAVIS:=}
+
 AIRFLOW_SOURCES=$(cd "${MY_DIR}/../../.." || exit 1; pwd)
 
 PYTHON_VERSION=${PYTHON_VERSION:=3.6}
@@ -105,7 +107,7 @@ if [[ ! -d "${AIRFLOW_SOURCES}/airflow/www/static/dist" ]]; then
 fi
 
 export HADOOP_DISTRO="${HADOOP_DISTRO:="cdh"}"
-export HADOOP_HOME="${HADOOP_HOME:="/tmp/hadoop-cdh"}"
+export HADOOP_HOME="${HADOOP_HOME:="/opt/hadoop-cdh"}"
 
 if [[ ${AIRFLOW_CI_VERBOSE} == "true" ]]; then
     echo
@@ -138,7 +140,7 @@ mkdir -p "${AIRFLOW_SOURCES}"/tmp/
 
 if [[ "${ENV}" == "docker" ]]; then
     # Start MiniCluster
-    java -cp "/tmp/minicluster-1.1-SNAPSHOT/*" com.ing.minicluster.MiniCluster \
+    java -cp "/opt/minicluster-1.1-SNAPSHOT/*" com.ing.minicluster.MiniCluster \
         >"${AIRFLOW_HOME}/logs/minicluster.log" 2>&1 &
 
     # Set up ssh keys
@@ -217,45 +219,39 @@ if [[ "${RUN_TESTS}" == "false" ]]; then
     fi
 fi
 
-if [[ ${#ARGS} == 0 ]]; then
-    ARGS=("--with-coverage"
-          "--cover-erase"
-          "--cover-html"
-          "--cover-package=airflow"
-          "--cover-html-dir=airflow/www/static/coverage"
-          "--with-ignore-docstrings"
-          "--rednose"
-          "--with-xunit"
-          "--xunit-file=${XUNIT_FILE}"
-          "--with-timer"
-          "-v"
-          "--logging-level=INFO")
-    echo
-    echo "Running ALL Tests"
-    echo
-else
-    echo
-    echo "Running tests with ${ARGS[*]}"
-    echo
-fi
 set -u
 
 KUBERNETES_VERSION=${KUBERNETES_VERSION:=""}
 
+if [[ "${TRAVIS}" == "true" ]]; then
+    TRAVIS_ARGS=(
+        "--junitxml=${XUNIT_FILE}"
+        "--verbosity=0"
+        "--durations=100"
+        "--cov=airflow/"
+        "--cov-config=.coveragerc"
+        "--cov-report=html:airflow/www/static/coverage/"
+        "--pythonwarnings=ignore::DeprecationWarning"
+        "--pythonwarnings=ignore::PendingDeprecationWarning"
+        )
+else
+    TRAVIS_ARGS=()
+fi
+
+
 if [[ -z "${KUBERNETES_VERSION}" ]]; then
-    echo
-    echo "Running CI tests with ${ARGS[*]}"
-    echo
+    ARGS=("${TRAVIS_ARGS[@]}" "tests/")
     "${MY_DIR}/run_ci_tests.sh" "${ARGS[@]}"
 else
+    export SKIP_INIT_DB=true
     echo "Set up Kubernetes cluster for tests"
     "${MY_DIR}/../kubernetes/setup_kubernetes.sh"
     "${MY_DIR}/../kubernetes/app/deploy_app.sh" -d "${KUBERNETES_MODE}"
 
-    echo
-    echo "Running CI tests with ${ARGS[*]}"
-    echo
-    "${MY_DIR}/run_ci_tests.sh" tests.integration.kubernetes "${ARGS[@]}"
+    ARGS=("${TRAVIS_ARGS[@]}" "tests/integration/kubernetes")
+    "${MY_DIR}/run_ci_tests.sh" "${ARGS[@]}"
 fi
+
+export PYTHONPATH=${AIRFLOW_SOURCES}
 
 in_container_script_end

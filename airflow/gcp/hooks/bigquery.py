@@ -37,12 +37,12 @@ from pandas_gbq.gbq import (
 )
 
 from airflow import AirflowException
-from airflow.gcp.hooks.base import GoogleCloudBaseHook
+from airflow.gcp.hooks.base import CloudBaseHook
 from airflow.hooks.dbapi_hook import DbApiHook
 from airflow.utils.log.logging_mixin import LoggingMixin
 
 
-class BigQueryHook(GoogleCloudBaseHook, DbApiHook):
+class BigQueryHook(CloudBaseHook, DbApiHook):
     """
     Interact with BigQuery. This hook uses the Google Cloud Platform
     connection.
@@ -329,22 +329,10 @@ class BigQueryBaseCursor(LoggingMixin):
 
         num_retries = num_retries if num_retries else self.num_retries
 
-        self.log.info('Creating Table %s:%s.%s',
-                      project_id, dataset_id, table_id)
-
-        try:
-            self.service.tables().insert(
-                projectId=project_id,
-                datasetId=dataset_id,
-                body=table_resource).execute(num_retries=num_retries)
-
-            self.log.info('Table created successfully: %s:%s.%s',
-                          project_id, dataset_id, table_id)
-
-        except HttpError as err:
-            raise AirflowException(
-                'BigQuery job failed. Error was: {}'.format(err.content)
-            )
+        self.service.tables().insert(
+            projectId=project_id,
+            datasetId=dataset_id,
+            body=table_resource).execute(num_retries=num_retries)
 
     def create_external_table(self,  # pylint: disable=too-many-locals,too-many-arguments
                               external_project_dataset_table: str,
@@ -540,20 +528,14 @@ class BigQueryBaseCursor(LoggingMixin):
         if encryption_configuration:
             table_resource["encryptionConfiguration"] = encryption_configuration
 
-        try:
-            self.service.tables().insert(
-                projectId=project_id,
-                datasetId=dataset_id,
-                body=table_resource
-            ).execute(num_retries=self.num_retries)
+        self.service.tables().insert(
+            projectId=project_id,
+            datasetId=dataset_id,
+            body=table_resource
+        ).execute(num_retries=self.num_retries)
 
-            self.log.info('External table created successfully: %s',
-                          external_project_dataset_table)
-
-        except HttpError as err:
-            raise Exception(
-                'BigQuery job failed. Error was: {}'.format(err.content)
-            )
+        self.log.info('External table created successfully: %s',
+                      external_project_dataset_table)
 
     def patch_table(self,  # pylint: disable=too-many-arguments
                     dataset_id: str,
@@ -1748,20 +1730,9 @@ class BigQueryBaseCursor(LoggingMixin):
         dataset_id = dataset_reference.get("datasetReference").get("datasetId")  # type: ignore
         dataset_project_id = dataset_reference.get("datasetReference").get("projectId")  # type: ignore
 
-        self.log.info('Creating Dataset: %s in project: %s ', dataset_id,
-                      dataset_project_id)
-
-        try:
-            self.service.datasets().insert(
-                projectId=dataset_project_id,
-                body=dataset_reference).execute(num_retries=self.num_retries)
-            self.log.info('Dataset created successfully: In project %s '
-                          'Dataset %s', dataset_project_id, dataset_id)
-
-        except HttpError as err:
-            raise AirflowException(
-                'BigQuery job failed. Error was: {}'.format(err.content)
-            )
+        self.service.datasets().insert(
+            projectId=dataset_project_id,
+            body=dataset_reference).execute(num_retries=self.num_retries)
 
     def delete_dataset(self, project_id: str, dataset_id: str, delete_contents: bool = False) -> None:
         """
@@ -1874,6 +1845,69 @@ class BigQueryBaseCursor(LoggingMixin):
                 'BigQuery job failed. Error was: {}'.format(err.content))
 
         return datasets_list
+
+    @CloudBaseHook.catch_http_exception
+    def get_dataset_tables_list(self, dataset_id, project_id=None, table_prefix=None, max_results=None):
+        """
+        Method returns tables list of a BigQuery dataset. If table prefix is specified,
+        only tables beginning by it are returned.
+
+        .. seealso::
+            For more information, see:
+            https://cloud.google.com/bigquery/docs/reference/rest/v2/tables/list
+
+        :param dataset_id: The BigQuery Dataset ID
+        :type dataset_id: str
+        :param project_id: The GCP Project ID
+        :type project_id: str
+        :param table_prefix: Tables must begin by this prefix to be returned (case sensitive)
+        :type table_prefix: str
+        :param max_results: The maximum number of results to return in a single response page.
+            Leverage the page tokens to iterate through the entire collection.
+        :type max_results: int
+        :return: dataset_tables_list
+
+            Example of returned dataset_tables_list: ::
+
+                    [
+                       {
+                          "projectId": "your-project",
+                          "datasetId": "dataset",
+                          "tableId": "table1"
+                        },
+                        {
+                          "projectId": "your-project",
+                          "datasetId": "dataset",
+                          "tableId": "table2"
+                        }
+                    ]
+        """
+
+        dataset_project_id = project_id if project_id else self.project_id
+
+        optional_params = {}
+        if max_results:
+            optional_params['maxResults'] = max_results
+
+        request = self.service.tables().list(projectId=dataset_project_id,
+                                             datasetId=dataset_id,
+                                             **optional_params)
+        dataset_tables_list = []
+        while request is not None:
+            response = request.execute(num_retries=self.num_retries)
+
+            for table in response.get('tables', []):
+                table_ref = table.get('tableReference')
+                table_id = table_ref.get('tableId')
+                if table_id and (not table_prefix or table_id.startswith(table_prefix)):
+                    dataset_tables_list.append(table_ref)
+
+            request = self.service.tables().list_next(previous_request=request,
+                                                      previous_response=response)
+
+        self.log.info("%s tables found", len(dataset_tables_list))
+
+        return dataset_tables_list
 
     def patch_dataset(self, dataset_id: str, dataset_resource: str, project_id: Optional[str] = None) -> Dict:
         """

@@ -80,11 +80,11 @@ def revoke_permissions():
 
 
 def check_original_docker_image():
-    if not os.path.isfile('/.dockerenv') or os.environ.get('APT_DEPS_IMAGE') is None:
+    if not os.path.isfile('/.dockerenv') or os.environ.get('PYTHON_BASE_IMAGE') is None:
         raise unittest.SkipTest("""Adding/removing a user as part of a test is very bad for host os
 (especially if the user already existed to begin with on the OS), therefore we check if we run inside a
 the official docker container and only allow to run the test there. This is done by checking /.dockerenv
-file (always present inside container) and checking for APT_DEPS_IMAGE variable.
+file (always present inside container) and checking for PYTHON_BASE_IMAGE variable.
 """)
 
 
@@ -161,20 +161,16 @@ class TestImpersonation(unittest.TestCase):
             'test_superuser',
         )
 
+    @unittest.mock.patch.dict('os.environ', AIRFLOW__CORE__DEFAULT_IMPERSONATION=TEST_USER)
     def test_default_impersonation(self):
         """
         If default_impersonation=TEST_USER, tests that the job defaults
         to running as TEST_USER for a test without run_as_user set
         """
-        os.environ['AIRFLOW__CORE__DEFAULT_IMPERSONATION'] = TEST_USER
-
-        try:
-            self.run_backfill(
-                'test_default_impersonation',
-                'test_deelevated_user'
-            )
-        finally:
-            del os.environ['AIRFLOW__CORE__DEFAULT_IMPERSONATION']
+        self.run_backfill(
+            'test_default_impersonation',
+            'test_deelevated_user'
+        )
 
     def test_impersonation_subdag(self):
         """

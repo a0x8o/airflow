@@ -20,6 +20,8 @@
 # Bash sanity settings (error on exit, complain for undefined vars, error when pipe fails)
 set -euo pipefail
 
+export BREEZE=true
+
 MY_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 export AIRFLOW_SOURCES="${MY_DIR}"
@@ -60,7 +62,7 @@ SEPARATOR_WIDTH="$(tput cols)"
 CMDNAME="$(basename -- "$0")"
 
 # Update short and long options in the breeze-complete script
-# This way autocomplete will work automagically with all options
+# This way autocomplete will work automatically with all options
 # shellcheck source=breeze-complete
 . "${MY_DIR}/breeze-complete"
 
@@ -105,10 +107,7 @@ export AIRFLOW_CONTAINER_PUSH_IMAGES=${AIRFLOW_CONTAINER_PUSH_IMAGES:="false"}
 # For local builds we fix file permissions only for setup-related files
 export AIRFLOW_FIX_PERMISSIONS=${AIRFLOW_FIX_PERMISSIONS:="setup"}
 
-# Skip building slim image locally - we only need full CI image
-export AIRFLOW_CONTAINER_SKIP_CI_SLIM_IMAGE="true"
-
-# Skip building full CI image locally - we only need slim image
+# Skip building full CI image locally
 export AIRFLOW_CONTAINER_SKIP_CI_IMAGE="false"
 
 # Branch name of the base image used (usually master or v1-10-test or v1-10-stable)
@@ -335,9 +334,9 @@ The swiss-knife-army tool for Airflow testings. It allows to perform various tes
 -t, --test-target <TARGET>
         Run the specified unit test target. There might be multiple
         targets specified separated with comas. The <EXTRA_ARGS> passed after -- are treated
-        as additional options passed to nosetest. For example:
+        as additional options passed to pytest. For example:
 
-        '${0} --test-target tests.core -- --logging-level=DEBUG'
+        '${0} --test-target tests/test_core.py -- --logging-level=DEBUG'
 
 -x, --execute-command <COMMAND>
         Run chosen command instead of entering the environment. The command is run using
@@ -682,7 +681,7 @@ echo
 CMDNAME="$(basename -- "$0")"
 
 # Cleans up the answer that was given last time, whether to force/
-cleanup_last_force_answer
+forget_last_answer
 
 export ENV="${ENV:=$(read_from_file ENV)}"
 export BACKEND="${BACKEND:=$(read_from_file BACKEND)}"
@@ -935,8 +934,6 @@ prepare_command_file "${BUILD_CACHE_DIR}/${LAST_DC_TEST_FILE}" "${DC_RUN_COMMAND
 prepare_command_file "${BUILD_CACHE_DIR}/${LAST_DC_FILE}" '"' "false"
 
 rebuild_ci_image_if_needed
-rebuild_ci_slim_image_if_needed
-rebuild_checklicence_image_if_needed
 
 export AIRFLOW_CONTAINER_DOCKER_IMAGE=\
 ${DOCKERHUB_USER}/${DOCKERHUB_REPO}:${AIRFLOW_CONTAINER_BRANCH_NAME}-python${PYTHON_VERSION}-ci
@@ -944,7 +941,7 @@ ${DOCKERHUB_USER}/${DOCKERHUB_REPO}:${AIRFLOW_CONTAINER_BRANCH_NAME}-python${PYT
 printf '=%.0s' $(seq "${SEPARATOR_WIDTH}")
 
 if [[ "${TEST_TARGET}" == "." ]]; then
-    TEST_TARGET=""
+    TEST_TARGET="tests/"
 fi
 
 print_badge

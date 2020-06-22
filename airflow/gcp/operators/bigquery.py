@@ -17,19 +17,22 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint:disable=too-many-lines
+# pylint: disable=too-many-lines
 """
 This module contains Google BigQuery operators.
 """
 
 import json
 import warnings
-from typing import Any, Dict, Iterable, List, Optional, SupportsAbs, Union
+from typing import Any, Dict, FrozenSet, Iterable, List, Optional, SupportsAbs, Union
+
+import attr
+from googleapiclient.errors import HttpError
 
 from airflow.exceptions import AirflowException
 from airflow.gcp.hooks.bigquery import BigQueryHook
 from airflow.gcp.hooks.gcs import GoogleCloudStorageHook, _parse_gcs_url
-from airflow.models.baseoperator import BaseOperator, BaseOperatorLink
+from airflow.models import BaseOperator, BaseOperatorLink
 from airflow.models.taskinstance import TaskInstance
 from airflow.operators.check_operator import CheckOperator, IntervalCheckOperator, ValueCheckOperator
 from airflow.utils.decorators import apply_defaults
@@ -335,14 +338,13 @@ class BigQueryConsoleLink(BaseOperatorLink):
         return BIGQUERY_JOB_DETAILS_LINK_FMT.format(job_id=job_id) if job_id else ''
 
 
+@attr.s(auto_attribs=True)
 class BigQueryConsoleIndexableLink(BaseOperatorLink):
     """
     Helper class for constructing BigQuery link.
     """
 
-    def __init__(self, index) -> None:
-        super().__init__()
-        self.index = index
+    index: int = attr.ib()
 
     @property
     def name(self) -> str:
@@ -362,7 +364,8 @@ class BigQueryConsoleIndexableLink(BaseOperatorLink):
 # pylint: disable=too-many-instance-attributes
 class BigQueryOperator(BaseOperator):
     """
-    Executes BigQuery SQL queries in a specific BigQuery database
+    Executes BigQuery SQL queries in a specific BigQuery database.
+    This operator does not assert idempotency.
 
     :param sql: the sql code to be executed (templated)
     :type sql: Can receive a str representing a sql statement,
@@ -455,6 +458,9 @@ class BigQueryOperator(BaseOperator):
     template_fields = ('sql', 'destination_dataset_table', 'labels')
     template_ext = ('.sql', )
     ui_color = '#e4f0e8'
+
+    # The _serialized_fields are lazily loaded when get_serialized_fields() method is called
+    __serialized_fields: Optional[FrozenSet[str]] = None
 
     @property
     def operator_extra_links(self):
@@ -590,6 +596,13 @@ class BigQueryOperator(BaseOperator):
         if self.bq_cursor is not None:
             self.log.info('Cancelling running query')
             self.bq_cursor.cancel_query()
+
+    @classmethod
+    def get_serialized_fields(cls):
+        """Serialized BigQueryOperator contain exactly these fields."""
+        if not cls.__serialized_fields:
+            cls.__serialized_fields = frozenset(super().get_serialized_fields() | {"sql"})
+        return cls.__serialized_fields
 
 
 class BigQueryCreateEmptyTableOperator(BaseOperator):
@@ -746,15 +759,26 @@ class BigQueryCreateEmptyTableOperator(BaseOperator):
         conn = bq_hook.get_conn()
         cursor = conn.cursor()
 
-        cursor.create_empty_table(
-            project_id=self.project_id,
-            dataset_id=self.dataset_id,
-            table_id=self.table_id,
-            schema_fields=schema_fields,
-            time_partitioning=self.time_partitioning,
-            labels=self.labels,
-            encryption_configuration=self.encryption_configuration
-        )
+        try:
+            self.log.info('Creating Table %s:%s.%s',
+                          self.project_id, self.dataset_id, self.table_id)
+            cursor.create_empty_table(
+                project_id=self.project_id,
+                dataset_id=self.dataset_id,
+                table_id=self.table_id,
+                schema_fields=schema_fields,
+                time_partitioning=self.time_partitioning,
+                labels=self.labels,
+                encryption_configuration=self.encryption_configuration
+            )
+            self.log.info('Table created successfully: %s:%s.%s',
+                          self.project_id, self.dataset_id, self.table_id)
+        except HttpError as err:
+            if err.resp.status != 409:
+                raise
+            else:
+                self.log.info('Table %s:%s.%s already exists.', self.project_id,
+                              self.dataset_id, self.table_id)
 
 
 # pylint: disable=too-many-instance-attributes
@@ -917,22 +941,26 @@ class BigQueryCreateExternalTableOperator(BaseOperator):
         conn = bq_hook.get_conn()
         cursor = conn.cursor()
 
-        cursor.create_external_table(
-            external_project_dataset_table=self.destination_project_dataset_table,
-            schema_fields=schema_fields,
-            source_uris=source_uris,
-            source_format=self.source_format,
-            compression=self.compression,
-            skip_leading_rows=self.skip_leading_rows,
-            field_delimiter=self.field_delimiter,
-            max_bad_records=self.max_bad_records,
-            quote_character=self.quote_character,
-            allow_quoted_newlines=self.allow_quoted_newlines,
-            allow_jagged_rows=self.allow_jagged_rows,
-            src_fmt_configs=self.src_fmt_configs,
-            labels=self.labels,
-            encryption_configuration=self.encryption_configuration
-        )
+        try:
+            cursor.create_external_table(
+                external_project_dataset_table=self.destination_project_dataset_table,
+                schema_fields=schema_fields,
+                source_uris=source_uris,
+                source_format=self.source_format,
+                compression=self.compression,
+                skip_leading_rows=self.skip_leading_rows,
+                field_delimiter=self.field_delimiter,
+                max_bad_records=self.max_bad_records,
+                quote_character=self.quote_character,
+                allow_quoted_newlines=self.allow_quoted_newlines,
+                allow_jagged_rows=self.allow_jagged_rows,
+                src_fmt_configs=self.src_fmt_configs,
+                labels=self.labels,
+                encryption_configuration=self.encryption_configuration
+            )
+        except HttpError as err:
+            if err.resp.status != 409:
+                raise
 
 
 class BigQueryDeleteDatasetOperator(BaseOperator):
@@ -1083,11 +1111,18 @@ class BigQueryCreateEmptyDatasetOperator(BaseOperator):
         conn = bq_hook.get_conn()
         cursor = conn.cursor()
 
-        cursor.create_empty_dataset(
-            project_id=self.project_id,
-            dataset_id=self.dataset_id,
-            dataset_reference=self.dataset_reference,
-            location=self.location)
+        try:
+            self.log.info('Creating Dataset: %s in project: %s ', self.dataset_id, self.project_id)
+            cursor.create_empty_dataset(
+                project_id=self.project_id,
+                dataset_id=self.dataset_id,
+                dataset_reference=self.dataset_reference,
+                location=self.location)
+            self.log.info('Dataset created successfully.')
+        except HttpError as err:
+            if err.resp.status != 409:
+                raise
+            self.log.info('Dataset %s already exists.', self.dataset_id)
 
 
 class BigQueryGetDatasetOperator(BaseOperator):

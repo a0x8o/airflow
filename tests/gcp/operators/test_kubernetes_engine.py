@@ -84,7 +84,7 @@ class TestGoogleCloudPlatformContainerOperator(unittest.TestCase):
                                      body=body,
                                      task_id=PROJECT_TASK_ID)
 
-    # pylint:disable=no-value-for-parameter
+    # pylint: disable=no-value-for-parameter
     @mock.patch('airflow.gcp.operators.kubernetes_engine.GKEClusterHook')
     def test_create_execute_error_project_id(self, mock_hook):
         with self.assertRaises(AirflowException):
@@ -92,7 +92,7 @@ class TestGoogleCloudPlatformContainerOperator(unittest.TestCase):
                                      body=PROJECT_BODY,
                                      task_id=PROJECT_TASK_ID)
 
-    # pylint:disable=no-value-for-parameter
+    # pylint: disable=no-value-for-parameter
     @mock.patch('airflow.gcp.operators.kubernetes_engine.GKEClusterHook')
     def test_create_execute_error_location(self, mock_hook):
         with self.assertRaises(AirflowException):
@@ -111,7 +111,7 @@ class TestGoogleCloudPlatformContainerOperator(unittest.TestCase):
         mock_hook.return_value.delete_cluster.assert_called_once_with(
             name=CLUSTER_NAME, project_id=TEST_GCP_PROJECT_ID)
 
-    # pylint:disable=no-value-for-parameter
+    # pylint: disable=no-value-for-parameter
     @mock.patch('airflow.gcp.operators.kubernetes_engine.GKEClusterHook')
     def test_delete_execute_error_project_id(self, mock_hook):
         with self.assertRaises(AirflowException):
@@ -119,7 +119,7 @@ class TestGoogleCloudPlatformContainerOperator(unittest.TestCase):
                                      name=CLUSTER_NAME,
                                      task_id=PROJECT_TASK_ID)
 
-    # pylint:disable=no-value-for-parameter
+    # pylint: disable=no-value-for-parameter
     @mock.patch('airflow.gcp.operators.kubernetes_engine.GKEClusterHook')
     def test_delete_execute_error_cluster_name(self, mock_hook):
         with self.assertRaises(AirflowException):
@@ -127,7 +127,7 @@ class TestGoogleCloudPlatformContainerOperator(unittest.TestCase):
                                      location=PROJECT_LOCATION,
                                      task_id=PROJECT_TASK_ID)
 
-    # pylint:disable=no-value-for-parameter
+    # pylint: disable=no-value-for-parameter
     @mock.patch('airflow.gcp.operators.kubernetes_engine.GKEClusterHook')
     def test_delete_execute_error_location(self, mock_hook):
         with self.assertRaises(AirflowException):
@@ -145,14 +145,12 @@ class TestGKEPodOperator(unittest.TestCase):
                                      name=TASK_NAME,
                                      namespace=NAMESPACE,
                                      image=IMAGE)
-        if CREDENTIALS in os.environ:
-            del os.environ[CREDENTIALS]
 
     def test_template_fields(self):
         self.assertTrue(set(KubernetesPodOperator.template_fields).issubset(
             GKEPodOperator.template_fields))
 
-    # pylint:disable=unused-argument
+    # pylint: disable=unused-argument
     @mock.patch(
         "airflow.hooks.base_hook.BaseHook.get_connections",
         return_value=[Connection(
@@ -188,7 +186,7 @@ class TestGKEPodOperator(unittest.TestCase):
 
         self.assertEqual(self.gke_op.config_file, FILE_NAME)
 
-    # pylint:disable=unused-argument
+    # pylint: disable=unused-argument
     @mock.patch(
         "airflow.hooks.base_hook.BaseHook.get_connections",
         return_value=[Connection(
@@ -225,7 +223,7 @@ class TestGKEPodOperator(unittest.TestCase):
 
         self.assertEqual(self.gke_op.config_file, FILE_NAME)
 
-    # pylint:disable=unused-argument
+    # pylint: disable=unused-argument
     @mock.patch.dict(os.environ, {})
     @mock.patch(
         "airflow.hooks.base_hook.BaseHook.get_connections",

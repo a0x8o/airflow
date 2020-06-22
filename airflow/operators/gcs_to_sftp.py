@@ -24,9 +24,9 @@ from tempfile import NamedTemporaryFile
 from typing import Optional
 
 from airflow import AirflowException
-from airflow.contrib.hooks.sftp_hook import SFTPHook
 from airflow.gcp.hooks.gcs import GoogleCloudStorageHook
 from airflow.models import BaseOperator
+from airflow.providers.sftp.hooks.sftp_hook import SFTPHook
 from airflow.utils.decorators import apply_defaults
 
 WILDCARD = "*"
@@ -35,6 +35,10 @@ WILDCARD = "*"
 class GoogleCloudStorageToSFTPOperator(BaseOperator):
     """
     Transfer files from a Google Cloud Storage bucket to SFTP server.
+
+    .. seealso::
+        For more information on how to use this operator, take a look at the guide:
+        :ref:`howto/operator:GoogleCloudStorageToSFTPOperator`
 
     :param source_bucket: The source Google cloud storage bucket where the
          object is. (templated)

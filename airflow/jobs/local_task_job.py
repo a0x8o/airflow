@@ -20,7 +20,6 @@
 
 import os
 import signal
-import time
 
 from airflow.configuration import conf
 from airflow.exceptions import AirflowException
@@ -112,13 +111,6 @@ class LocalTaskJob(BaseJob):
                                            "exceeded limit ({}s)."
                                            .format(time_since_last_heartbeat,
                                                    heartbeat_time_limit))
-
-                if time_since_last_heartbeat < self.heartrate:
-                    sleep_for = self.heartrate - time_since_last_heartbeat
-                    self.log.info("Time since last heartbeat(%.2f s) < heartrate(%s s)"
-                                  ", sleeping for %s s", time_since_last_heartbeat,
-                                  self.heartrate, sleep_for)
-                    time.sleep(sleep_for)
         finally:
             self.on_kill()
 
@@ -138,18 +130,18 @@ class LocalTaskJob(BaseJob):
         self.task_instance.refresh_from_db()
         ti = self.task_instance
 
-        fqdn = get_hostname()
-        same_hostname = fqdn == ti.hostname
-        same_process = ti.pid == os.getpid()
-
         if ti.state == State.RUNNING:
+            fqdn = get_hostname()
+            same_hostname = fqdn == ti.hostname
             if not same_hostname:
                 self.log.warning("The recorded hostname %s "
                                  "does not match this instance's hostname "
                                  "%s", ti.hostname, fqdn)
                 raise AirflowException("Hostname of job runner does not match")
-            elif not same_process:
-                current_pid = os.getpid()
+
+            current_pid = os.getpid()
+            same_process = ti.pid == current_pid
+            if not same_process:
                 self.log.warning("Recorded pid %s does not match "
                                  "the current pid %s", ti.pid, current_pid)
                 raise AirflowException("PID of job runner does not match")
