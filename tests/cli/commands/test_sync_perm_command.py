@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -20,52 +19,35 @@
 import unittest
 from unittest import mock
 
-from airflow import DAG, models
-from airflow.bin import cli
+from airflow.cli import cli_parser
 from airflow.cli.commands import sync_perm_command
-from airflow.settings import Session
 
 
 class TestCliSyncPerm(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.dagbag = models.DagBag(include_examples=True)
-        cls.parser = cli.CLIFactory.get_parser()
+        cls.parser = cli_parser.get_parser()
 
-    def setUp(self):
-        from airflow.www import app as application
-        self.app, self.appbuilder = application.create_app(session=Session, testing=True)
+    @mock.patch("airflow.cli.commands.sync_perm_command.cached_app")
+    def test_cli_sync_perm(self, mock_cached_app):
+        appbuilder = mock_cached_app.return_value.appbuilder
+        appbuilder.sm = mock.Mock()
 
-    @mock.patch("airflow.cli.commands.sync_perm_command.DagBag")
-    def test_cli_sync_perm(self, dagbag_mock):
-        self.expect_dagbag_contains([
-            DAG('has_access_control',
-                access_control={
-                    'Public': {'can_dag_read'}
-                }),
-            DAG('no_access_control')
-        ], dagbag_mock)
-        self.appbuilder.sm = mock.Mock()
-
-        args = self.parser.parse_args([
-            'sync_perm'
-        ])
+        args = self.parser.parse_args(['sync-perm'])
         sync_perm_command.sync_perm(args)
 
-        assert self.appbuilder.sm.sync_roles.call_count == 1
+        appbuilder.add_permissions.assert_called_once_with(update_perms=True)
+        appbuilder.sm.sync_roles.assert_called_once_with()
+        appbuilder.sm.create_dag_specific_permissions.assert_not_called()
 
-        self.assertEqual(2,
-                         len(self.appbuilder.sm.sync_perm_for_dag.mock_calls))
-        self.appbuilder.sm.sync_perm_for_dag.assert_any_call(
-            'has_access_control',
-            {'Public': {'can_dag_read'}}
-        )
-        self.appbuilder.sm.sync_perm_for_dag.assert_any_call(
-            'no_access_control',
-            None,
-        )
+    @mock.patch("airflow.cli.commands.sync_perm_command.cached_app")
+    def test_cli_sync_perm_include_dags(self, mock_cached_app):
+        appbuilder = mock_cached_app.return_value.appbuilder
+        appbuilder.sm = mock.Mock()
 
-    def expect_dagbag_contains(self, dags, dagbag_mock):
-        dagbag = mock.Mock()
-        dagbag.dags = {dag.dag_id: dag for dag in dags}
-        dagbag_mock.return_value = dagbag
+        args = self.parser.parse_args(['sync-perm', '--include-dags'])
+        sync_perm_command.sync_perm(args)
+
+        appbuilder.add_permissions.assert_called_once_with(update_perms=True)
+        appbuilder.sm.sync_roles.assert_called_once_with()
+        appbuilder.sm.create_dag_specific_permissions.assert_called_once_with()

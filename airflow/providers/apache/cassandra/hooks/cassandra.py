@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -17,19 +16,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""
-This module contains hook to integrate with Apache Cassandra.
-"""
+"""This module contains hook to integrate with Apache Cassandra."""
 
 from typing import Any, Dict, Union
 
 from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster, Session
 from cassandra.policies import (
-    DCAwareRoundRobinPolicy, RoundRobinPolicy, TokenAwarePolicy, WhiteListRoundRobinPolicy,
+    DCAwareRoundRobinPolicy,
+    RoundRobinPolicy,
+    TokenAwarePolicy,
+    WhiteListRoundRobinPolicy,
 )
 
-from airflow.hooks.base_hook import BaseHook
+from airflow.hooks.base import BaseHook
 from airflow.utils.log.logging_mixin import LoggingMixin
 
 Policy = Union[DCAwareRoundRobinPolicy, RoundRobinPolicy, TokenAwarePolicy, WhiteListRoundRobinPolicy]
@@ -82,7 +82,14 @@ class CassandraHook(BaseHook, LoggingMixin):
 
     For details of the Cluster config, see cassandra.cluster.
     """
-    def __init__(self, cassandra_conn_id: str = 'cassandra_default'):
+
+    conn_name_attr = 'cassandra_conn_id'
+    default_conn_name = 'cassandra_default'
+    conn_type = 'cassandra'
+    hook_name = 'Cassandra'
+
+    def __init__(self, cassandra_conn_id: str = default_conn_name):
+        super().__init__()
         conn = self.get_connection(cassandra_conn_id)
 
         conn_config = {}
@@ -93,8 +100,7 @@ class CassandraHook(BaseHook, LoggingMixin):
             conn_config['port'] = int(conn.port)
 
         if conn.login:
-            conn_config['auth_provider'] = PlainTextAuthProvider(
-                username=conn.login, password=conn.password)
+            conn_config['auth_provider'] = PlainTextAuthProvider(username=conn.login, password=conn.password)
 
         policy_name = conn.extra_dejson.get('load_balancing_policy', None)
         policy_args = conn.extra_dejson.get('load_balancing_policy_args', {})
@@ -110,29 +116,27 @@ class CassandraHook(BaseHook, LoggingMixin):
         if ssl_options:
             conn_config['ssl_options'] = ssl_options
 
+        protocol_version = conn.extra_dejson.get('protocol_version', None)
+        if protocol_version:
+            conn_config['protocol_version'] = protocol_version
+
         self.cluster = Cluster(**conn_config)
         self.keyspace = conn.schema
         self.session = None
 
     def get_conn(self) -> Session:
-        """
-        Returns a cassandra Session object
-        """
+        """Returns a cassandra Session object"""
         if self.session and not self.session.is_shutdown:
             return self.session
         self.session = self.cluster.connect(self.keyspace)
         return self.session
 
     def get_cluster(self) -> Cluster:
-        """
-        Returns Cassandra cluster.
-        """
+        """Returns Cassandra cluster."""
         return self.cluster
 
     def shutdown_cluster(self) -> None:
-        """
-        Closes all sessions and connections associated with this Cluster.
-        """
+        """Closes all sessions and connections associated with this Cluster."""
         if not self.cluster.is_shutdown:
             self.cluster.shutdown()
 
@@ -142,9 +146,7 @@ class CassandraHook(BaseHook, LoggingMixin):
         Creates load balancing policy.
 
         :param policy_name: Name of the policy to use.
-        :type policy_name: str
         :param policy_args: Parameters for the policy.
-        :type policy_args: Dict
         """
         if policy_name == 'DCAwareRoundRobinPolicy':
             local_dc = policy_args.get('local_dc', '')
@@ -158,17 +160,17 @@ class CassandraHook(BaseHook, LoggingMixin):
             return WhiteListRoundRobinPolicy(hosts)
 
         if policy_name == 'TokenAwarePolicy':
-            allowed_child_policies = ('RoundRobinPolicy',
-                                      'DCAwareRoundRobinPolicy',
-                                      'WhiteListRoundRobinPolicy',)
-            child_policy_name = policy_args.get('child_load_balancing_policy',
-                                                'RoundRobinPolicy')
+            allowed_child_policies = (
+                'RoundRobinPolicy',
+                'DCAwareRoundRobinPolicy',
+                'WhiteListRoundRobinPolicy',
+            )
+            child_policy_name = policy_args.get('child_load_balancing_policy', 'RoundRobinPolicy')
             child_policy_args = policy_args.get('child_load_balancing_policy_args', {})
             if child_policy_name not in allowed_child_policies:
                 return TokenAwarePolicy(RoundRobinPolicy())
             else:
-                child_policy = CassandraHook.get_lb_policy(child_policy_name,
-                                                           child_policy_args)
+                child_policy = CassandraHook.get_lb_policy(child_policy_name, child_policy_args)
                 return TokenAwarePolicy(child_policy)
 
         # Fallback to default RoundRobinPolicy
@@ -180,14 +182,12 @@ class CassandraHook(BaseHook, LoggingMixin):
 
         :param table: Target Cassandra table.
                       Use dot notation to target a specific keyspace.
-        :type table: str
         """
         keyspace = self.keyspace
         if '.' in table:
             keyspace, table = table.split('.', 1)
         cluster_metadata = self.get_conn().cluster.metadata
-        return (keyspace in cluster_metadata.keyspaces and
-                table in cluster_metadata.keyspaces[keyspace].tables)
+        return keyspace in cluster_metadata.keyspaces and table in cluster_metadata.keyspaces[keyspace].tables
 
     def record_exists(self, table: str, keys: Dict[str, str]) -> bool:
         """
@@ -195,9 +195,7 @@ class CassandraHook(BaseHook, LoggingMixin):
 
         :param table: Target Cassandra table.
                       Use dot notation to target a specific keyspace.
-        :type table: str
         :param keys: The keys and their values to check the existence.
-        :type keys: dict
         """
         keyspace = self.keyspace
         if '.' in table:
@@ -207,5 +205,5 @@ class CassandraHook(BaseHook, LoggingMixin):
         try:
             result = self.get_conn().execute(query, keys)
             return result.one() is not None
-        except Exception:  # pylint: disable=broad-except
+        except Exception:
             return False

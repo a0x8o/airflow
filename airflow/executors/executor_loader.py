@@ -15,23 +15,49 @@
 # specific language governing permissions and limitations
 # under the License.
 """All executors."""
-from typing import Optional
+import logging
+from contextlib import suppress
+from enum import Enum, unique
+from typing import Optional, Tuple, Type
 
+from airflow.exceptions import AirflowConfigException
 from airflow.executors.base_executor import BaseExecutor
+from airflow.executors.executor_constants import (
+    CELERY_EXECUTOR,
+    CELERY_KUBERNETES_EXECUTOR,
+    DASK_EXECUTOR,
+    DEBUG_EXECUTOR,
+    KUBERNETES_EXECUTOR,
+    LOCAL_EXECUTOR,
+    SEQUENTIAL_EXECUTOR,
+)
+from airflow.utils.module_loading import import_string
+
+log = logging.getLogger(__name__)
+
+
+@unique
+class ConnectorSource(Enum):
+    """Enum of supported executor import sources."""
+
+    CORE = "core"
+    PLUGIN = "plugin"
+    CUSTOM_PATH = "custom path"
 
 
 class ExecutorLoader:
-    """
-    Keeps constants for all the currently available executors.
-    """
-
-    LOCAL_EXECUTOR = "LocalExecutor"
-    SEQUENTIAL_EXECUTOR = "SequentialExecutor"
-    CELERY_EXECUTOR = "CeleryExecutor"
-    DASK_EXECUTOR = "DaskExecutor"
-    KUBERNETES_EXECUTOR = "KubernetesExecutor"
+    """Keeps constants for all the currently available executors."""
 
     _default_executor: Optional[BaseExecutor] = None
+    executors = {
+        LOCAL_EXECUTOR: 'airflow.executors.local_executor.LocalExecutor',
+        SEQUENTIAL_EXECUTOR: 'airflow.executors.sequential_executor.SequentialExecutor',
+        CELERY_EXECUTOR: 'airflow.executors.celery_executor.CeleryExecutor',
+        CELERY_KUBERNETES_EXECUTOR: 'airflow.executors.celery_kubernetes_executor.CeleryKubernetesExecutor',
+        DASK_EXECUTOR: 'airflow.executors.dask_executor.DaskExecutor',
+        KUBERNETES_EXECUTOR: 'airflow.executors.kubernetes_executor.KubernetesExecutor',
+        DEBUG_EXECUTOR: 'airflow.executors.debug_executor.DebugExecutor',
+    }
 
     @classmethod
     def get_default_executor(cls) -> BaseExecutor:
@@ -40,47 +66,78 @@ class ExecutorLoader:
             return cls._default_executor
 
         from airflow.configuration import conf
+
         executor_name = conf.get('core', 'EXECUTOR')
 
-        cls._default_executor = ExecutorLoader._get_executor(executor_name)
-
-        from airflow import LoggingMixin
-        log = LoggingMixin().log
-        log.info("Using executor %s", executor_name)
+        cls._default_executor = cls.load_executor(executor_name)
 
         return cls._default_executor
 
-    @staticmethod
-    def _get_executor(executor_name: str) -> BaseExecutor:
+    @classmethod
+    def load_executor(cls, executor_name: str) -> BaseExecutor:
         """
-        Creates a new instance of the named executor.
-        In case the executor name is unknown in airflow,
-        look for it in the plugins
+        Loads the executor.
+
+        This supports the following formats:
+        * by executor name for core executor
+        * by ``{plugin_name}.{class_name}`` for executor from plugins
+        * by import path.
+
+        :return: an instance of executor class via executor_name
         """
-        if executor_name == ExecutorLoader.LOCAL_EXECUTOR:
-            from airflow.executors.local_executor import LocalExecutor
-            return LocalExecutor()
-        elif executor_name == ExecutorLoader.SEQUENTIAL_EXECUTOR:
-            from airflow.executors.sequential_executor import SequentialExecutor
-            return SequentialExecutor()
-        elif executor_name == ExecutorLoader.CELERY_EXECUTOR:
-            from airflow.executors.celery_executor import CeleryExecutor
-            return CeleryExecutor()
-        elif executor_name == ExecutorLoader.DASK_EXECUTOR:
-            from airflow.executors.dask_executor import DaskExecutor
-            return DaskExecutor()
-        elif executor_name == ExecutorLoader.KUBERNETES_EXECUTOR:
-            from airflow.executors.kubernetes_executor import KubernetesExecutor
-            return KubernetesExecutor()
-        else:
-            # Load plugins here for executors as at that time the plugins might not have been initialized yet
-            # TODO: verify the above and remove two lines below in case plugins are always initialized first
-            from airflow import plugins_manager
-            plugins_manager.integrate_executor_plugins()
-            executor_path = executor_name.split('.')
-            if len(executor_path) != 2:
-                raise ValueError(f"Executor {executor_name} not supported: "
-                                 f"please specify in format plugin_module.executor")
-            if executor_path[0] not in globals():
-                raise ValueError(f"Executor {executor_name} not supported")
-            return globals()[executor_path[0]].__dict__[executor_path[1]]()
+        if executor_name == CELERY_KUBERNETES_EXECUTOR:
+            return cls.__load_celery_kubernetes_executor()
+        try:
+            executor_cls, import_source = cls.import_executor_cls(executor_name)
+            log.debug("Loading executor %s from %s", executor_name, import_source.value)
+        except ImportError as e:
+            log.error(e)
+            raise AirflowConfigException(
+                f'The module/attribute could not be loaded. Please check "executor" key in "core" section. '
+                f'Current value: "{executor_name}".'
+            )
+        log.info("Loaded executor: %s", executor_name)
+
+        return executor_cls()
+
+    @classmethod
+    def import_executor_cls(cls, executor_name: str) -> Tuple[Type[BaseExecutor], ConnectorSource]:
+        """
+        Imports the executor class.
+
+        Supports the same formats as ExecutorLoader.load_executor.
+
+        :return: executor class via executor_name and executor import source
+        """
+        if executor_name in cls.executors:
+            return import_string(cls.executors[executor_name]), ConnectorSource.CORE
+        if executor_name.count(".") == 1:
+            log.debug(
+                "The executor name looks like the plugin path (executor_name=%s). Trying to import a "
+                "executor from a plugin",
+                executor_name,
+            )
+            with suppress(ImportError, AttributeError):
+                # Load plugins here for executors as at that time the plugins might not have been
+                # initialized yet
+                from airflow import plugins_manager
+
+                plugins_manager.integrate_executor_plugins()
+                return import_string(f"airflow.executors.{executor_name}"), ConnectorSource.PLUGIN
+        return import_string(executor_name), ConnectorSource.CUSTOM_PATH
+
+    @classmethod
+    def __load_celery_kubernetes_executor(cls) -> BaseExecutor:
+        """:return: an instance of CeleryKubernetesExecutor"""
+        celery_executor = import_string(cls.executors[CELERY_EXECUTOR])()
+        kubernetes_executor = import_string(cls.executors[KUBERNETES_EXECUTOR])()
+
+        celery_kubernetes_executor_cls = import_string(cls.executors[CELERY_KUBERNETES_EXECUTOR])
+        return celery_kubernetes_executor_cls(celery_executor, kubernetes_executor)
+
+
+UNPICKLEABLE_EXECUTORS = (
+    LOCAL_EXECUTOR,
+    SEQUENTIAL_EXECUTOR,
+    DASK_EXECUTOR,
+)

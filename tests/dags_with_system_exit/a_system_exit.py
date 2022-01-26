@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -27,8 +26,6 @@ from airflow.models import DAG
 
 DEFAULT_DATE = datetime(2100, 1, 1)
 
-dag1 = DAG(
-    dag_id='test_system_exit',
-    start_date=DEFAULT_DATE)
+dag1 = DAG(dag_id='test_system_exit', start_date=DEFAULT_DATE)
 
 sys.exit(-1)

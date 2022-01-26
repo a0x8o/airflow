@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -33,19 +32,18 @@ class Resource:
     Represents a resource requirement in an execution environment for an operator.
 
     :param name: Name of the resource
-    :type name: str
     :param units_str: The string representing the units of a resource (e.g. MB for a CPU
         resource) to be used for display purposes
-    :type units_str: str
     :param qty: The number of units of the specified resource that are required for
         execution of the operator.
-    :type qty: long
     """
+
     def __init__(self, name, units_str, qty):
         if qty < 0:
             raise AirflowException(
-                'Received resource quantity {} for resource {} but resource quantity '
-                'must be non-negative.'.format(qty, name))
+                f'Received resource quantity {qty} for resource {name}, '
+                f'but resource quantity must be non-negative.'
+            )
 
         self._name = name
         self._units_str = units_str
@@ -59,33 +57,47 @@ class Resource:
 
     @property
     def name(self):
+        """Name of the resource."""
         return self._name
 
     @property
     def units_str(self):
+        """The string representing the units of a resource."""
         return self._units_str
 
     @property
     def qty(self):
+        """
+        The number of units of the specified resource that are required for
+        execution of the operator.
+        """
         return self._qty
 
 
 class CpuResource(Resource):
+    """Represents a CPU requirement in an execution environment for an operator."""
+
     def __init__(self, qty):
         super().__init__('CPU', 'core(s)', qty)
 
 
 class RamResource(Resource):
+    """Represents a RAM requirement in an execution environment for an operator."""
+
     def __init__(self, qty):
         super().__init__('RAM', 'MB', qty)
 
 
 class DiskResource(Resource):
+    """Represents a disk requirement in an execution environment for an operator."""
+
     def __init__(self, qty):
         super().__init__('Disk', 'MB', qty)
 
 
 class GpuResource(Resource):
+    """Represents a GPU requirement in an execution environment for an operator."""
+
     def __init__(self, qty):
         super().__init__('GPU', 'gpu(s)', qty)
 
@@ -96,20 +108,18 @@ class Resources:
     default values from the airflow config.
 
     :param cpus: The number of cpu cores that are required
-    :type cpus: long
     :param ram: The amount of RAM required
-    :type ram: long
     :param disk: The amount of disk space required
-    :type disk: long
     :param gpus: The number of gpu units that are required
-    :type gpus: long
     """
-    def __init__(self,
-                 cpus=conf.getint('operators', 'default_cpus'),
-                 ram=conf.getint('operators', 'default_ram'),
-                 disk=conf.getint('operators', 'default_disk'),
-                 gpus=conf.getint('operators', 'default_gpus')
-                 ):
+
+    def __init__(
+        self,
+        cpus=conf.getint('operators', 'default_cpus'),
+        ram=conf.getint('operators', 'default_ram'),
+        disk=conf.getint('operators', 'default_disk'),
+        gpus=conf.getint('operators', 'default_gpus'),
+    ):
         self.cpus = CpuResource(cpus)
         self.ram = RamResource(ram)
         self.disk = DiskResource(disk)

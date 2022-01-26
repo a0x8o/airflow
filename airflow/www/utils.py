@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -16,77 +15,121 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-import functools
-import inspect
-import io
 import json
-import os
-import re
+import textwrap
 import time
-import zipfile
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlencode
 
-import flask_appbuilder.models.sqla.filters as fab_sqlafilters
 import markdown
 import sqlalchemy as sqla
-from flask import Markup, Response, request, url_for
+from flask import Response, request, url_for
+from flask.helpers import flash
+from flask_appbuilder.forms import FieldConverter
+from flask_appbuilder.models.filters import BaseFilter
+from flask_appbuilder.models.sqla import filters as fab_sqlafilters
+from flask_appbuilder.models.sqla.filters import get_field_setup_query, set_value_to_type
 from flask_appbuilder.models.sqla.interface import SQLAInterface
+from flask_babel import lazy_gettext
+from markupsafe import Markup
+from pendulum.datetime import DateTime
 from pygments import highlight, lexers
 from pygments.formatters import HtmlFormatter
+from sqlalchemy.ext.associationproxy import AssociationProxy
 
-from airflow.configuration import conf
-from airflow.models.baseoperator import BaseOperator
-from airflow.operators.subdag_operator import SubDagOperator
+from airflow import models
+from airflow.models import errors
 from airflow.utils import timezone
+from airflow.utils.code_utils import get_python_source
 from airflow.utils.json import AirflowJsonEncoder
 from airflow.utils.state import State
+from airflow.www.forms import DateTimeWithTimezoneField
+from airflow.www.widgets import AirflowDateTimePickerWidget
 
-DEFAULT_SENSITIVE_VARIABLE_FIELDS = (
-    'password',
-    'secret',
-    'passwd',
-    'authorization',
-    'api_key',
-    'apikey',
-    'access_token',
-)
+
+def datetime_to_string(value: Optional[DateTime]) -> Optional[str]:
+    if value is None:
+        return None
+    return value.isoformat()
+
+
+def encode_ti(task_instance: Optional[models.TaskInstance]) -> Optional[Dict[str, Any]]:
+    if not task_instance:
+        return None
+
+    return {
+        'task_id': task_instance.task_id,
+        'dag_id': task_instance.dag_id,
+        'run_id': task_instance.run_id,
+        'state': task_instance.state,
+        'duration': task_instance.duration,
+        'start_date': datetime_to_string(task_instance.start_date),
+        'end_date': datetime_to_string(task_instance.end_date),
+        'operator': task_instance.operator,
+        'execution_date': datetime_to_string(task_instance.execution_date),
+        'try_number': task_instance.try_number,
+    }
+
+
+def encode_dag_run(dag_run: Optional[models.DagRun]) -> Optional[Dict[str, Any]]:
+    if not dag_run:
+        return None
+
+    return {
+        'dag_id': dag_run.dag_id,
+        'run_id': dag_run.run_id,
+        'start_date': datetime_to_string(dag_run.start_date),
+        'end_date': datetime_to_string(dag_run.end_date),
+        'state': dag_run.state,
+        'execution_date': datetime_to_string(dag_run.execution_date),
+        'data_interval_start': datetime_to_string(dag_run.data_interval_start),
+        'data_interval_end': datetime_to_string(dag_run.data_interval_end),
+        'run_type': dag_run.run_type,
+    }
+
+
+def check_import_errors(fileloc, session):
+    # Check dag import errors
+    import_errors = session.query(errors.ImportError).filter(errors.ImportError.filename == fileloc).all()
+    if import_errors:
+        for import_error in import_errors:
+            flash("Broken DAG: [{ie.filename}] {ie.stacktrace}".format(ie=import_error), "dag_import_error")
+
+
+def get_sensitive_variables_fields():
+    import warnings
+
+    from airflow.utils.log.secrets_masker import get_sensitive_variables_fields
+
+    warnings.warn(
+        "This function is deprecated. Please use "
+        "`airflow.utils.log.secrets_masker.get_sensitive_variables_fields`",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return get_sensitive_variables_fields()
 
 
 def should_hide_value_for_key(key_name):
-    # It is possible via importing variables from file that a key is empty.
-    if key_name:
-        config_set = conf.getboolean('admin',
-                                     'hide_sensitive_variable_fields')
-        field_comp = any(s in key_name.lower() for s in DEFAULT_SENSITIVE_VARIABLE_FIELDS)
-        return config_set and field_comp
-    return False
+    import warnings
+
+    from airflow.utils.log.secrets_masker import should_hide_value_for_key
+
+    warnings.warn(
+        "This function is deprecated. Please use "
+        "`airflow.utils.log.secrets_masker.should_hide_value_for_key`",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return should_hide_value_for_key(key_name)
 
 
 def get_params(**kwargs):
-    hide_paused_dags_by_default = conf.getboolean('webserver',
-                                                  'hide_paused_dags_by_default')
-    if 'showPaused' in kwargs:
-        show_paused_dags_url_param = kwargs['showPaused']
-        if _should_remove_show_paused_from_url_params(
-            show_paused_dags_url_param,
-            hide_paused_dags_by_default
-        ):
-            kwargs.pop('showPaused')
-    return urlencode({d: v if v is not None else '' for d, v in kwargs.items()})
+    """Return URL-encoded params"""
+    return urlencode({d: v for d, v in kwargs.items() if v is not None}, True)
 
 
-def _should_remove_show_paused_from_url_params(show_paused_dags_url_param,
-                                               hide_paused_dags_by_default):
-    return any([
-        show_paused_dags_url_param != hide_paused_dags_by_default,
-        show_paused_dags_url_param is None
-    ])
-
-
-def generate_pages(current_page, num_of_pages,
-                   search=None, showPaused=None, window=7):
+def generate_pages(current_page, num_of_pages, search=None, status=None, tags=None, window=7):
     """
     Generates the HTML for a paging component using a similar logic to the paging
     auto-generated by Flask managed views. The paging component defines a number of
@@ -95,66 +138,78 @@ def generate_pages(current_page, num_of_pages,
     current one in the middle of the pager component. When in the last pages,
     the pages won't scroll and just keep moving until the last page. Pager also contains
     <first, previous, ..., next, last> pages.
-    This component takes into account custom parameters such as search and showPaused,
+    This component takes into account custom parameters such as search, status, and tags
     which could be added to the pages link in order to maintain the state between
     client and server. It also allows to make a bookmark on a specific paging state.
 
     :param current_page: the current page number, 0-indexed
     :param num_of_pages: the total number of pages
     :param search: the search query string, if any
-    :param showPaused: false if paused dags will be hidden, otherwise true to show them
+    :param status: 'all', 'active', or 'paused'
+    :param tags: array of strings of the current filtered tags
     :param window: the number of pages to be shown in the paging component (7 default)
     :return: the HTML string of the paging component
     """
-
     void_link = 'javascript:void(0)'
-    first_node = Markup("""<li class="paginate_button {disabled}" id="dags_first">
+    first_node = Markup(
+        """<li class="paginate_button {disabled}" id="dags_first">
     <a href="{href_link}" aria-controls="dags" data-dt-idx="0" tabindex="0">&laquo;</a>
-</li>""")
+</li>"""
+    )
 
-    previous_node = Markup("""<li class="paginate_button previous {disabled}" id="dags_previous">
+    previous_node = Markup(
+        """<li class="paginate_button previous {disabled}" id="dags_previous">
     <a href="{href_link}" aria-controls="dags" data-dt-idx="0" tabindex="0">&lsaquo;</a>
-</li>""")
+</li>"""
+    )
 
-    next_node = Markup("""<li class="paginate_button next {disabled}" id="dags_next">
+    next_node = Markup(
+        """<li class="paginate_button next {disabled}" id="dags_next">
     <a href="{href_link}" aria-controls="dags" data-dt-idx="3" tabindex="0">&rsaquo;</a>
-</li>""")
+</li>"""
+    )
 
-    last_node = Markup("""<li class="paginate_button {disabled}" id="dags_last">
+    last_node = Markup(
+        """<li class="paginate_button {disabled}" id="dags_last">
     <a href="{href_link}" aria-controls="dags" data-dt-idx="3" tabindex="0">&raquo;</a>
-</li>""")
+</li>"""
+    )
 
-    page_node = Markup("""<li class="paginate_button {is_active}">
+    page_node = Markup(
+        """<li class="paginate_button {is_active}">
     <a href="{href_link}" aria-controls="dags" data-dt-idx="2" tabindex="0">{page_num}</a>
-</li>""")
+</li>"""
+    )
 
-    output = [Markup('<ul class="pagination" style="margin-top:0px;">')]
+    output = [Markup('<ul class="pagination" style="margin-top:0;">')]
 
     is_disabled = 'disabled' if current_page <= 0 else ''
-    output.append(first_node.format(href_link="?{}"
-                                    .format(get_params(page=0,
-                                                       search=search,
-                                                       showPaused=showPaused)),
-                                    disabled=is_disabled))
+
+    first_node_link = (
+        void_link if is_disabled else f'?{get_params(page=0, search=search, status=status, tags=tags)}'
+    )
+    output.append(
+        first_node.format(
+            href_link=first_node_link,
+            disabled=is_disabled,
+        )
+    )
 
     page_link = void_link
     if current_page > 0:
-        page_link = '?{}'.format(get_params(page=(current_page - 1),
-                                            search=search,
-                                            showPaused=showPaused))
+        page_link = f'?{get_params(page=current_page - 1, search=search, status=status, tags=tags)}'
 
-    output.append(previous_node.format(href_link=page_link,
-                                       disabled=is_disabled))
+    output.append(previous_node.format(href_link=page_link, disabled=is_disabled))
 
     mid = int(window / 2)
     last_page = num_of_pages - 1
 
     if current_page <= mid or num_of_pages < window:
-        pages = [i for i in range(0, min(num_of_pages, window))]
+        pages = list(range(0, min(num_of_pages, window)))
     elif mid < current_page < last_page - mid:
-        pages = [i for i in range(current_page - mid, current_page + mid + 1)]
+        pages = list(range(current_page - mid, current_page + mid + 1))
     else:
-        pages = [i for i in range(num_of_pages - window, last_page + 1)]
+        pages = list(range(num_of_pages - window, last_page + 1))
 
     def is_current(current, page):
         return page == current
@@ -162,27 +217,34 @@ def generate_pages(current_page, num_of_pages,
     for page in pages:
         vals = {
             'is_active': 'active' if is_current(current_page, page) else '',
-            'href_link': void_link if is_current(current_page, page)
-                         else '?{}'.format(get_params(page=page,
-                                                      search=search,
-                                                      showPaused=showPaused)),
-            'page_num': page + 1
+            'href_link': void_link
+            if is_current(current_page, page)
+            else f'?{get_params(page=page, search=search, status=status, tags=tags)}',
+            'page_num': page + 1,
         }
         output.append(page_node.format(**vals))
 
     is_disabled = 'disabled' if current_page >= num_of_pages - 1 else ''
 
-    page_link = (void_link if current_page >= num_of_pages - 1
-                 else '?{}'.format(get_params(page=current_page + 1,
-                                              search=search,
-                                              showPaused=showPaused)))
+    page_link = (
+        void_link
+        if current_page >= num_of_pages - 1
+        else f'?{get_params(page=current_page + 1, search=search, status=status, tags=tags)}'
+    )
 
     output.append(next_node.format(href_link=page_link, disabled=is_disabled))
-    output.append(last_node.format(href_link="?{}"
-                                   .format(get_params(page=last_page,
-                                                      search=search,
-                                                      showPaused=showPaused)),
-                                   disabled=is_disabled))
+
+    last_node_link = (
+        void_link
+        if is_disabled
+        else f'?{get_params(page=last_page, search=search, status=status, tags=tags)}'
+    )
+    output.append(
+        last_node.format(
+            href_link=last_node_link,
+            disabled=is_disabled,
+        )
+    )
 
     output.append(Markup('</ul>'))
 
@@ -190,263 +252,290 @@ def generate_pages(current_page, num_of_pages,
 
 
 def epoch(dttm):
-    """Returns an epoch-type date"""
-    return int(time.mktime(dttm.timetuple())) * 1000,
+    """Returns an epoch-type date (tuple with no timezone)"""
+    return (int(time.mktime(dttm.timetuple())) * 1000,)
 
 
 def json_response(obj):
-    """
-    returns a json response from a json serializable python object
-    """
+    """Returns a json response from a json serializable python object"""
     return Response(
-        response=json.dumps(
-            obj, indent=4, cls=AirflowJsonEncoder),
-        status=200,
-        mimetype="application/json")
-
-
-ZIP_REGEX = re.compile(r'((.*\.zip){})?(.*)'.format(re.escape(os.sep)))
-
-
-def open_maybe_zipped(f, mode='r'):
-    """
-    Opens the given file. If the path contains a folder with a .zip suffix, then
-    the folder is treated as a zip archive, opening the file inside the archive.
-
-    :return: a file object, as in `open`, or as in `ZipFile.open`.
-    """
-
-    _, archive, filename = ZIP_REGEX.search(f).groups()
-    if archive and zipfile.is_zipfile(archive):
-        return zipfile.ZipFile(archive, mode=mode).open(filename)
-    else:
-        return io.open(f, mode=mode)
+        response=json.dumps(obj, indent=4, cls=AirflowJsonEncoder), status=200, mimetype="application/json"
+    )
 
 
 def make_cache_key(*args, **kwargs):
-    """
-    Used by cache to get a unique key per URL
-    """
+    """Used by cache to get a unique key per URL"""
     path = request.path
     args = str(hash(frozenset(request.args.items())))
     return (path + args).encode('ascii', 'ignore')
 
 
 def task_instance_link(attr):
+    """Generates a URL to the Graph view for a TaskInstance."""
     dag_id = attr.get('dag_id')
     task_id = attr.get('task_id')
-    execution_date = attr.get('execution_date')
-    url = url_for(
-        'Airflow.task',
-        dag_id=dag_id,
-        task_id=task_id,
-        execution_date=execution_date.isoformat())
+    execution_date = attr.get('dag_run.execution_date') or attr.get('execution_date') or timezone.utcnow()
+    url = url_for('Airflow.task', dag_id=dag_id, task_id=task_id, execution_date=execution_date.isoformat())
     url_root = url_for(
-        'Airflow.graph',
-        dag_id=dag_id,
-        root=task_id,
-        execution_date=execution_date.isoformat())
+        'Airflow.graph', dag_id=dag_id, root=task_id, execution_date=execution_date.isoformat()
+    )
     return Markup(
         """
         <span style="white-space: nowrap;">
         <a href="{url}">{task_id}</a>
         <a href="{url_root}" title="Filter on this task and upstream">
-        <span class="glyphicon glyphicon-filter" style="margin-left: 0px;"
-            aria-hidden="true"></span>
+        <span class="material-icons" style="margin-left:0;"
+            aria-hidden="true">filter_alt</span>
         </a>
         </span>
-        """).format(url=url, task_id=task_id, url_root=url_root)
+        """
+    ).format(url=url, task_id=task_id, url_root=url_root)
 
 
 def state_token(state):
+    """Returns a formatted string with HTML for a given State"""
     color = State.color(state)
+    fg_color = State.color_fg(state)
     return Markup(
-        '<span class="label" style="background-color:{color};">'
-        '{state}</span>').format(color=color, state=state)
+        """
+        <span class="label" style="color:{fg_color}; background-color:{color};"
+            title="Current State: {state}">{state}</span>
+        """
+    ).format(color=color, state=state, fg_color=fg_color)
 
 
 def state_f(attr):
+    """Gets 'state' & returns a formatted string with HTML for a given State"""
     state = attr.get('state')
     return state_token(state)
 
 
 def nobr_f(attr_name):
+    """Returns a formatted string with HTML with a Non-breaking Text element"""
+
     def nobr(attr):
         f = attr.get(attr_name)
         return Markup("<nobr>{}</nobr>").format(f)
+
     return nobr
 
 
 def datetime_f(attr_name):
+    """Returns a formatted string with HTML for given DataTime"""
+
     def dt(attr):
         f = attr.get(attr_name)
-        f = f.isoformat() if f else ''
-        if timezone.utcnow().isoformat()[:4] == f[:4]:
-            f = f[5:]
-        return Markup("<nobr>{}</nobr>").format(f)
+        return datetime_html(f)
+
     return dt
 
 
+def datetime_html(dttm: Optional[DateTime]) -> str:
+    """Return an HTML formatted string with time element to support timezone changes in UI"""
+    as_iso = dttm.isoformat() if dttm else ''
+    if not as_iso:
+        return Markup('')
+    if timezone.utcnow().isoformat()[:4] == as_iso[:4]:
+        as_iso = as_iso[5:]
+    # The empty title will be replaced in JS code when non-UTC dates are displayed
+    return Markup('<nobr><time title="" datetime="{}">{}</time></nobr>').format(as_iso, as_iso)
+
+
+def json_f(attr_name):
+    """Returns a formatted string with HTML for given JSON serializable"""
+
+    def json_(attr):
+        f = attr.get(attr_name)
+        serialized = json.dumps(f)
+        return Markup('<nobr>{}</nobr>').format(serialized)
+
+    return json_
+
+
 def dag_link(attr):
+    """Generates a URL to the Graph view for a Dag."""
     dag_id = attr.get('dag_id')
     execution_date = attr.get('execution_date')
-    url = url_for(
-        'Airflow.graph',
-        dag_id=dag_id,
-        execution_date=execution_date)
-    return Markup(
-        '<a href="{}">{}</a>').format(url, dag_id)
+    url = url_for('Airflow.graph', dag_id=dag_id, execution_date=execution_date)
+    return Markup('<a href="{}">{}</a>').format(url, dag_id) if dag_id else Markup('None')
 
 
 def dag_run_link(attr):
+    """Generates a URL to the Graph view for a DagRun."""
     dag_id = attr.get('dag_id')
     run_id = attr.get('run_id')
-    execution_date = attr.get('execution_date')
-    url = url_for(
-        'Airflow.graph',
-        dag_id=dag_id,
-        run_id=run_id,
-        execution_date=execution_date)
-    return Markup(
-        '<a href="{url}">{run_id}</a>').format(url=url, run_id=run_id)
+    execution_date = attr.get('dag_run.exectuion_date') or attr.get('execution_date')
+    url = url_for('Airflow.graph', dag_id=dag_id, run_id=run_id, execution_date=execution_date)
+    return Markup('<a href="{url}">{run_id}</a>').format(url=url, run_id=run_id)
 
 
 def pygment_html_render(s, lexer=lexers.TextLexer):
-    return highlight(
-        s,
-        lexer(),
-        HtmlFormatter(linenos=True),
-    )
+    """Highlight text using a given Lexer"""
+    return highlight(s, lexer(), HtmlFormatter(linenos=True))
 
 
 def render(obj, lexer):
+    """Render a given Python object with a given Pygments lexer"""
     out = ""
     if isinstance(obj, str):
-        out += pygment_html_render(obj, lexer)
+        out = Markup(pygment_html_render(obj, lexer))
     elif isinstance(obj, (tuple, list)):
-        for i, s in enumerate(obj):
-            out += "<div>List item #{}</div>".format(i)
-            out += "<div>" + pygment_html_render(s, lexer) + "</div>"
+        for i, text_to_render in enumerate(obj):
+            out += Markup("<div>List item #{}</div>").format(i)
+            out += Markup("<div>" + pygment_html_render(text_to_render, lexer) + "</div>")
     elif isinstance(obj, dict):
         for k, v in obj.items():
-            out += '<div>Dict item "{}"</div>'.format(k)
-            out += "<div>" + pygment_html_render(v, lexer) + "</div>"
+            out += Markup('<div>Dict item "{}"</div>').format(k)
+            out += Markup("<div>" + pygment_html_render(v, lexer) + "</div>")
     return out
 
 
-def wrapped_markdown(s):
-    return (
-        '<div class="rich_doc">' + markdown.markdown(s) + "</div>"
-        if s is not None
-        else None
-    )
+def json_render(obj, lexer):
+    """Render a given Python object with json lexer"""
+    out = ""
+    if isinstance(obj, str):
+        out = Markup(pygment_html_render(obj, lexer))
+    elif isinstance(obj, (dict, list)):
+        content = json.dumps(obj, sort_keys=True, indent=4)
+        out = Markup(pygment_html_render(content, lexer))
+    return out
+
+
+def wrapped_markdown(s, css_class='rich_doc'):
+    """Convert a Markdown string to HTML."""
+    if s is None:
+        return None
+    s = textwrap.dedent(s)
+    return Markup(f'<div class="{css_class}" >' + markdown.markdown(s, extensions=['tables']) + "</div>")
 
 
 def get_attr_renderer():
+    """Return Dictionary containing different Pygments Lexers for Rendering & Highlighting"""
     return {
+        'bash': lambda x: render(x, lexers.BashLexer),
         'bash_command': lambda x: render(x, lexers.BashLexer),
         'hql': lambda x: render(x, lexers.SqlLexer),
+        'html': lambda x: render(x, lexers.HtmlLexer),
         'sql': lambda x: render(x, lexers.SqlLexer),
         'doc': lambda x: render(x, lexers.TextLexer),
         'doc_json': lambda x: render(x, lexers.JsonLexer),
         'doc_rst': lambda x: render(x, lexers.RstLexer),
         'doc_yaml': lambda x: render(x, lexers.YamlLexer),
         'doc_md': wrapped_markdown,
+        'jinja': lambda x: render(x, lexers.DjangoLexer),
+        'json': lambda x: json_render(x, lexers.JsonLexer),
+        'md': wrapped_markdown,
+        'powershell': lambda x: render(x, lexers.PowerShellLexer),
+        'py': lambda x: render(get_python_source(x), lexers.PythonLexer),
         'python_callable': lambda x: render(get_python_source(x), lexers.PythonLexer),
+        'rst': lambda x: render(x, lexers.RstLexer),
+        'yaml': lambda x: render(x, lexers.YamlLexer),
     }
-
-
-def recurse_tasks(tasks, task_ids, dag_ids, task_id_to_dag):
-    if isinstance(tasks, list):
-        for task in tasks:
-            recurse_tasks(task, task_ids, dag_ids, task_id_to_dag)
-        return
-    if isinstance(tasks, SubDagOperator):
-        subtasks = tasks.subdag.tasks
-        dag_ids.append(tasks.subdag.dag_id)
-        for subtask in subtasks:
-            if subtask.task_id not in task_ids:
-                task_ids.append(subtask.task_id)
-                task_id_to_dag[subtask.task_id] = tasks.subdag
-        recurse_tasks(subtasks, task_ids, dag_ids, task_id_to_dag)
-    if isinstance(tasks, BaseOperator):
-        task_id_to_dag[tasks.task_id] = tasks.dag
 
 
 def get_chart_height(dag):
     """
-    TODO(aoen): See [AIRFLOW-1263] We use the number of tasks in the DAG as a heuristic to
+    We use the number of tasks in the DAG as a heuristic to
     approximate the size of generated chart (otherwise the charts are tiny and unreadable
     when DAGs have a large number of tasks). Ideally nvd3 should allow for dynamic-height
     charts, that is charts that take up space based on the size of the components within.
+    TODO(aoen): See [AIRFLOW-1263]
     """
     return 600 + len(dag.tasks) * 10
 
 
-def get_python_source(x: Any) -> Optional[str]:
-    """
-    Helper function to get Python source (or not), preventing exceptions
-    """
-    if isinstance(x, str):
-        return x
-
-    if x is None:
-        return None
-
-    source_code = None
-
-    if isinstance(x, functools.partial):
-        source_code = inspect.getsource(x.func)
-
-    if source_code is None:
-        try:
-            source_code = inspect.getsource(x)
-        except TypeError:
-            pass
-
-    if source_code is None:
-        try:
-            source_code = inspect.getsource(x.__call__)
-        except (TypeError, AttributeError):
-            pass
-
-    if source_code is None:
-        source_code = 'No source code available for {}'.format(type(x))
-    return source_code
-
-
 class UtcAwareFilterMixin:
+    """Mixin for filter for UTC time."""
+
     def apply(self, query, value):
+        """Apply the filter."""
         value = timezone.parse(value, timezone=timezone.utc)
 
         return super().apply(query, value)
 
 
+class FilterGreaterOrEqual(BaseFilter):
+    """Greater than or Equal filter."""
+
+    name = lazy_gettext("Greater than or Equal")
+    arg_name = "gte"
+
+    def apply(self, query, value):
+        query, field = get_field_setup_query(query, self.model, self.column_name)
+        value = set_value_to_type(self.datamodel, self.column_name, value)
+
+        if value is None:
+            return query
+
+        return query.filter(field >= value)
+
+
+class FilterSmallerOrEqual(BaseFilter):
+    """Smaller than or Equal filter."""
+
+    name = lazy_gettext("Smaller than or Equal")
+    arg_name = "lte"
+
+    def apply(self, query, value):
+        query, field = get_field_setup_query(query, self.model, self.column_name)
+        value = set_value_to_type(self.datamodel, self.column_name, value)
+
+        if value is None:
+            return query
+
+        return query.filter(field <= value)
+
+
+class UtcAwareFilterSmallerOrEqual(UtcAwareFilterMixin, FilterSmallerOrEqual):
+    """Smaller than or Equal filter for UTC time."""
+
+
+class UtcAwareFilterGreaterOrEqual(UtcAwareFilterMixin, FilterGreaterOrEqual):
+    """Greater than or Equal filter for UTC time."""
+
+
 class UtcAwareFilterEqual(UtcAwareFilterMixin, fab_sqlafilters.FilterEqual):
-    pass
+    """Equality filter for UTC time."""
 
 
 class UtcAwareFilterGreater(UtcAwareFilterMixin, fab_sqlafilters.FilterGreater):
-    pass
+    """Greater Than filter for UTC time."""
 
 
 class UtcAwareFilterSmaller(UtcAwareFilterMixin, fab_sqlafilters.FilterSmaller):
-    pass
+    """Smaller Than filter for UTC time."""
 
 
 class UtcAwareFilterNotEqual(UtcAwareFilterMixin, fab_sqlafilters.FilterNotEqual):
-    pass
+    """Not Equal To filter for UTC time."""
 
 
 class UtcAwareFilterConverter(fab_sqlafilters.SQLAFilterConverter):
+    """Retrieve conversion tables for UTC-Aware filters."""
+
+
+class AirflowFilterConverter(fab_sqlafilters.SQLAFilterConverter):
+    """Retrieve conversion tables for Airflow-specific filters."""
 
     conversion_table = (
-        (('is_utcdatetime', [UtcAwareFilterEqual,
-                             UtcAwareFilterGreater,
-                             UtcAwareFilterSmaller,
-                             UtcAwareFilterNotEqual]),) +
-        fab_sqlafilters.SQLAFilterConverter.conversion_table
-    )
+        (
+            'is_utcdatetime',
+            [
+                UtcAwareFilterEqual,
+                UtcAwareFilterGreater,
+                UtcAwareFilterSmaller,
+                UtcAwareFilterNotEqual,
+                UtcAwareFilterSmallerOrEqual,
+                UtcAwareFilterGreaterOrEqual,
+            ],
+        ),
+        # FAB will try to create filters for extendedjson fields even though we
+        # exclude them from all UI, so we add this here to make it ignore them.
+        (
+            'is_extendedjson',
+            [],
+        ),
+    ) + fab_sqlafilters.SQLAFilterConverter.conversion_table
 
 
 class CustomSQLAInterface(SQLAInterface):
@@ -456,24 +545,118 @@ class CustomSQLAInterface(SQLAInterface):
     '_' from the key to lookup the column names.
 
     """
-    def __init__(self, obj):
-        super().__init__(obj)
+
+    def __init__(self, obj, session=None):
+        super().__init__(obj, session=session)
 
         def clean_column_names():
             if self.list_properties:
-                self.list_properties = {
-                    k.lstrip('_'): v for k, v in self.list_properties.items()}
+                self.list_properties = {k.lstrip('_'): v for k, v in self.list_properties.items()}
             if self.list_columns:
-                self.list_columns = {
-                    k.lstrip('_'): v for k, v in self.list_columns.items()}
+                self.list_columns = {k.lstrip('_'): v for k, v in self.list_columns.items()}
 
         clean_column_names()
+        # Support for AssociationProxy in search and list columns
+        for desc in self.obj.__mapper__.all_orm_descriptors:
+            if not isinstance(desc, AssociationProxy):
+                continue
+            proxy_instance = getattr(self.obj, desc.value_attr)
+            self.list_columns[desc.value_attr] = proxy_instance.remote_attr.prop.columns[0]
+            self.list_properties[desc.value_attr] = proxy_instance.remote_attr.prop
 
     def is_utcdatetime(self, col_name):
+        """Check if the datetime is a UTC one."""
         from airflow.utils.sqlalchemy import UtcDateTime
-        obj = self.list_columns[col_name].type
-        return isinstance(obj, UtcDateTime) or \
-            isinstance(obj, sqla.types.TypeDecorator) and \
-            isinstance(obj.impl, UtcDateTime)
 
-    filter_converter_class = UtcAwareFilterConverter
+        if col_name in self.list_columns:
+            obj = self.list_columns[col_name].type
+            return (
+                isinstance(obj, UtcDateTime)
+                or isinstance(obj, sqla.types.TypeDecorator)
+                and isinstance(obj.impl, UtcDateTime)
+            )
+        return False
+
+    def is_extendedjson(self, col_name):
+        """Checks if it is a special extended JSON type"""
+        from airflow.utils.sqlalchemy import ExtendedJSON
+
+        if col_name in self.list_columns:
+            obj = self.list_columns[col_name].type
+            return (
+                isinstance(obj, ExtendedJSON)
+                or isinstance(obj, sqla.types.TypeDecorator)
+                and isinstance(obj.impl, ExtendedJSON)
+            )
+        return False
+
+    def get_col_default(self, col_name: str) -> Any:
+        if col_name not in self.list_columns:
+            # Handle AssociationProxy etc, or anything that isn't a "real" column
+            return None
+        return super().get_col_default(col_name)
+
+    filter_converter_class = AirflowFilterConverter
+
+
+# This class is used directly (i.e. we can't tell Fab to use a different
+# subclass) so we have no other option than to edit the conversion table in
+# place
+FieldConverter.conversion_table = (
+    ('is_utcdatetime', DateTimeWithTimezoneField, AirflowDateTimePickerWidget),
+) + FieldConverter.conversion_table
+
+
+class UIAlert:
+    """
+    Helper for alerts messages shown on the UI
+
+    :param message: The message to display, either a string or Markup
+    :param category: The category of the message, one of "info", "warning", "error", or any custom category.
+        Defaults to "info".
+    :param roles: List of roles that should be shown the message. If ``None``, show to all users.
+    :param html: Whether the message has safe html markup in it. Defaults to False.
+
+
+    For example, show a message to all users:
+
+    .. code-block:: python
+
+        UIAlert("Welcome to Airflow")
+
+    Or only for users with the User role:
+
+    .. code-block:: python
+
+        UIAlert("Airflow update happening next week", roles=["User"])
+
+    You can also pass html in the message:
+
+    .. code-block:: python
+
+        UIAlert('Visit <a href="https://airflow.apache.org">airflow.apache.org</a>', html=True)
+
+        # or safely escape part of the message
+        # (more details: https://markupsafe.palletsprojects.com/en/2.0.x/formatting/)
+        UIAlert(Markup("Welcome <em>%s</em>") % ("John & Jane Doe",))
+    """
+
+    def __init__(
+        self,
+        message: Union[str, Markup],
+        category: str = "info",
+        roles: Optional[List[str]] = None,
+        html: bool = False,
+    ):
+        self.category = category
+        self.roles = roles
+        self.html = html
+        self.message = Markup(message) if html else message
+
+    def should_show(self, securitymanager) -> bool:
+        """Determine if the user should see the message based on their role membership"""
+        if self.roles:
+            user_roles = {r.name for r in securitymanager.get_user_roles()}
+            if not user_roles.intersection(set(self.roles)):
+                return False
+        return True

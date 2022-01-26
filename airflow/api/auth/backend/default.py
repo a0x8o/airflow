@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -18,33 +17,23 @@
 # under the License.
 """Default authentication backend - everything is allowed"""
 from functools import wraps
-from typing import Optional
+from typing import Any, Callable, Optional, Tuple, TypeVar, Union, cast
 
-from airflow.typing_compat import Protocol
-
-
-class ClientAuthProtocol(Protocol):
-    """
-    Protocol type for CLIENT_AUTH
-    """
-    def handle_response(self, _):
-        """
-        CLIENT_AUTH.handle_response method
-        """
-        ...
-
-
-CLIENT_AUTH = None  # type: Optional[ClientAuthProtocol]
+CLIENT_AUTH: Optional[Union[Tuple[str, str], Any]] = None
 
 
 def init_app(_):
     """Initializes authentication backend"""
 
 
-def requires_authentication(function):
+T = TypeVar("T", bound=Callable)
+
+
+def requires_authentication(function: T):
     """Decorator for functions that require authentication"""
+
     @wraps(function)
     def decorated(*args, **kwargs):
         return function(*args, **kwargs)
 
-    return decorated
+    return cast(T, decorated)

@@ -1,4 +1,10 @@
-click>=6.6,<7
-jira>=1.0.7,<2
+click~=7.0
+jinja2~=2.10
 keyring==10.1
-gitpython
+PyGithub
+jsonpath_ng
+jsonschema
+pyyaml
+packaging
+rich
+tabulate

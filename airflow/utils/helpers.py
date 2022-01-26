@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -16,90 +15,122 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-import errno
-import os
+import copy
 import re
 import signal
-import subprocess
+import warnings
 from datetime import datetime
 from functools import reduce
+from itertools import filterfalse, tee
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Generator,
+    Iterable,
+    List,
+    MutableMapping,
+    Optional,
+    Tuple,
+    TypeVar,
+)
+from urllib import parse
 
-import psutil
-from jinja2 import Template
+import flask
+import jinja2
+import jinja2.nativetypes
 
 from airflow.configuration import conf
 from airflow.exceptions import AirflowException
+from airflow.utils.module_loading import import_string
 
-try:
-    # Fix Python > 3.7 deprecation
-    from collections.abc import Iterable
-except ImportError:
-    # Preserve Python < 3.3 compatibility
-    from collections import Iterable
-
-# When killing processes, time to wait after issuing a SIGTERM before issuing a
-# SIGKILL.
-DEFAULT_TIME_TO_WAIT_AFTER_SIGTERM = conf.getint(
-    'core', 'KILLED_TASK_CLEANUP_TIME'
-)
+if TYPE_CHECKING:
+    from airflow.models import TaskInstance
 
 KEY_REGEX = re.compile(r'^[\w.-]+$')
+GROUP_KEY_REGEX = re.compile(r'^[\w-]+$')
+CAMELCASE_TO_SNAKE_CASE_REGEX = re.compile(r'(?!^)([A-Z]+)')
+
+T = TypeVar('T')
+S = TypeVar('S')
 
 
-def validate_key(k, max_length=250):
+def validate_key(k: str, max_length: int = 250):
+    """Validates value used as a key."""
     if not isinstance(k, str):
-        raise TypeError("The key has to be a string")
-    elif len(k) > max_length:
+        raise TypeError(f"The key has to be a string and is {type(k)}:{k}")
+    if len(k) > max_length:
+        raise AirflowException(f"The key has to be less than {max_length} characters")
+    if not KEY_REGEX.match(k):
         raise AirflowException(
-            "The key has to be less than {0} characters".format(max_length))
-    elif not KEY_REGEX.match(k):
-        raise AirflowException(
-            "The key ({k}) has to be made of alphanumeric characters, dashes, "
-            "dots and underscores exclusively".format(k=k))
-    else:
-        return True
+            f"The key ({k}) has to be made of alphanumeric characters, dashes, "
+            f"dots and underscores exclusively"
+        )
 
 
-def alchemy_to_dict(obj):
-    """
-    Transforms a SQLAlchemy model instance into a dictionary
-    """
+def validate_group_key(k: str, max_length: int = 200):
+    """Validates value used as a group key."""
+    if not isinstance(k, str):
+        raise TypeError(f"The key has to be a string and is {type(k)}:{k}")
+    if len(k) > max_length:
+        raise AirflowException(f"The key has to be less than {max_length} characters")
+    if not GROUP_KEY_REGEX.match(k):
+        raise AirflowException(
+            f"The key ({k!r}) has to be made of alphanumeric characters, dashes and underscores exclusively"
+        )
+
+
+def alchemy_to_dict(obj: Any) -> Optional[Dict]:
+    """Transforms a SQLAlchemy model instance into a dictionary"""
     if not obj:
         return None
-    d = {}
-    for c in obj.__table__.columns:
-        value = getattr(obj, c.name)
-        if type(value) == datetime:
+    output = {}
+    for col in obj.__table__.columns:
+        value = getattr(obj, col.name)
+        if isinstance(value, datetime):
             value = value.isoformat()
-        d[c.name] = value
-    return d
+        output[col.name] = value
+    return output
 
 
-def ask_yesno(question):
+def ask_yesno(question: str, default: Optional[bool] = None) -> bool:
+    """Helper to get a yes or no answer from the user."""
     yes = {'yes', 'y'}
     no = {'no', 'n'}
 
-    done = False
     print(question)
-    while not done:
+    while True:
         choice = input().lower()
+        if choice == "" and default is not None:
+            return default
         if choice in yes:
             return True
-        elif choice in no:
+        if choice in no:
             return False
-        else:
-            print("Please respond by yes or no.")
+        print("Please respond with y/yes or n/no.")
 
 
-def is_container(obj):
-    """
-    Test if an object is a container (iterable) but not a string
-    """
+def prompt_with_timeout(question: str, timeout: int, default: Optional[bool] = None) -> bool:
+    """Ask the user a question and timeout if they don't respond"""
+
+    def handler(signum, frame):
+        raise AirflowException(f"Timeout {timeout}s reached")
+
+    signal.signal(signal.SIGALRM, handler)
+    signal.alarm(timeout)
+    try:
+        return ask_yesno(question, default)
+    finally:
+        signal.alarm(0)
+
+
+def is_container(obj: Any) -> bool:
+    """Test if an object is a container (iterable) but not a string"""
     return hasattr(obj, '__iter__') and not isinstance(obj, str)
 
 
-def as_tuple(obj):
+def as_tuple(obj: Any) -> tuple:
     """
     If obj is a container, returns obj as a tuple.
     Otherwise, returns a tuple containing obj.
@@ -110,17 +141,15 @@ def as_tuple(obj):
         return tuple([obj])
 
 
-def chunks(items, chunk_size):
-    """
-    Yield successive chunks of a given size from a list of items
-    """
+def chunks(items: List[T], chunk_size: int) -> Generator[List[T], None, None]:
+    """Yield successive chunks of a given size from a list of items"""
     if chunk_size <= 0:
         raise ValueError('Chunk size must be a positive integer')
     for i in range(0, len(items), chunk_size):
-        yield items[i:i + chunk_size]
+        yield items[i : i + chunk_size]
 
 
-def reduce_in_chunks(fn, iterable, initializer, chunk_size=0):
+def reduce_in_chunks(fn: Callable[[S, List[T]], S], iterable: List[T], initializer: S, chunk_size: int = 0):
     """
     Reduce the given list of items by splitting it into chunks
     of the given size and passing each chunk through the reducer
@@ -132,7 +161,7 @@ def reduce_in_chunks(fn, iterable, initializer, chunk_size=0):
     return reduce(fn, chunks(iterable, chunk_size), initializer)
 
 
-def as_flattened_list(iterable):
+def as_flattened_list(iterable: Iterable[Iterable[T]]) -> List[T]:
     """
     Return an iterable with one level flattened
 
@@ -142,212 +171,15 @@ def as_flattened_list(iterable):
     return [e for i in iterable for e in i]
 
 
-def chain(*tasks):
-    r"""
-    Given a number of tasks, builds a dependency chain.
-    Support mix airflow.models.BaseOperator and List[airflow.models.BaseOperator].
-    If you want to chain between two List[airflow.models.BaseOperator], have to
-    make sure they have same length.
-
-    chain(t1, [t2, t3], [t4, t5], t6)
-
-    is equivalent to
-
-      / -> t2 -> t4 \
-    t1               -> t6
-      \ -> t3 -> t5 /
-
-    t1.set_downstream(t2)
-    t1.set_downstream(t3)
-    t2.set_downstream(t4)
-    t3.set_downstream(t5)
-    t4.set_downstream(t6)
-    t5.set_downstream(t6)
-
-    :param tasks: List of tasks or List[airflow.models.BaseOperator] to set dependencies
-    :type tasks: List[airflow.models.BaseOperator] or airflow.models.BaseOperator
-    """
-    from airflow.models.baseoperator import BaseOperator
-    for index, up_task in enumerate(tasks[:-1]):
-        down_task = tasks[index + 1]
-        if isinstance(up_task, BaseOperator):
-            up_task.set_downstream(down_task)
-        elif isinstance(down_task, BaseOperator):
-            down_task.set_upstream(up_task)
-        else:
-            if not isinstance(up_task, Iterable) or not isinstance(down_task, Iterable):
-                raise TypeError(
-                    'Chain not supported between instances of {up_type} and {down_type}'.format(
-                        up_type=type(up_task), down_type=type(down_task)))
-            elif len(up_task) != len(down_task):
-                raise AirflowException(
-                    'Chain not supported different length Iterable but get {up_len} and {down_len}'.format(
-                        up_len=len(up_task), down_len=len(down_task)))
-            else:
-                for up, down in zip(up_task, down_task):
-                    up.set_downstream(down)
-
-
-def cross_downstream(from_tasks, to_tasks):
-    r"""
-    Set downstream dependencies for all tasks in from_tasks to all tasks in to_tasks.
-    E.g.: cross_downstream(from_tasks=[t1, t2, t3], to_tasks=[t4, t5, t6])
-    Is equivalent to:
-
-    t1 --> t4
-       \ /
-    t2 -X> t5
-       / \
-    t3 --> t6
-
-    t1.set_downstream(t4)
-    t1.set_downstream(t5)
-    t1.set_downstream(t6)
-    t2.set_downstream(t4)
-    t2.set_downstream(t5)
-    t2.set_downstream(t6)
-    t3.set_downstream(t4)
-    t3.set_downstream(t5)
-    t3.set_downstream(t6)
-
-    :param from_tasks: List of tasks to start from.
-    :type from_tasks: List[airflow.models.BaseOperator]
-    :param to_tasks: List of tasks to set as downstream dependencies.
-    :type to_tasks: List[airflow.models.BaseOperator]
-    """
-    for task in from_tasks:
-        task.set_downstream(to_tasks)
-
-
-def pprinttable(rows):
-    """Returns a pretty ascii table from tuples
-
-    If namedtuple are used, the table will have headers
-    """
-    if not rows:
-        return
-    if hasattr(rows[0], '_fields'):  # if namedtuple
-        headers = rows[0]._fields
-    else:
-        headers = ["col{}".format(i) for i in range(len(rows[0]))]
-    lens = [len(s) for s in headers]
-
-    for row in rows:
-        for i in range(len(rows[0])):
-            slenght = len("{}".format(row[i]))
-            if slenght > lens[i]:
-                lens[i] = slenght
-    formats = []
-    hformats = []
-    for i in range(len(rows[0])):
-        if isinstance(rows[0][i], int):
-            formats.append("%%%dd" % lens[i])
-        else:
-            formats.append("%%-%ds" % lens[i])
-        hformats.append("%%-%ds" % lens[i])
-    pattern = " | ".join(formats)
-    hpattern = " | ".join(hformats)
-    separator = "-+-".join(['-' * n for n in lens])
-    s = ""
-    s += separator + '\n'
-    s += (hpattern % tuple(headers)) + '\n'
-    s += separator + '\n'
-
-    def f(t):
-        return "{}".format(t) if isinstance(t, str) else t
-
-    for line in rows:
-        s += pattern % tuple(f(t) for t in line) + '\n'
-    s += separator + '\n'
-    return s
-
-
-def reap_process_group(pgid, log, sig=signal.SIGTERM,
-                       timeout=DEFAULT_TIME_TO_WAIT_AFTER_SIGTERM):
-    """
-    Tries really hard to terminate all processes in the group (including grandchildren). Will send
-    sig (SIGTERM) to the process group of pid. If any process is alive after timeout
-    a SIGKILL will be send.
-
-    :param log: log handler
-    :param pgid: process group id to kill
-    :param sig: signal type
-    :param timeout: how much time a process has to terminate
-    """
-
-    returncodes = {}
-
-    def on_terminate(p):
-        log.info("Process %s (%s) terminated with exit code %s", p, p.pid, p.returncode)
-        returncodes[p.pid] = p.returncode
-
-    def signal_procs(sig):
-        try:
-            os.killpg(pgid, sig)
-        except OSError as err:
-            # If operation not permitted error is thrown due to run_as_user,
-            # use sudo -n(--non-interactive) to kill the process
-            if err.errno == errno.EPERM:
-                subprocess.check_call(
-                    ["sudo", "-n", "kill", "-" + str(sig)] + map(children, lambda p: str(p.pid))
-                )
-            else:
-                raise
-
-    if pgid == os.getpgid(0):
-        raise RuntimeError("I refuse to kill myself")
-
-    try:
-        parent = psutil.Process(pgid)
-
-        children = parent.children(recursive=True)
-        children.append(parent)
-    except psutil.NoSuchProcess:
-        # The process already exited, but maybe it's children haven't.
-        children = []
-        for p in psutil.process_iter():
-            try:
-                if os.getpgid(p.pid) == pgid and p.pid != 0:
-                    children.append(p)
-            except OSError:
-                pass
-
-    log.info("Sending %s to GPID %s", sig, pgid)
-    try:
-        signal_procs(sig)
-    except OSError as err:
-        # No such process, which means there is no such process group - our job
-        # is done
-        if err.errno == errno.ESRCH:
-            return returncodes
-
-    _, alive = psutil.wait_procs(children, timeout=timeout, callback=on_terminate)
-
-    if alive:
-        for p in alive:
-            log.warning("process %s did not respond to SIGTERM. Trying SIGKILL", p)
-
-        try:
-            signal_procs(signal.SIGKILL)
-        except OSError as err:
-            if err.errno != errno.ESRCH:
-                raise
-
-        _, alive = psutil.wait_procs(alive, timeout=timeout, callback=on_terminate)
-        if alive:
-            for p in alive:
-                log.error("Process %s (%s) could not be killed. Giving up.", p, p.pid)
-    return returncodes
-
-
-def parse_template_string(template_string):
+def parse_template_string(template_string: str) -> Tuple[Optional[str], Optional[jinja2.Template]]:
+    """Parses Jinja template string."""
     if "{{" in template_string:  # jinja mode
-        return None, Template(template_string)
+        return None, jinja2.Template(template_string)
     else:
         return template_string, None
 
 
-def render_log_filename(ti, try_number, filename_template):
+def render_log_filename(ti: "TaskInstance", try_number, filename_template) -> str:
     """
     Given task instance, try_number, filename_template, return the rendered log
     filename
@@ -361,13 +193,165 @@ def render_log_filename(ti, try_number, filename_template):
     if filename_jinja_template:
         jinja_context = ti.get_template_context()
         jinja_context['try_number'] = try_number
-        return filename_jinja_template.render(**jinja_context)
+        return render_template_to_string(filename_jinja_template, jinja_context)
 
-    return filename_template.format(dag_id=ti.dag_id,
-                                    task_id=ti.task_id,
-                                    execution_date=ti.execution_date.isoformat(),
-                                    try_number=try_number)
+    return filename_template.format(
+        dag_id=ti.dag_id,
+        task_id=ti.task_id,
+        execution_date=ti.execution_date.isoformat(),
+        try_number=try_number,
+    )
 
 
-def convert_camel_to_snake(camel_str):
-    return re.sub('(?!^)([A-Z]+)', r'_\1', camel_str).lower()
+def convert_camel_to_snake(camel_str: str) -> str:
+    """Converts CamelCase to snake_case."""
+    return CAMELCASE_TO_SNAKE_CASE_REGEX.sub(r'_\1', camel_str).lower()
+
+
+def merge_dicts(dict1: Dict, dict2: Dict) -> Dict:
+    """
+    Merge two dicts recursively, returning new dict (input dict is not mutated).
+
+    Lists are not concatenated. Items in dict2 overwrite those also found in dict1.
+    """
+    merged = dict1.copy()
+    for k, v in dict2.items():
+        if k in merged and isinstance(v, dict):
+            merged[k] = merge_dicts(merged.get(k, {}), v)
+        else:
+            merged[k] = v
+    return merged
+
+
+def partition(pred: Callable[[T], bool], iterable: Iterable[T]) -> Tuple[Iterable[T], Iterable[T]]:
+    """Use a predicate to partition entries into false entries and true entries"""
+    iter_1, iter_2 = tee(iterable)
+    return filterfalse(pred, iter_1), filter(pred, iter_2)
+
+
+def chain(*args, **kwargs):
+    """This function is deprecated. Please use `airflow.models.baseoperator.chain`."""
+    warnings.warn(
+        "This function is deprecated. Please use `airflow.models.baseoperator.chain`.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return import_string('airflow.models.baseoperator.chain')(*args, **kwargs)
+
+
+def cross_downstream(*args, **kwargs):
+    """This function is deprecated. Please use `airflow.models.baseoperator.cross_downstream`."""
+    warnings.warn(
+        "This function is deprecated. Please use `airflow.models.baseoperator.cross_downstream`.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return import_string('airflow.models.baseoperator.cross_downstream')(*args, **kwargs)
+
+
+def build_airflow_url_with_query(query: Dict[str, Any]) -> str:
+    """
+    Build airflow url using base_url and default_view and provided query
+    For example:
+    'http://0.0.0.0:8000/base/graph?dag_id=my-task&root=&execution_date=2020-10-27T10%3A59%3A25.615587
+    """
+    view = conf.get('webserver', 'dag_default_view').lower()
+    url = flask.url_for(f"Airflow.{view}")
+    return f"{url}?{parse.urlencode(query)}"
+
+
+# The 'template' argument is typed as Any because the jinja2.Template is too
+# dynamic to be effectively type-checked.
+def render_template(template: Any, context: MutableMapping[str, Any], *, native: bool) -> Any:
+    """Render a Jinja2 template with given Airflow context.
+
+    The default implementation of ``jinja2.Template.render()`` converts the
+    input context into dict eagerly many times, which triggers deprecation
+    messages in our custom context class. This takes the implementation apart
+    and retain the context mapping without resolving instead.
+
+    :param template: A Jinja2 template to render.
+    :param context: The Airflow task context to render the template with.
+    :param native: If set to *True*, render the template into a native type. A
+        DAG can enable this with ``render_template_as_native_obj=True``.
+    :returns: The render result.
+    """
+    context = copy.copy(context)
+    env = template.environment
+    if template.globals:
+        context.update((k, v) for k, v in template.globals.items() if k not in context)
+    try:
+        nodes = template.root_render_func(env.context_class(env, context, template.name, template.blocks))
+    except Exception:
+        env.handle_exception()  # Rewrite traceback to point to the template.
+    if native:
+        return jinja2.nativetypes.native_concat(nodes)
+    return "".join(nodes)
+
+
+def render_template_to_string(template: jinja2.Template, context: MutableMapping[str, Any]) -> str:
+    """Shorthand to ``render_template(native=False)`` with better typing support."""
+    return render_template(template, context, native=False)
+
+
+def render_template_as_native(template: jinja2.Template, context: MutableMapping[str, Any]) -> Any:
+    """Shorthand to ``render_template(native=True)`` with better typing support."""
+    return render_template(template, context, native=True)
+
+
+def exactly_one(*args) -> bool:
+    """
+    Returns True if exactly one of *args is "truthy", and False otherwise.
+
+    If user supplies an iterable, we raise ValueError and force them to unpack.
+    """
+    if is_container(args[0]):
+        raise ValueError(
+            "Not supported for iterable args. Use `*` to unpack your iterable in the function call."
+        )
+    return sum(map(bool, args)) == 1
+
+
+def prune_dict(val: Any, mode='strict'):
+    """
+    Given dict ``val``, returns new dict based on ``val`` with all
+    empty elements removed.
+
+    What constitutes "empty" is controlled by the ``mode`` parameter.  If mode is 'strict'
+    then only ``None`` elements will be removed.  If mode is ``truthy``, then element ``x``
+    will be removed if ``bool(x) is False``.
+    """
+
+    def is_empty(x):
+        if mode == 'strict':
+            return x is None
+        elif mode == 'truthy':
+            return bool(x) is False
+        raise ValueError("allowable values for `mode` include 'truthy' and 'strict'")
+
+    if isinstance(val, dict):
+        new_dict = {}
+        for k, v in val.items():
+            if is_empty(v):
+                continue
+            elif isinstance(v, (list, dict)):
+                new_val = prune_dict(v, mode=mode)
+                if new_val:
+                    new_dict[k] = new_val
+            else:
+                new_dict[k] = v
+        return new_dict
+    elif isinstance(val, list):
+        new_list = []
+        for v in val:
+            if is_empty(v):
+                continue
+            elif isinstance(v, (list, dict)):
+                new_val = prune_dict(v, mode=mode)
+                if new_val:
+                    new_list.append(new_val)
+            else:
+                new_list.append(v)
+        return new_list
+    else:
+        return val

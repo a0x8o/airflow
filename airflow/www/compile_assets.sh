@@ -18,12 +18,17 @@
 
 set -e
 
+cd "$( dirname "${BASH_SOURCE[0]}" )"
+
+MD5SUM_FILE="static/dist/sum.md5"
+readonly MD5SUM_FILE
+
 # first bump up package.json manually, commit and tag
-if [[ -d airflow/www/static/dist ]]; then
-  rm -f airflow/www/static/dist/*
+if [[ -d ./static/dist ]]; then
+  rm -f ./static/dist/*
 fi
 
-cd airflow/www/
-npm install
-npm run build
-cd ../..
+yarn install --frozen-lockfile
+yarn run build
+
+find package.json yarn.lock static/css static/js -type f | sort | xargs md5sum > "${MD5SUM_FILE}"

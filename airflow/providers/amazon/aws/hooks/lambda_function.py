@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -17,56 +16,68 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""
-This module contains AWS Lambda hook
-"""
-from airflow.contrib.hooks.aws_hook import AwsHook
+"""This module contains AWS Lambda hook"""
+import warnings
+
+from airflow.providers.amazon.aws.hooks.base_aws import AwsBaseHook
 
 
-class AwsLambdaHook(AwsHook):
+class LambdaHook(AwsBaseHook):
     """
     Interact with AWS Lambda
 
+    Additional arguments (such as ``aws_conn_id``) may be specified and
+    are passed down to the underlying AwsBaseHook.
+
+    .. seealso::
+        :class:`~airflow.providers.amazon.aws.hooks.base_aws.AwsBaseHook`
+
     :param function_name: AWS Lambda Function Name
-    :type function_name: str
-    :param region_name: AWS Region Name (example: us-west-2)
-    :type region_name: str
     :param log_type: Tail Invocation Request
-    :type log_type: str
     :param qualifier: AWS Lambda Function Version or Alias Name
-    :type qualifier: str
     :param invocation_type: AWS Lambda Invocation Type (RequestResponse, Event etc)
-    :type invocation_type: str
     """
 
-    def __init__(self, function_name, region_name=None,
-                 log_type='None', qualifier='$LATEST',
-                 invocation_type='RequestResponse', *args, **kwargs):
+    def __init__(
+        self,
+        function_name: str,
+        log_type: str = 'None',
+        qualifier: str = '$LATEST',
+        invocation_type: str = 'RequestResponse',
+        *args,
+        **kwargs,
+    ) -> None:
         self.function_name = function_name
-        self.region_name = region_name
         self.log_type = log_type
         self.invocation_type = invocation_type
         self.qualifier = qualifier
-        self.conn = None
+        kwargs["client_type"] = "lambda"
         super().__init__(*args, **kwargs)
 
-    def get_conn(self):
-        self.conn = self.get_client_type('lambda', self.region_name)
-        return self.conn
-
-    def invoke_lambda(self, payload):
-        """
-        Invoke Lambda Function
-        """
-
-        awslambda_conn = self.get_conn()
-
-        response = awslambda_conn.invoke(
+    def invoke_lambda(self, payload: str) -> str:
+        """Invoke Lambda Function"""
+        response = self.conn.invoke(
             FunctionName=self.function_name,
             InvocationType=self.invocation_type,
             LogType=self.log_type,
             Payload=payload,
-            Qualifier=self.qualifier
+            Qualifier=self.qualifier,
         )
 
         return response
+
+
+class AwsLambdaHook(LambdaHook):
+    """
+    This hook is deprecated.
+    Please use :class:`airflow.providers.amazon.aws.hooks.lambda_function.LambdaHook`.
+    """
+
+    def __init__(self, *args, **kwargs):
+        warnings.warn(
+            "This hook is deprecated. "
+            "Please use :class:`airflow.providers.amazon.aws.hooks.lambda_function.LambdaHook`.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(*args, **kwargs)

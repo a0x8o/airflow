@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -21,18 +20,22 @@ from typing import Set
 
 
 class WeightRule:
+    """Weight rules."""
+
     DOWNSTREAM = 'downstream'
     UPSTREAM = 'upstream'
     ABSOLUTE = 'absolute'
 
-    _ALL_WEIGHT_RULES = set()  # type: Set[str]
+    _ALL_WEIGHT_RULES: Set[str] = set()
 
     @classmethod
     def is_valid(cls, weight_rule):
+        """Check if weight rule is valid."""
         return weight_rule in cls.all_weight_rules()
 
     @classmethod
-    def all_weight_rules(cls):
+    def all_weight_rules(cls) -> Set[str]:
+        """Returns all weight rules"""
         if not cls._ALL_WEIGHT_RULES:
             cls._ALL_WEIGHT_RULES = {
                 getattr(cls, attr)

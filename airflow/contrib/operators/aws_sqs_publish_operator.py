@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -17,15 +15,30 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""This module is deprecated. Please use `airflow.providers.amazon.aws.operators.sqs`."""
+"""This module is deprecated. Please use :mod:`airflow.providers.amazon.aws.operators.sqs`."""
 
 import warnings
 
-# pylint: disable=unused-import
-from airflow.providers.amazon.aws.operators.sqs import SQSPublishOperator  # noqa
+from airflow.providers.amazon.aws.operators.sqs import SqsPublishOperator
 
 warnings.warn(
     "This module is deprecated. Please use `airflow.providers.amazon.aws.operators.sqs`.",
     DeprecationWarning,
     stacklevel=2,
 )
+
+
+class SQSPublishOperator(SqsPublishOperator):
+    """
+    This class is deprecated.
+    Please use :class:`airflow.providers.amazon.aws.operators.sqs.SqsPublishOperator`.
+    """
+
+    def __init__(self, *args, **kwargs):
+        warnings.warn(
+            "This class is deprecated. "
+            "Please use `airflow.providers.amazon.aws.operators.sqs.SqsPublishOperator`.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(*args, **kwargs)

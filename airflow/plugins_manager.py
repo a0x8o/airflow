@@ -16,22 +16,110 @@
 # specific language governing permissions and limitations
 # under the License.
 """Manages all plugins."""
-# noinspection PyDeprecation
-import imp  # pylint: disable=deprecated-module
+import importlib
+import importlib.machinery
+import importlib.util
 import inspect
+import logging
 import os
-import re
 import sys
-from typing import Any, Callable, Dict, List, Optional, Set, Type
+import types
+from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Type
 
-import pkg_resources
+try:
+    import importlib_metadata
+except ImportError:
+    from importlib import metadata as importlib_metadata  # type: ignore[no-redef]
+
+from types import ModuleType
 
 from airflow import settings
-from airflow.utils.log.logging_mixin import LoggingMixin
+from airflow.utils.entry_points import entry_points_with_dist
+from airflow.utils.file import find_path_from_directory
+from airflow.utils.module_loading import as_importable_string
 
-log = LoggingMixin().log
+if TYPE_CHECKING:
+    from airflow.hooks.base import BaseHook
+    from airflow.listeners.listener import ListenerManager
+    from airflow.timetables.base import Timetable
 
-import_errors = {}
+log = logging.getLogger(__name__)
+
+import_errors: Dict[str, str] = {}
+
+plugins = None  # type: Optional[List[AirflowPlugin]]
+
+# Plugin components to integrate as modules
+registered_hooks: Optional[List['BaseHook']] = None
+macros_modules: Optional[List[Any]] = None
+executors_modules: Optional[List[Any]] = None
+
+# Plugin components to integrate directly
+admin_views: Optional[List[Any]] = None
+flask_blueprints: Optional[List[Any]] = None
+menu_links: Optional[List[Any]] = None
+flask_appbuilder_views: Optional[List[Any]] = None
+flask_appbuilder_menu_links: Optional[List[Any]] = None
+global_operator_extra_links: Optional[List[Any]] = None
+operator_extra_links: Optional[List[Any]] = None
+registered_operator_link_classes: Optional[Dict[str, Type]] = None
+timetable_classes: Optional[Dict[str, Type["Timetable"]]] = None
+"""Mapping of class names to class of OperatorLinks registered by plugins.
+
+Used by the DAG serialization code to only allow specific classes to be created
+during deserialization
+"""
+PLUGINS_ATTRIBUTES_TO_DUMP = {
+    "hooks",
+    "executors",
+    "macros",
+    "flask_blueprints",
+    "appbuilder_views",
+    "appbuilder_menu_items",
+    "global_operator_extra_links",
+    "operator_extra_links",
+    "timetables",
+    "source",
+    "listeners",
+}
+
+
+class AirflowPluginSource:
+    """Class used to define an AirflowPluginSource."""
+
+    def __str__(self):
+        raise NotImplementedError
+
+    def __html__(self):
+        raise NotImplementedError
+
+
+class PluginsDirectorySource(AirflowPluginSource):
+    """Class used to define Plugins loaded from Plugins Directory."""
+
+    def __init__(self, path):
+        self.path = os.path.relpath(path, settings.PLUGINS_FOLDER)
+
+    def __str__(self):
+        return f"$PLUGINS_FOLDER/{self.path}"
+
+    def __html__(self):
+        return f"<em>$PLUGINS_FOLDER/</em>{self.path}"
+
+
+class EntryPointSource(AirflowPluginSource):
+    """Class used to define Plugins loaded from entrypoint."""
+
+    def __init__(self, entrypoint: importlib_metadata.EntryPoint, dist: importlib_metadata.Distribution):
+        self.dist = dist.metadata['name']
+        self.version = dist.version
+        self.entrypoint = str(entrypoint)
+
+    def __str__(self):
+        return f"{self.dist}=={self.version}: {self.entrypoint}"
+
+    def __html__(self):
+        return f"<em>{self.dist}=={self.version}:</em> {self.entrypoint}"
 
 
 class AirflowPluginException(Exception):
@@ -40,9 +128,9 @@ class AirflowPluginException(Exception):
 
 class AirflowPlugin:
     """Class used to define AirflowPlugin."""
+
     name: Optional[str] = None
-    operators: List[Any] = []
-    sensors: List[Any] = []
+    source: Optional[AirflowPluginSource] = None
     hooks: List[Any] = []
     executors: List[Any] = []
     macros: List[Any] = []
@@ -51,13 +139,6 @@ class AirflowPlugin:
     menu_links: List[Any] = []
     appbuilder_views: List[Any] = []
     appbuilder_menu_items: List[Any] = []
-
-    # A function that validate the statsd stat name, apply changes
-    # to the stat name if necessary and return the transformed stat name.
-    #
-    # The function should have the following signature:
-    # def func_name(stat_name: str) -> str:
-    stat_name_handler: Optional[Callable[[str], str]] = None
 
     # A list of global operator extra links that can redirect users to
     # external systems. These extra links will be available on the
@@ -72,6 +153,11 @@ class AirflowPlugin:
     # These extra links will be available on the task page in form of
     # buttons.
     operator_extra_links: List[Any] = []
+
+    # A list of timetable classes that can be used for DAG scheduling.
+    timetables: List[Type["Timetable"]] = []
+
+    listeners: List[ModuleType] = []
 
     @classmethod
     def validate(cls):
@@ -90,238 +176,349 @@ class AirflowPlugin:
         """
 
 
-def load_entrypoint_plugins(entry_points, airflow_plugins):
-    """
-    Load AirflowPlugin subclasses from the entrypoints
-    provided. The entry_point group should be 'airflow.plugins'.
-
-    :param entry_points: A collection of entrypoints to search for plugins
-    :type entry_points: Generator[setuptools.EntryPoint, None, None]
-    :param airflow_plugins: A collection of existing airflow plugins to
-        ensure we don't load duplicates
-    :type airflow_plugins: list[type[airflow.plugins_manager.AirflowPlugin]]
-    :rtype: list[airflow.plugins_manager.AirflowPlugin]
-    """
-    for entry_point in entry_points:
-        log.debug('Importing entry_point plugin %s', entry_point.name)
-        plugin_obj = entry_point.load()
-        if is_valid_plugin(plugin_obj, airflow_plugins):
-            if callable(getattr(plugin_obj, 'on_load', None)):
-                plugin_obj.on_load()
-                airflow_plugins.append(plugin_obj)
-    return airflow_plugins
-
-
-def register_inbuilt_operator_links() -> None:
-    """
-    Register all the Operators Links that are already defined for the operators
-    in the "airflow" project. Example: QDSLink (Operator Link for Qubole Operator)
-
-    This is required to populate the "whitelist" of allowed classes when deserializing operator links
-    """
-    inbuilt_operator_links: Set[Type] = set()
-
-    try:
-        from airflow.gcp.operators.bigquery import BigQueryConsoleLink, BigQueryConsoleIndexableLink  # noqa E501 # pylint: disable=R0401,line-too-long
-        inbuilt_operator_links.update([BigQueryConsoleLink, BigQueryConsoleIndexableLink])
-    except ImportError:
-        pass
-
-    try:
-        from airflow.contrib.operators.qubole_operator import QDSLink   # pylint: disable=R0401
-        inbuilt_operator_links.update([QDSLink])
-    except ImportError:
-        pass
-
-    registered_operator_link_classes.update({
-        "{}.{}".format(link.__module__, link.__name__): link
-        for link in inbuilt_operator_links
-    })
-
-
-def is_valid_plugin(plugin_obj, existing_plugins):
+def is_valid_plugin(plugin_obj):
     """
     Check whether a potential object is a subclass of
     the AirflowPlugin class.
 
     :param plugin_obj: potential subclass of AirflowPlugin
-    :param existing_plugins: Existing list of AirflowPlugin subclasses
     :return: Whether or not the obj is a valid subclass of
         AirflowPlugin
     """
+    global plugins
+
     if (
-        inspect.isclass(plugin_obj) and
-        issubclass(plugin_obj, AirflowPlugin) and
-        (plugin_obj is not AirflowPlugin)
+        inspect.isclass(plugin_obj)
+        and issubclass(plugin_obj, AirflowPlugin)
+        and (plugin_obj is not AirflowPlugin)
     ):
         plugin_obj.validate()
-        return plugin_obj not in existing_plugins
+        return plugin_obj not in plugins
     return False
 
 
-plugins = []  # type: List[AirflowPlugin]
+def register_plugin(plugin_instance):
+    """
+    Start plugin load and register it after success initialization
 
-norm_pattern = re.compile(r'[/|.]')
+    :param plugin_instance: subclass of AirflowPlugin
+    """
+    global plugins
+    plugin_instance.on_load()
+    plugins.append(plugin_instance)
 
-if not settings.PLUGINS_FOLDER:
-    raise ValueError("Plugins folder is not set")
 
-# Crawl through the plugins folder to find AirflowPlugin derivatives
-for root, dirs, files in os.walk(settings.PLUGINS_FOLDER, followlinks=True):
-    for f in files:
-        filepath = os.path.join(root, f)
+def load_entrypoint_plugins():
+    """
+    Load and register plugins AirflowPlugin subclasses from the entrypoints.
+    The entry_point group should be 'airflow.plugins'.
+    """
+    global import_errors
+
+    log.debug("Loading plugins from entrypoints")
+
+    for entry_point, dist in entry_points_with_dist('airflow.plugins'):
+        log.debug('Importing entry_point plugin %s', entry_point.name)
         try:
-            if not os.path.isfile(filepath):
-                continue
-            mod_name, file_ext = os.path.splitext(
-                os.path.split(filepath)[-1])
-            if file_ext != '.py':
+            plugin_class = entry_point.load()
+            if not is_valid_plugin(plugin_class):
                 continue
 
-            log.debug('Importing plugin module %s', filepath)
-            # normalize root path as namespace
-            namespace = '_'.join([re.sub(norm_pattern, '__', root), mod_name])
-
-            m = imp.load_source(namespace, filepath)
-            for obj in list(m.__dict__.values()):
-                if is_valid_plugin(obj, plugins):
-                    plugins.append(obj)
-        except Exception as e:  # pylint: disable=broad-except
-            log.exception(e)
-            path = filepath or str(f)
-            log.error('Failed to import plugin %s', path)
-            import_errors[path] = str(e)
-
-plugins = load_entrypoint_plugins(
-    pkg_resources.iter_entry_points('airflow.plugins'),
-    plugins
-)
+            plugin_instance = plugin_class()
+            plugin_instance.source = EntryPointSource(entry_point, dist)
+            register_plugin(plugin_instance)
+        except Exception as e:
+            log.exception("Failed to import plugin %s", entry_point.name)
+            import_errors[entry_point.module] = str(e)
 
 
-# pylint: disable=protected-access
-# noinspection Mypy,PyTypeHints
+def load_plugins_from_plugin_directory():
+    """Load and register Airflow Plugins from plugins directory"""
+    global import_errors
+    log.debug("Loading plugins from directory: %s", settings.PLUGINS_FOLDER)
+
+    for file_path in find_path_from_directory(settings.PLUGINS_FOLDER, ".airflowignore"):
+        if not os.path.isfile(file_path):
+            continue
+        mod_name, file_ext = os.path.splitext(os.path.split(file_path)[-1])
+        if file_ext != '.py':
+            continue
+
+        try:
+            loader = importlib.machinery.SourceFileLoader(mod_name, file_path)
+            spec = importlib.util.spec_from_loader(mod_name, loader)
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules[spec.name] = mod
+            loader.exec_module(mod)
+            log.debug('Importing plugin module %s', file_path)
+
+            for mod_attr_value in (m for m in mod.__dict__.values() if is_valid_plugin(m)):
+                plugin_instance = mod_attr_value()
+                plugin_instance.source = PluginsDirectorySource(file_path)
+                register_plugin(plugin_instance)
+        except Exception as e:
+            log.exception('Failed to import plugin %s', file_path)
+            import_errors[file_path] = str(e)
+
+
 def make_module(name: str, objects: List[Any]):
     """Creates new module."""
+    if not objects:
+        return None
     log.debug('Creating module %s', name)
     name = name.lower()
-    module = imp.new_module(name)
+    module = types.ModuleType(name)
     module._name = name.split('.')[-1]  # type: ignore
-    module._objects = objects           # type: ignore
+    module._objects = objects  # type: ignore
     module.__dict__.update((o.__name__, o) for o in objects)
     return module
-# pylint: enable=protected-access
 
 
-# Plugin components to integrate as modules
-operators_modules = []
-sensors_modules = []
-hooks_modules = []
-executors_modules = []
-macros_modules = []
+def ensure_plugins_loaded():
+    """
+    Load plugins from plugins directory and entrypoints.
 
-# Plugin components to integrate directly
-admin_views: List[Any] = []
-flask_blueprints: List[Any] = []
-menu_links: List[Any] = []
-flask_appbuilder_views: List[Any] = []
-flask_appbuilder_menu_links: List[Any] = []
-stat_name_handler: Any = None
-global_operator_extra_links: List[Any] = []
-operator_extra_links: List[Any] = []
-registered_operator_link_classes: Dict[str, Type] = {}
-"""Mapping of class names to class of OperatorLinks registered by plugins.
+    Plugins are only loaded if they have not been previously loaded.
+    """
+    from airflow.stats import Stats
 
-Used by the DAG serialization code to only allow specific classes to be created
-during deserialization
-"""
+    global plugins, registered_hooks
 
-stat_name_handlers = []
-for p in plugins:
-    if not p.name:
-        raise AirflowPluginException("Plugin name is missing.")
-    plugin_name: str = p.name
-    operators_modules.append(
-        make_module('airflow.operators.' + plugin_name, p.operators + p.sensors))
-    sensors_modules.append(
-        make_module('airflow.sensors.' + plugin_name, p.sensors)
-    )
-    hooks_modules.append(make_module('airflow.hooks.' + plugin_name, p.hooks))
-    executors_modules.append(
-        make_module('airflow.executors.' + plugin_name, p.executors))
-    macros_modules.append(make_module('airflow.macros.' + plugin_name, p.macros))
+    if plugins is not None:
+        log.debug("Plugins are already loaded. Skipping.")
+        return
 
-    admin_views.extend(p.admin_views)
-    menu_links.extend(p.menu_links)
-    flask_appbuilder_views.extend(p.appbuilder_views)
-    flask_appbuilder_menu_links.extend(p.appbuilder_menu_items)
-    flask_blueprints.extend([{
-        'name': p.name,
-        'blueprint': bp
-    } for bp in p.flask_blueprints])
-    if p.stat_name_handler:
-        stat_name_handlers.append(p.stat_name_handler)
-    global_operator_extra_links.extend(p.global_operator_extra_links)
-    operator_extra_links.extend([ope for ope in p.operator_extra_links])
+    if not settings.PLUGINS_FOLDER:
+        raise ValueError("Plugins folder is not set")
 
-    registered_operator_link_classes.update({
-        "{}.{}".format(link.__class__.__module__,
-                       link.__class__.__name__): link.__class__
-        for link in p.operator_extra_links
-    })
+    log.debug("Loading plugins")
 
-if len(stat_name_handlers) > 1:
-    raise AirflowPluginException(
-        'Specified more than one stat_name_handler ({}) '
-        'is not allowed.'.format(stat_name_handlers))
+    with Stats.timer() as timer:
+        plugins = []
+        registered_hooks = []
 
-stat_name_handler = stat_name_handlers[0] if len(stat_name_handlers) == 1 else None
+        load_plugins_from_plugin_directory()
+        load_entrypoint_plugins()
+
+        # We don't do anything with these for now, but we want to keep track of
+        # them so we can integrate them in to the UI's Connection screens
+        for plugin in plugins:
+            registered_hooks.extend(plugin.hooks)
+
+    num_loaded = len(plugins)
+    if num_loaded > 0:
+        log.debug("Loading %d plugin(s) took %.2f seconds", num_loaded, timer.duration)
 
 
-def integrate_operator_plugins() -> None:
-    """Integrate operators plugins to the context"""
-    for operators_module in operators_modules:
-        sys.modules[operators_module.__name__] = operators_module
-        # noinspection PyProtectedMember
-        globals()[operators_module._name] = operators_module  # pylint: disable=protected-access
+def initialize_web_ui_plugins():
+    """Collect extension points for WEB UI"""
+    global plugins
+    global flask_blueprints
+    global flask_appbuilder_views
+    global flask_appbuilder_menu_links
+
+    if (
+        flask_blueprints is not None
+        and flask_appbuilder_views is not None
+        and flask_appbuilder_menu_links is not None
+    ):
+        return
+
+    ensure_plugins_loaded()
+
+    if plugins is None:
+        raise AirflowPluginException("Can't load plugins.")
+
+    log.debug("Initialize Web UI plugin")
+
+    flask_blueprints = []
+    flask_appbuilder_views = []
+    flask_appbuilder_menu_links = []
+
+    for plugin in plugins:
+        flask_appbuilder_views.extend(plugin.appbuilder_views)
+        flask_appbuilder_menu_links.extend(plugin.appbuilder_menu_items)
+        flask_blueprints.extend([{'name': plugin.name, 'blueprint': bp} for bp in plugin.flask_blueprints])
+
+        if (plugin.admin_views and not plugin.appbuilder_views) or (
+            plugin.menu_links and not plugin.appbuilder_menu_items
+        ):
+            log.warning(
+                "Plugin \'%s\' may not be compatible with the current Airflow version. "
+                "Please contact the author of the plugin.",
+                plugin.name,
+            )
 
 
-def integrate_sensor_plugins() -> None:
-    """Integrate sensor plugins to the context"""
-    for sensors_module in sensors_modules:
-        sys.modules[sensors_module.__name__] = sensors_module
-        # noinspection PyProtectedMember
-        globals()[sensors_module._name] = sensors_module  # pylint: disable=protected-access
+def initialize_extra_operators_links_plugins():
+    """Creates modules for loaded extension from extra operators links plugins"""
+    global global_operator_extra_links
+    global operator_extra_links
+    global registered_operator_link_classes
+
+    if (
+        global_operator_extra_links is not None
+        and operator_extra_links is not None
+        and registered_operator_link_classes is not None
+    ):
+        return
+
+    ensure_plugins_loaded()
+
+    if plugins is None:
+        raise AirflowPluginException("Can't load plugins.")
+
+    log.debug("Initialize extra operators links plugins")
+
+    global_operator_extra_links = []
+    operator_extra_links = []
+    registered_operator_link_classes = {}
+
+    for plugin in plugins:
+        global_operator_extra_links.extend(plugin.global_operator_extra_links)
+        operator_extra_links.extend(list(plugin.operator_extra_links))
+
+        registered_operator_link_classes.update(
+            {as_importable_string(link.__class__): link.__class__ for link in plugin.operator_extra_links}
+        )
 
 
-def integrate_hook_plugins() -> None:
-    """Integrate hook plugins to the context"""
-    for hooks_module in hooks_modules:
-        sys.modules[hooks_module.__name__] = hooks_module
-        # noinspection PyProtectedMember
-        globals()[hooks_module._name] = hooks_module  # pylint: disable=protected-access
+def initialize_timetables_plugins():
+    """Collect timetable classes registered by plugins."""
+    global timetable_classes
+
+    if timetable_classes is not None:
+        return
+
+    ensure_plugins_loaded()
+
+    if plugins is None:
+        raise AirflowPluginException("Can't load plugins.")
+
+    log.debug("Initialize extra timetables plugins")
+
+    timetable_classes = {
+        as_importable_string(timetable_class): timetable_class
+        for plugin in plugins
+        for timetable_class in plugin.timetables
+    }
 
 
 def integrate_executor_plugins() -> None:
     """Integrate executor plugins to the context."""
-    for executors_module in executors_modules:
-        sys.modules[executors_module.__name__] = executors_module
-        # noinspection PyProtectedMember
-        globals()[executors_module._name] = executors_module  # pylint: disable=protected-access
+    global plugins
+    global executors_modules
+
+    if executors_modules is not None:
+        return
+
+    ensure_plugins_loaded()
+
+    if plugins is None:
+        raise AirflowPluginException("Can't load plugins.")
+
+    log.debug("Integrate executor plugins")
+
+    executors_modules = []
+    for plugin in plugins:
+        if plugin.name is None:
+            raise AirflowPluginException("Invalid plugin name")
+        plugin_name: str = plugin.name
+
+        executors_module = make_module('airflow.executors.' + plugin_name, plugin.executors)
+        if executors_module:
+            executors_modules.append(executors_module)
+            sys.modules[executors_module.__name__] = executors_module
 
 
-def integrate_macro_plugins() -> None:
-    """Integrate macro plugins to the context"""
-    for macros_module in macros_modules:
-        sys.modules[macros_module.__name__] = macros_module
-        # noinspection PyProtectedMember
-        globals()[macros_module._name] = macros_module  # pylint: disable=protected-access
+def integrate_macros_plugins() -> None:
+    """Integrates macro plugins."""
+    global plugins
+    global macros_modules
+
+    from airflow import macros
+
+    if macros_modules is not None:
+        return
+
+    ensure_plugins_loaded()
+
+    if plugins is None:
+        raise AirflowPluginException("Can't load plugins.")
+
+    log.debug("Integrate DAG plugins")
+
+    macros_modules = []
+
+    for plugin in plugins:
+        if plugin.name is None:
+            raise AirflowPluginException("Invalid plugin name")
+
+        macros_module = make_module(f'airflow.macros.{plugin.name}', plugin.macros)
+
+        if macros_module:
+            macros_modules.append(macros_module)
+            sys.modules[macros_module.__name__] = macros_module
+            # Register the newly created module on airflow.macros such that it
+            # can be accessed when rendering templates.
+            setattr(macros, plugin.name, macros_module)
 
 
-def integrate_plugins() -> None:
-    """Integrates all types of plugins."""
-    integrate_operator_plugins()
-    integrate_sensor_plugins()
-    integrate_hook_plugins()
+def integrate_listener_plugins(listener_manager: "ListenerManager") -> None:
+    global plugins
+
+    ensure_plugins_loaded()
+
+    if plugins:
+        for plugin in plugins:
+            if plugin.name is None:
+                raise AirflowPluginException("Invalid plugin name")
+
+            for listener in plugin.listeners:
+                listener_manager.add_listener(listener)
+
+
+def get_plugin_info(attrs_to_dump: Optional[Iterable[str]] = None) -> List[Dict[str, Any]]:
+    """
+    Dump plugins attributes
+
+    :param attrs_to_dump: A list of plugin attributes to dump
+    """
+    ensure_plugins_loaded()
     integrate_executor_plugins()
-    integrate_macro_plugins()
-    register_inbuilt_operator_links()
+    integrate_macros_plugins()
+    initialize_web_ui_plugins()
+    initialize_extra_operators_links_plugins()
+    if not attrs_to_dump:
+        attrs_to_dump = PLUGINS_ATTRIBUTES_TO_DUMP
+    plugins_info = []
+    if plugins:
+        for plugin in plugins:
+            info: Dict[str, Any] = {"name": plugin.name}
+            for attr in attrs_to_dump:
+                if attr in ('global_operator_extra_links', 'operator_extra_links'):
+                    info[attr] = [
+                        f'<{as_importable_string(d.__class__)} object>' for d in getattr(plugin, attr)
+                    ]
+                elif attr in ('macros', 'timetables', 'hooks', 'executors'):
+                    info[attr] = [as_importable_string(d) for d in getattr(plugin, attr)]
+                elif attr == 'listeners':
+                    # listeners are always modules
+                    info[attr] = [d.__name__ for d in getattr(plugin, attr)]
+                elif attr == 'appbuilder_views':
+                    info[attr] = [
+                        {**d, 'view': as_importable_string(d['view'].__class__) if 'view' in d else None}
+                        for d in getattr(plugin, attr)
+                    ]
+                elif attr == 'flask_blueprints':
+                    info[attr] = [
+                        (
+                            f"<{as_importable_string(d.__class__)}: "
+                            f"name={d.name!r} import_name={d.import_name!r}>"
+                        )
+                        for d in getattr(plugin, attr)
+                    ]
+                else:
+                    info[attr] = getattr(plugin, attr)
+            plugins_info.append(info)
+    return plugins_info

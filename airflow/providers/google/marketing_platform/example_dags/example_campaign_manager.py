@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -20,18 +19,28 @@
 Example Airflow DAG that shows how to use CampaignManager.
 """
 import os
+import time
+from datetime import datetime
 
 from airflow import models
 from airflow.providers.google.marketing_platform.operators.campaign_manager import (
-    GoogleCampaignManagerDeleteReportOperator, GoogleCampaignManagerDownloadReportOperator,
-    GoogleCampaignManagerInsertReportOperator, GoogleCampaignManagerRunReportOperator,
+    GoogleCampaignManagerBatchInsertConversionsOperator,
+    GoogleCampaignManagerBatchUpdateConversionsOperator,
+    GoogleCampaignManagerDeleteReportOperator,
+    GoogleCampaignManagerDownloadReportOperator,
+    GoogleCampaignManagerInsertReportOperator,
+    GoogleCampaignManagerRunReportOperator,
 )
 from airflow.providers.google.marketing_platform.sensors.campaign_manager import (
     GoogleCampaignManagerReportSensor,
 )
-from airflow.utils import dates
+from airflow.utils.state import State
 
 PROFILE_ID = os.environ.get("MARKETING_PROFILE_ID", "123456789")
+FLOODLIGHT_ACTIVITY_ID = int(os.environ.get("FLOODLIGHT_ACTIVITY_ID", 12345))
+FLOODLIGHT_CONFIGURATION_ID = int(os.environ.get("FLOODLIGHT_CONFIGURATION_ID", 12345))
+ENCRYPTION_ENTITY_ID = int(os.environ.get("ENCRYPTION_ENTITY_ID", 12345))
+DEVICE_ID = os.environ.get("DEVICE_ID", "12345")
 BUCKET = os.environ.get("MARKETING_BUCKET", "test-cm-bucket")
 REPORT_NAME = "test-report"
 REPORT = {
@@ -42,33 +51,57 @@ REPORT = {
             "kind": "dfareporting#dateRange",
             "relativeDateRange": "LAST_365_DAYS",
         },
-        "dimensions": [
-            {"kind": "dfareporting#sortedDimension", "name": "dfa:advertiser"}
-        ],
+        "dimensions": [{"kind": "dfareporting#sortedDimension", "name": "dfa:advertiser"}],
         "metricNames": ["dfa:activeViewImpressionDistributionViewable"],
     },
 }
 
+CONVERSION = {
+    "kind": "dfareporting#conversion",
+    "floodlightActivityId": FLOODLIGHT_ACTIVITY_ID,
+    "floodlightConfigurationId": FLOODLIGHT_CONFIGURATION_ID,
+    "mobileDeviceId": DEVICE_ID,
+    "ordinal": "0",
+    "quantity": 42,
+    "value": 123.4,
+    "timestampMicros": int(time.time()) * 1000000,
+    "customVariables": [
+        {
+            "kind": "dfareporting#customFloodlightVariable",
+            "type": "U4",
+            "value": "value",
+        }
+    ],
+}
 
-default_args = {"start_date": dates.days_ago(1)}
+CONVERSION_UPDATE = {
+    "kind": "dfareporting#conversion",
+    "floodlightActivityId": FLOODLIGHT_ACTIVITY_ID,
+    "floodlightConfigurationId": FLOODLIGHT_CONFIGURATION_ID,
+    "mobileDeviceId": DEVICE_ID,
+    "ordinal": "0",
+    "quantity": 42,
+    "value": 123.4,
+}
 
 with models.DAG(
     "example_campaign_manager",
-    default_args=default_args,
-    schedule_interval=None,  # Override to match your needs
+    schedule_interval='@once',  # Override to match your needs,
+    start_date=datetime(2021, 1, 1),
+    catchup=False,
 ) as dag:
     # [START howto_campaign_manager_insert_report_operator]
     create_report = GoogleCampaignManagerInsertReportOperator(
         profile_id=PROFILE_ID, report=REPORT, task_id="create_report"
     )
-    report_id = "{{ task_instance.xcom_pull('create_report')['id'] }}"
+    report_id = create_report.output["report_id"]
     # [END howto_campaign_manager_insert_report_operator]
 
     # [START howto_campaign_manager_run_report_operator]
     run_report = GoogleCampaignManagerRunReportOperator(
         profile_id=PROFILE_ID, report_id=report_id, task_id="run_report"
     )
-    file_id = "{{ task_instance.xcom_pull('run_report')['id'] }}"
+    file_id = run_report.output["file_id"]
     # [END howto_campaign_manager_run_report_operator]
 
     # [START howto_campaign_manager_wait_for_operation]
@@ -97,4 +130,41 @@ with models.DAG(
     )
     # [END howto_campaign_manager_delete_report_operator]
 
-    create_report >> run_report >> wait_for_report >> get_report >> delete_report
+    wait_for_report >> get_report >> delete_report
+
+    # Task dependencies created via `XComArgs`:
+    #   create_report >> run_report
+    #   create_report >> wait_for_report
+    #   create_report >> get_report
+    #   run_report >> get_report
+    #   run_report >> wait_for_report
+
+    # [START howto_campaign_manager_insert_conversions]
+    insert_conversion = GoogleCampaignManagerBatchInsertConversionsOperator(
+        task_id="insert_conversion",
+        profile_id=PROFILE_ID,
+        conversions=[CONVERSION],
+        encryption_source="AD_SERVING",
+        encryption_entity_type="DCM_ADVERTISER",
+        encryption_entity_id=ENCRYPTION_ENTITY_ID,
+    )
+    # [END howto_campaign_manager_insert_conversions]
+
+    # [START howto_campaign_manager_update_conversions]
+    update_conversion = GoogleCampaignManagerBatchUpdateConversionsOperator(
+        task_id="update_conversion",
+        profile_id=PROFILE_ID,
+        conversions=[CONVERSION_UPDATE],
+        encryption_source="AD_SERVING",
+        encryption_entity_type="DCM_ADVERTISER",
+        encryption_entity_id=ENCRYPTION_ENTITY_ID,
+        max_failed_updates=1,
+    )
+    # [END howto_campaign_manager_update_conversions]
+
+    insert_conversion >> update_conversion
+
+
+if __name__ == "__main__":
+    dag.clear(dag_run_state=State.NONE)
+    dag.run()

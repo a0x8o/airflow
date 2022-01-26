@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -22,4 +21,4 @@ import os
 from airflow.utils import timezone
 
 DEFAULT_DATE = timezone.datetime(2016, 1, 1)
-TEST_DAGS_FOLDER = os.path.join(os.path.dirname(os.path.realpath(__file__)), '../dags')
+TEST_DAGS_FOLDER = os.path.normpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'dags'))

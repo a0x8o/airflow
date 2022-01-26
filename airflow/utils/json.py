@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -17,31 +16,71 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import json
 from datetime import date, datetime
+from decimal import Decimal
 
-import numpy as np
+from flask.json import JSONEncoder
+
+try:
+    import numpy as np
+except ImportError:
+    np = None  # type: ignore
+
+try:
+    from kubernetes.client import models as k8s
+except ImportError:
+    k8s = None
 
 # Dates and JSON encoding/decoding
 
 
-class AirflowJsonEncoder(json.JSONEncoder):
+class AirflowJsonEncoder(JSONEncoder):
+    """Custom Airflow json encoder implementation."""
 
-    def default(self, obj):
-        # convert dates and numpy objects in a json serializable format
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.default = self._default
+
+    @staticmethod
+    def _default(obj):
+        """Convert dates and numpy objects in a json serializable format."""
         if isinstance(obj, datetime):
             return obj.strftime('%Y-%m-%dT%H:%M:%SZ')
         elif isinstance(obj, date):
             return obj.strftime('%Y-%m-%d')
-        elif type(obj) in (np.int_, np.intc, np.intp, np.int8, np.int16,
-                           np.int32, np.int64, np.uint8, np.uint16,
-                           np.uint32, np.uint64):
-            return int(obj)
-        elif type(obj) in (np.bool_,):
-            return bool(obj)
-        elif type(obj) in (np.float_, np.float16, np.float32, np.float64,
-                           np.complex_, np.complex64, np.complex128):
+        elif isinstance(obj, Decimal):
+            _, _, exponent = obj.as_tuple()
+            if exponent >= 0:  # No digits after the decimal point.
+                return int(obj)
+            # Technically lossy due to floating point errors, but the best we
+            # can do without implementing a custom encode function.
             return float(obj)
+        elif np is not None and isinstance(
+            obj,
+            (
+                np.int_,
+                np.intc,
+                np.intp,
+                np.int8,
+                np.int16,
+                np.int32,
+                np.int64,
+                np.uint8,
+                np.uint16,
+                np.uint32,
+                np.uint64,
+            ),
+        ):
+            return int(obj)
+        elif np is not None and isinstance(obj, np.bool_):
+            return bool(obj)
+        elif np is not None and isinstance(
+            obj, (np.float_, np.float16, np.float32, np.float64, np.complex_, np.complex64, np.complex128)
+        ):
+            return float(obj)
+        elif k8s is not None and isinstance(obj, (k8s.V1Pod, k8s.V1ResourceRequirements)):
+            from airflow.kubernetes.pod_generator import PodGenerator
 
-        # Let the base class default method raise the TypeError
-        return json.JSONEncoder.default(self, obj)
+            return PodGenerator.serialize_pod(obj)
+
+        raise TypeError(f"Object of type '{obj.__class__.__name__}' is not JSON serializable")

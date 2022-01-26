@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -17,15 +16,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""This module is deprecated. Please use `airflow.providers.amazon.aws.hooks.redshift`."""
+"""This module is deprecated. Please use :mod:`airflow.providers.amazon.aws.hooks.redshift_cluster`."""
 
 import warnings
 
-# pylint: disable=unused-import
-from airflow.providers.amazon.aws.hooks.redshift import RedshiftHook  # noqa
+from airflow.providers.amazon.aws.hooks.redshift_cluster import RedshiftHook
 
 warnings.warn(
-    "This module is deprecated. Please use `airflow.providers.amazon.aws.hooks.redshift`.",
+    "This module is deprecated. Please use `airflow.providers.amazon.aws.hooks.redshift_cluster`.",
     DeprecationWarning,
     stacklevel=2,
 )
+
+__all__ = ["RedshiftHook"]

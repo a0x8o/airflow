@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -39,10 +38,12 @@ depends_on = None
 def upgrade():
     # use batch_alter_table to support SQLite workaround
     with op.batch_alter_table("task_instance") as batch_op:
-        batch_op.alter_column('duration',
-                              existing_type=mysql.INTEGER(display_width=11),
-                              type_=sa.Float(),
-                              existing_nullable=True)
+        batch_op.alter_column(
+            'duration',
+            existing_type=mysql.INTEGER(display_width=11),
+            type_=sa.Float(),
+            existing_nullable=True,
+        )
 
 
 def downgrade():

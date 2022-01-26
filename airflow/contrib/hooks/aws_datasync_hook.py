@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -17,11 +16,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""This module is deprecated. Please use `airflow.providers.amazon.aws.hooks.datasync`."""
+"""This module is deprecated. Please use :mod:`airflow.providers.amazon.aws.hooks.datasync`."""
 
 import warnings
 
-# pylint: disable=unused-import
 from airflow.providers.amazon.aws.hooks.datasync import AWSDataSyncHook  # noqa
 
 warnings.warn(

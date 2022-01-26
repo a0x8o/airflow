@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -20,17 +19,19 @@
 from datetime import datetime
 from typing import Dict
 
+from deprecated import deprecated
+
 from airflow.api.common.experimental import check_and_get_dag, check_and_get_dagrun
 
 
+@deprecated(reason="Use DagRun().get_state() instead", version="2.2.3")
 def get_dag_run_state(dag_id: str, execution_date: datetime) -> Dict[str, str]:
-    """Return the task object identified by the given dag_id and task_id.
+    """Return the Dag Run state identified by the given dag_id and execution_date.
 
     :param dag_id: DAG id
     :param execution_date: execution date
     :return: Dictionary storing state of the object
     """
-
     dag = check_and_get_dag(dag_id=dag_id)
 
     dagrun = check_and_get_dagrun(dag, execution_date)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -22,33 +21,34 @@ Example usage of the TriggerDagRunOperator. This example holds 2 DAGs:
 1. 1st DAG (example_trigger_controller_dag) holds a TriggerDagRunOperator, which will trigger the 2nd DAG
 2. 2nd DAG (example_trigger_target_dag) which will be triggered by the TriggerDagRunOperator in the 1st DAG
 """
+from datetime import datetime
 
-import airflow.utils.dates
-from airflow.models import DAG
-from airflow.operators.bash_operator import BashOperator
-from airflow.operators.python_operator import PythonOperator
-
-dag = DAG(
-    dag_id="example_trigger_target_dag",
-    default_args={"start_date": airflow.utils.dates.days_ago(2), "owner": "Airflow"},
-    schedule_interval=None,
-)
+from airflow import DAG
+from airflow.decorators import task
+from airflow.operators.bash import BashOperator
 
 
-def run_this_func(**context):
+@task(task_id="run_this")
+def run_this_func(dag_run=None):
     """
     Print the payload "message" passed to the DagRun conf attribute.
 
-    :param context: The execution context
-    :type context: dict
+    :param dag_run: The DagRun object
     """
-    print("Remotely received value of {} for key=message".format(context["dag_run"].conf["message"]))
+    print(f"Remotely received value of {dag_run.conf.get('message')} for key=message")
 
 
-run_this = PythonOperator(task_id="run_this", python_callable=run_this_func, dag=dag)
+with DAG(
+    dag_id="example_trigger_target_dag",
+    start_date=datetime(2021, 1, 1),
+    catchup=False,
+    schedule_interval=None,
+    tags=['example'],
+) as dag:
+    run_this = run_this_func()
 
-bash_task = BashOperator(
-    task_id="bash_task",
-    bash_command='echo "Here is the message: \'{{ dag_run.conf["message"] if dag_run else "" }}\'"',
-    dag=dag,
-)
+    bash_task = BashOperator(
+        task_id="bash_task",
+        bash_command='echo "Here is the message: $message"',
+        env={'message': '{{ dag_run.conf.get("message") }}'},
+    )

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -18,6 +17,7 @@
 # under the License.
 #
 import logging
+import sys
 import warnings
 from logging.config import dictConfig
 
@@ -29,9 +29,10 @@ log = logging.getLogger(__name__)
 
 
 def configure_logging():
+    """Configure & Validate Airflow Logging"""
     logging_class_path = ''
     try:
-        logging_class_path = conf.get('core', 'logging_config_class')
+        logging_class_path = conf.get('logging', 'logging_config_class')
     except AirflowConfigException:
         log.debug('Could not find key logging_config_class in config')
 
@@ -40,29 +41,34 @@ def configure_logging():
             logging_config = import_string(logging_class_path)
 
             # Make sure that the variable is in scope
-            assert (isinstance(logging_config, dict))
+            if not isinstance(logging_config, dict):
+                raise ValueError("Logging Config should be of dict type")
 
-            log.info(
-                'Successfully imported user-defined logging config from %s',
-                logging_class_path
-            )
+            log.info('Successfully imported user-defined logging config from %s', logging_class_path)
         except Exception as err:
             # Import default logging configurations.
-            raise ImportError(
-                'Unable to load custom logging from {} due to {}'
-                .format(logging_class_path, err)
-            )
+            raise ImportError(f'Unable to load custom logging from {logging_class_path} due to {err}')
     else:
-        logging_class_path = 'airflow.config_templates.' \
-                             'airflow_local_settings.DEFAULT_LOGGING_CONFIG'
+        logging_class_path = 'airflow.config_templates.airflow_local_settings.DEFAULT_LOGGING_CONFIG'
         logging_config = import_string(logging_class_path)
         log.debug('Unable to load custom logging, using default config instead')
 
     try:
+        # Ensure that the password masking filter is applied to the 'task' handler
+        # no matter what the user did.
+        if 'filters' in logging_config and 'mask_secrets' in logging_config['filters']:
+            # But if they replace the logging config _entirely_, don't try to set this, it won't work
+            task_handler_config = logging_config['handlers']['task']
+
+            task_handler_config.setdefault('filters', [])
+
+            if 'mask_secrets' not in task_handler_config['filters']:
+                task_handler_config['filters'].append('mask_secrets')
+
         # Try to init logging
         dictConfig(logging_config)
-    except ValueError as e:
-        log.warning('Unable to load the config, contains a configuration error.')
+    except (ValueError, KeyError) as e:
+        log.error('Unable to load the config, contains a configuration error.')
         # When there is an error in the config, escalate the exception
         # otherwise Airflow would silently fall back on the default config
         raise e
@@ -73,8 +79,9 @@ def configure_logging():
 
 
 def validate_logging_config(logging_config):
+    """Validate the provided Logging Config"""
     # Now lets validate the other logging-related settings
-    task_log_reader = conf.get('core', 'task_log_reader')
+    task_log_reader = conf.get('logging', 'task_log_reader')
 
     logger = logging.getLogger('airflow.task')
 
@@ -85,18 +92,33 @@ def validate_logging_config(logging_config):
         # Check for pre 1.10 setting that might be in deployed airflow.cfg files
         if task_log_reader == "file.task" and _get_handler("task"):
             warnings.warn(
-                "task_log_reader setting in [core] has a deprecated value of "
-                "{!r}, but no handler with this name was found. Please update "
-                "your config to use {!r}. Running config has been adjusted to "
-                "match".format(
-                    task_log_reader,
-                    "task",
-                ),
+                f"task_log_reader setting in [logging] has a deprecated value of {task_log_reader!r}, "
+                "but no handler with this name was found. Please update your config to use task. "
+                "Running config has been adjusted to match",
                 DeprecationWarning,
             )
-            conf.set('core', 'task_log_reader', 'task')
+            conf.set('logging', 'task_log_reader', 'task')
         else:
             raise AirflowConfigException(
-                "Configured task_log_reader {!r} was not a handler of the 'airflow.task' "
-                "logger.".format(task_log_reader)
+                f"Configured task_log_reader {task_log_reader!r} was not a handler of "
+                f"the 'airflow.task' logger."
             )
+
+
+if sys.version_info < (3, 7):
+    # Python 3.7 added this via https://bugs.python.org/issue30520 -- but Python 3.6 doesn't have this
+    # support.
+    import copyreg
+
+    def _reduce_Logger(logger):
+        if logging.getLogger(logger.name) is not logger:
+            import pickle
+
+            raise pickle.PicklingError('logger cannot be pickled')
+        return logging.getLogger, (logger.name,)
+
+    def _reduce_RootLogger(logger):
+        return logging.getLogger, ()
+
+    copyreg.pickle(logging.Logger, _reduce_Logger)
+    copyreg.pickle(logging.RootLogger, _reduce_RootLogger)

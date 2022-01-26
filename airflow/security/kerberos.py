@@ -32,22 +32,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Kerberos security provider"""
-
+import logging
+import shlex
 import socket
 import subprocess
 import sys
 import time
 from typing import Optional
 
-from airflow import LoggingMixin
 from airflow.configuration import conf
 
 NEED_KRB181_WORKAROUND = None  # type: Optional[bool]
 
-log = LoggingMixin().log
+log = logging.getLogger(__name__)
 
 
-def renew_from_kt(principal: str, keytab: str):
+def renew_from_kt(principal: Optional[str], keytab: str, exit_on_fail: bool = True):
     """
     Renew kerberos token from keytab
 
@@ -57,44 +57,69 @@ def renew_from_kt(principal: str, keytab: str):
     """
     # The config is specified in seconds. But we ask for that same amount in
     # minutes to give ourselves a large renewal buffer.
-    renewal_lifetime = "%sm" % conf.getint('kerberos', 'reinit_frequency')
+    renewal_lifetime = f"{conf.getint('kerberos', 'reinit_frequency')}m"
 
-    cmd_principal = principal or conf.get('kerberos', 'principal').replace(
-        "_HOST", socket.getfqdn()
-    )
+    cmd_principal = principal or conf.get('kerberos', 'principal').replace("_HOST", socket.getfqdn())
+
+    if conf.getboolean('kerberos', 'forwardable'):
+        forwardable = '-f'
+    else:
+        forwardable = '-F'
+
+    if conf.getboolean('kerberos', 'include_ip'):
+        include_ip = '-a'
+    else:
+        include_ip = '-A'
 
     cmdv = [
         conf.get('kerberos', 'kinit_path'),
-        "-r", renewal_lifetime,
+        forwardable,
+        include_ip,
+        "-r",
+        renewal_lifetime,
         "-k",  # host ticket
-        "-t", keytab,  # specify keytab
-        "-c", conf.get('kerberos', 'ccache'),  # specify credentials cache
-        cmd_principal
+        "-t",
+        keytab,  # specify keytab
+        "-c",
+        conf.get('kerberos', 'ccache'),  # specify credentials cache
+        cmd_principal,
     ]
-    log.info("Re-initialising kerberos from keytab: %s", " ".join(cmdv))
+    log.info("Re-initialising kerberos from keytab: %s", " ".join(shlex.quote(f) for f in cmdv))
 
-    subp = subprocess.Popen(cmdv,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            close_fds=True,
-                            bufsize=-1,
-                            universal_newlines=True)
-    subp.wait()
-    if subp.returncode != 0:
-        log.error(
-            "Couldn't reinit from keytab! `kinit' exited with %s.\n%s\n%s",
-            subp.returncode, "\n".join(subp.stdout.readlines()), "\n".join(subp.stderr.readlines())
-        )
-        sys.exit(subp.returncode)
+    with subprocess.Popen(
+        cmdv,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        close_fds=True,
+        bufsize=-1,
+        universal_newlines=True,
+    ) as subp:
+        subp.wait()
+        if subp.returncode != 0:
+            log.error(
+                "Couldn't reinit from keytab! `kinit' exited with %s.\n%s\n%s",
+                subp.returncode,
+                "\n".join(subp.stdout.readlines() if subp.stdout else []),
+                "\n".join(subp.stderr.readlines() if subp.stderr else []),
+            )
+            if exit_on_fail:
+                sys.exit(subp.returncode)
+            else:
+                return subp.returncode
 
-    global NEED_KRB181_WORKAROUND  # pylint: disable=global-statement
+    global NEED_KRB181_WORKAROUND
     if NEED_KRB181_WORKAROUND is None:
         NEED_KRB181_WORKAROUND = detect_conf_var()
     if NEED_KRB181_WORKAROUND:
         # (From: HUE-640). Kerberos clock have seconds level granularity. Make sure we
         # renew the ticket after the initial valid time.
         time.sleep(1.5)
-        perform_krb181_workaround(principal)
+        ret = perform_krb181_workaround(cmd_principal)
+        if exit_on_fail and ret != 0:
+            sys.exit(ret)
+        else:
+            return ret
+    return 0
 
 
 def perform_krb181_workaround(principal: str):
@@ -104,29 +129,31 @@ def perform_krb181_workaround(principal: str):
     :param principal: principal name
     :return: None
     """
-    cmdv = [conf.get('kerberos', 'kinit_path'),
-            "-c", conf.get('kerberos', 'ccache'),
-            "-R"]  # Renew ticket_cache
+    cmdv = [
+        conf.get('kerberos', 'kinit_path'),
+        "-c",
+        conf.get('kerberos', 'ccache'),
+        "-R",
+    ]  # Renew ticket_cache
 
-    log.info(
-        "Renewing kerberos ticket to work around kerberos 1.8.1: %s", " ".join(cmdv)
-    )
+    log.info("Renewing kerberos ticket to work around kerberos 1.8.1: %s", " ".join(cmdv))
 
     ret = subprocess.call(cmdv, close_fds=True)
 
     if ret != 0:
-        principal = "%s/%s" % (principal or conf.get('kerberos', 'principal'),
-                               socket.getfqdn())
-        princ = principal
-        ccache = conf.get('kerberos', 'principal')
+        principal = f"{principal or conf.get('kerberos', 'principal')}/{socket.getfqdn()}"
+        ccache = conf.get('kerberos', 'ccache')
         log.error(
             "Couldn't renew kerberos ticket in order to work around Kerberos 1.8.1 issue. Please check that "
             "the ticket for '%s' is still renewable:\n  $ kinit -f -c %s\nIf the 'renew until' date is the "
             "same as the 'valid starting' date, the ticket cannot be renewed. Please check your KDC "
             "configuration, and the ticket renewal policy (maxrenewlife) for the '%s' and `krbtgt' "
-            "principals.", princ, ccache, princ
+            "principals.",
+            principal,
+            ccache,
+            principal,
         )
-        sys.exit(ret)
+    return ret
 
 
 def detect_conf_var() -> bool:
@@ -142,7 +169,7 @@ def detect_conf_var() -> bool:
         return b'X-CACHECONF:' in file.read()
 
 
-def run(principal: str, keytab: str):
+def run(principal: Optional[str], keytab: str):
     """
     Run the kerbros renewer.
 
@@ -151,7 +178,7 @@ def run(principal: str, keytab: str):
     :return: None
     """
     if not keytab:
-        log.debug("Keytab renewer not starting, no keytab configured")
+        log.warning("Keytab renewer not starting, no keytab configured")
         sys.exit(0)
 
     while True:

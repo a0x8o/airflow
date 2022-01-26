@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -24,6 +23,11 @@ from airflow.utils.sqlalchemy import UtcDateTime
 
 
 class ImportError(Base):
+    """
+    A table to store all Import Errors. The ImportErrors are recorded when parsing DAGs.
+    This errors are displayed on the Webserver.
+    """
+
     __tablename__ = "import_error"
     id = Column(Integer, primary_key=True)
     timestamp = Column(UtcDateTime)

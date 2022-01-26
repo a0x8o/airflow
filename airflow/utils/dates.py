@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -17,104 +16,122 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import warnings
 from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Union
 
 from croniter import croniter
-from dateutil.relativedelta import relativedelta  # noqa: F401 for doctest
+from dateutil.relativedelta import relativedelta  # for doctest
 
 from airflow.utils import timezone
 
-cron_presets = {
+cron_presets: Dict[str, str] = {
     '@hourly': '0 * * * *',
     '@daily': '0 0 * * *',
     '@weekly': '0 0 * * 0',
     '@monthly': '0 0 1 * *',
+    '@quarterly': '0 0 1 */3 *',
     '@yearly': '0 0 1 1 *',
 }
 
 
-def date_range(start_date, end_date=None, num=None, delta=None):
+def date_range(
+    start_date: datetime,
+    end_date: Optional[datetime] = None,
+    num: Optional[int] = None,
+    delta: Optional[Union[str, timedelta, relativedelta]] = None,
+) -> List[datetime]:
     """
     Get a set of dates as a list based on a start, end and delta, delta
     can be something that can be added to `datetime.datetime`
     or a cron expression as a `str`
 
-    .. code-block:: python
-
-        date_range(datetime(2016, 1, 1), datetime(2016, 1, 3), delta=timedelta(1))
-            [datetime.datetime(2016, 1, 1, 0, 0), datetime.datetime(2016, 1, 2, 0, 0),
-            datetime.datetime(2016, 1, 3, 0, 0)]
-        date_range(datetime(2016, 1, 1), datetime(2016, 1, 3), delta='0 0 * * *')
-            [datetime.datetime(2016, 1, 1, 0, 0), datetime.datetime(2016, 1, 2, 0, 0),
-            datetime.datetime(2016, 1, 3, 0, 0)]
-        date_range(datetime(2016, 1, 1), datetime(2016, 3, 3), delta="0 0 0 * *")
-            [datetime.datetime(2016, 1, 1, 0, 0), datetime.datetime(2016, 2, 1, 0, 0),
-            datetime.datetime(2016, 3, 1, 0, 0)]
+    .. code-block:: pycon
+        >>> from airflow.utils.dates import datterange
+        >>> from datetime import datetime, timedelta
+        >>> date_range(datetime(2016, 1, 1), datetime(2016, 1, 3), delta=timedelta(1))
+        [datetime.datetime(2016, 1, 1, 0, 0, tzinfo=Timezone('UTC')),
+        datetime.datetime(2016, 1, 2, 0, 0, tzinfo=Timezone('UTC')),
+        datetime.datetime(2016, 1, 3, 0, 0, tzinfo=Timezone('UTC'))]
+        >>> date_range(datetime(2016, 1, 1), datetime(2016, 1, 3), delta="0 0 * * *")
+        [datetime.datetime(2016, 1, 1, 0, 0, tzinfo=Timezone('UTC')),
+        datetime.datetime(2016, 1, 2, 0, 0, tzinfo=Timezone('UTC')),
+        datetime.datetime(2016, 1, 3, 0, 0, tzinfo=Timezone('UTC'))]
+        >>> date_range(datetime(2016, 1, 1), datetime(2016, 3, 3), delta="0 0 0 * *")
+        [datetime.datetime(2016, 1, 1, 0, 0, tzinfo=Timezone('UTC')),
+        datetime.datetime(2016, 2, 1, 0, 0, tzinfo=Timezone('UTC')),
+        datetime.datetime(2016, 3, 1, 0, 0, tzinfo=Timezone('UTC'))]
 
     :param start_date: anchor date to start the series from
-    :type start_date: datetime.datetime
     :param end_date: right boundary for the date range
-    :type end_date: datetime.datetime
     :param num: alternatively to end_date, you can specify the number of
         number of entries you want in the range. This number can be negative,
         output will always be sorted regardless
-    :type num: int
     :param delta: step length. It can be datetime.timedelta or cron expression as string
-    :type delta: datetime.timedelta or str
     """
+    warnings.warn(
+        "`airflow.utils.dates.date_range()` is deprecated. Please use `airflow.timetables`.",
+        category=DeprecationWarning,
+        stacklevel=2,
+    )
+
     if not delta:
         return []
-    if end_date and start_date > end_date:
-        raise Exception("Wait. start_date needs to be before end_date")
-    if end_date and num:
-        raise Exception("Wait. Either specify end_date OR num")
+    if end_date:
+        if start_date > end_date:
+            raise Exception("Wait. start_date needs to be before end_date")
+        if num:
+            raise Exception("Wait. Either specify end_date OR num")
     if not end_date and not num:
         end_date = timezone.utcnow()
 
     delta_iscron = False
-    tz = start_date.tzinfo
+    time_zone = start_date.tzinfo
 
+    abs_delta: Union[timedelta, relativedelta]
     if isinstance(delta, str):
         delta_iscron = True
         if timezone.is_localized(start_date):
-            start_date = timezone.make_naive(start_date, tz)
-        cron = croniter(delta, start_date)
+            start_date = timezone.make_naive(start_date, time_zone)
+        cron = croniter(cron_presets.get(delta, delta), start_date)
     elif isinstance(delta, timedelta):
-        delta = abs(delta)
+        abs_delta = abs(delta)
+    elif isinstance(delta, relativedelta):
+        abs_delta = abs(delta)
     else:
         raise Exception("Wait. delta must be either datetime.timedelta or cron expression as str")
 
     dates = []
     if end_date:
         if timezone.is_naive(start_date) and not timezone.is_naive(end_date):
-            end_date = timezone.make_naive(end_date, tz)
-        while start_date <= end_date:
+            end_date = timezone.make_naive(end_date, time_zone)
+        while start_date <= end_date:  # type: ignore
             if timezone.is_naive(start_date):
-                dates.append(timezone.make_aware(start_date, tz))
+                dates.append(timezone.make_aware(start_date, time_zone))
             else:
                 dates.append(start_date)
 
             if delta_iscron:
                 start_date = cron.get_next(datetime)
             else:
-                start_date += delta
+                start_date += abs_delta
     else:
-        for _ in range(abs(num)):
+        num_entries: int = num  # type: ignore
+        for _ in range(abs(num_entries)):
             if timezone.is_naive(start_date):
-                dates.append(timezone.make_aware(start_date, tz))
+                dates.append(timezone.make_aware(start_date, time_zone))
             else:
                 dates.append(start_date)
 
-            if delta_iscron:
-                if num > 0:
-                    start_date = cron.get_next(datetime)
-                else:
-                    start_date = cron.get_prev(datetime)
+            if delta_iscron and num_entries > 0:
+                start_date = cron.get_next(datetime)
+            elif delta_iscron:
+                start_date = cron.get_prev(datetime)
+            elif num_entries > 0:
+                start_date += abs_delta
             else:
-                if num > 0:
-                    start_date += delta
-                else:
-                    start_date -= delta
+                start_date -= abs_delta
+
     return sorted(dates)
 
 
@@ -123,30 +140,32 @@ def round_time(dt, delta, start_date=timezone.make_aware(datetime.min)):
     Returns the datetime of the form start_date + i * delta
     which is closest to dt for any non-negative integer i.
     Note that delta may be a datetime.timedelta or a dateutil.relativedelta
-    >>> round_time(datetime(2015, 1, 1, 6), timedelta(days=1))
-    datetime.datetime(2015, 1, 1, 0, 0)
-    >>> round_time(datetime(2015, 1, 2), relativedelta(months=1))
-    datetime.datetime(2015, 1, 1, 0, 0)
-    >>> round_time(datetime(2015, 9, 16, 0, 0), timedelta(1), datetime(2015, 9, 14, 0, 0))
-    datetime.datetime(2015, 9, 16, 0, 0)
-    >>> round_time(datetime(2015, 9, 15, 0, 0), timedelta(1), datetime(2015, 9, 14, 0, 0))
-    datetime.datetime(2015, 9, 15, 0, 0)
-    >>> round_time(datetime(2015, 9, 14, 0, 0), timedelta(1), datetime(2015, 9, 14, 0, 0))
-    datetime.datetime(2015, 9, 14, 0, 0)
-    >>> round_time(datetime(2015, 9, 13, 0, 0), timedelta(1), datetime(2015, 9, 14, 0, 0))
-    datetime.datetime(2015, 9, 14, 0, 0)
-    """
 
+    .. code-block:: pycon
+
+        >>> round_time(datetime(2015, 1, 1, 6), timedelta(days=1))
+        datetime.datetime(2015, 1, 1, 0, 0)
+        >>> round_time(datetime(2015, 1, 2), relativedelta(months=1))
+        datetime.datetime(2015, 1, 1, 0, 0)
+        >>> round_time(datetime(2015, 9, 16, 0, 0), timedelta(1), datetime(2015, 9, 14, 0, 0))
+        datetime.datetime(2015, 9, 16, 0, 0)
+        >>> round_time(datetime(2015, 9, 15, 0, 0), timedelta(1), datetime(2015, 9, 14, 0, 0))
+        datetime.datetime(2015, 9, 15, 0, 0)
+        >>> round_time(datetime(2015, 9, 14, 0, 0), timedelta(1), datetime(2015, 9, 14, 0, 0))
+        datetime.datetime(2015, 9, 14, 0, 0)
+        >>> round_time(datetime(2015, 9, 13, 0, 0), timedelta(1), datetime(2015, 9, 14, 0, 0))
+        datetime.datetime(2015, 9, 14, 0, 0)
+    """
     if isinstance(delta, str):
         # It's cron based, so it's easy
-        tz = start_date.tzinfo
-        start_date = timezone.make_naive(start_date, tz)
+        time_zone = start_date.tzinfo
+        start_date = timezone.make_naive(start_date, time_zone)
         cron = croniter(delta, start_date)
         prev = cron.get_prev(datetime)
         if prev == start_date:
-            return timezone.make_aware(start_date, tz)
+            return timezone.make_aware(start_date, time_zone)
         else:
-            return timezone.make_aware(prev, tz)
+            return timezone.make_aware(prev, time_zone)
 
     # Ignore the microseconds of dt
     dt -= timedelta(microseconds=dt.microsecond)
@@ -155,7 +174,7 @@ def round_time(dt, delta, start_date=timezone.make_aware(datetime.min)):
     # which is as close as possible to dt. Since delta could be a relative
     # delta we don't know its exact length in seconds so we cannot rely on
     # division to find i. Instead we employ a binary search algorithm, first
-    # finding an upper and lower limit and then disecting the interval until
+    # finding an upper and lower limit and then dissecting the interval until
     # we have found the closest match.
 
     # We first search an upper limit for i for which start_date + upper * delta
@@ -219,9 +238,7 @@ def infer_time_unit(time_seconds_arr):
 
 
 def scale_time_units(time_seconds_arr, unit):
-    """
-    Convert an array of time durations in seconds to the specified time unit.
-    """
+    """Convert an array of time durations in seconds to the specified time unit."""
     if unit == 'minutes':
         return list(map(lambda x: x / 60, time_seconds_arr))
     elif unit == 'hours':
@@ -236,16 +253,10 @@ def days_ago(n, hour=0, minute=0, second=0, microsecond=0):
     Get a datetime object representing `n` days ago. By default the time is
     set to midnight.
     """
-    today = timezone.utcnow().replace(
-        hour=hour,
-        minute=minute,
-        second=second,
-        microsecond=microsecond)
+    today = timezone.utcnow().replace(hour=hour, minute=minute, second=second, microsecond=microsecond)
     return today - timedelta(days=n)
 
 
 def parse_execution_date(execution_date_str):
-    """
-    Parse execution date string to datetime object.
-    """
+    """Parse execution date string to datetime object."""
     return timezone.parse(execution_date_str)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -23,20 +22,19 @@ import pkgutil
 from typing import Iterable
 
 import jsonschema
-from typing_extensions import Protocol
 
 from airflow.exceptions import AirflowException
 from airflow.settings import json
+from airflow.typing_compat import Protocol
 
 
 class Validator(Protocol):
     """
-    This class is only used for TypeChecking (for IDEs, mypy, pylint, etc)
+    This class is only used for TypeChecking (for IDEs, mypy, etc)
     due to the way ``Draft7Validator`` is created. They are created or do not inherit
     from proper classes. Hence you can not have ``type: Draft7Validator``.
     """
 
-    # pylint: disable=unused-argument
     def is_valid(self, instance) -> bool:
         """Check if the instance is valid under the current schema"""
         ...
@@ -50,16 +48,19 @@ class Validator(Protocol):
         ...
 
 
-def load_dag_schema() -> Validator:
-    """
-    Load Json Schema for DAG
-    """
+def load_dag_schema_dict() -> dict:
+    """Load & return Json Schema for DAG as Python dict"""
     schema_file_name = 'schema.json'
     schema_file = pkgutil.get_data(__name__, schema_file_name)
 
     if schema_file is None:
-        raise AirflowException("Schema file {} does not exists".format(schema_file_name))
+        raise AirflowException(f"Schema file {schema_file_name} does not exists")
 
     schema = json.loads(schema_file.decode())
-    jsonschema.Draft7Validator.check_schema(schema)
+    return schema
+
+
+def load_dag_schema() -> Validator:
+    """Load & Validate Json Schema for DAG"""
+    schema = load_dag_schema_dict()
     return jsonschema.Draft7Validator(schema)

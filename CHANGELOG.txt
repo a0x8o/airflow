@@ -1,3 +1,2119 @@
+Airflow 2.2.3, 2021-12-21
+-------------------------
+
+Bug Fixes
+"""""""""
+
+- Lazy Jinja2 context (#20217)
+- Exclude ``snowflake-sqlalchemy`` v1.2.5 (#20245)
+- Move away from legacy ``importlib.resources`` API (#19091)
+- Move setgid as the first command executed in forked task runner (#20040)
+- Fix race condition when starting ``DagProcessorAgent`` (#19935)
+- Limit ``httpx`` to <0.20.0 (#20218)
+- Log provider import errors as debug warnings (#20172)
+- Bump minimum required ``alembic`` version (#20153)
+- Fix log link in gantt view (#20121)
+- fixing #19028 by moving chown to use sudo (#20114)
+- Lift off upper bound for ``MarkupSafe`` (#20113)
+- Fix infinite recursion on redact log (#20039)
+- Fix db downgrades (#19994)
+- Context class handles deprecation (#19886)
+- Fix possible reference to undeclared variable (#19933)
+- Validate ``DagRun`` state is valid on assignment (#19898)
+- Workaround occasional deadlocks with MSSQL (#19856)
+- Enable task run setting to be able reinitialise (#19845)
+- Fix log endpoint for same task (#19672)
+- Cast macro datetime string inputs explicitly (#19592)
+- Do not crash with stacktrace when task instance is missing (#19478)
+- Fix log timezone in task log view (#19342) (#19401)
+- Fix: Add taskgroup tooltip to graph view (#19083)
+- Rename execution date in forms and tables (#19063)
+- Simplify "invalid TI state" message (#19029)
+- Handle case of nonexistent file when preparing file path queue (#18998)
+- Do not create dagruns for DAGs with import errors  (#19367)
+- Fix field relabeling when switching between conn types (#19411)
+- ``KubernetesExecutor`` should default to template image if used (#19484)
+- Fix task instance api cannot list task instances with ``None`` state (#19487)
+- Fix IntegrityError in ``DagFileProcessor.manage_slas`` (#19553)
+- Declare data interval fields as serializable (#19616)
+- Relax timetable class validation (#19878)
+- Fix labels used to find queued ``KubernetesExecutor`` pods (#19904)
+- Fix moved data migration check for MySQL when replcation is used (#19999)
+
+Doc only changes
+""""""""""""""""
+
+- Warn without tracebacks when example_dags are missing deps (#20295)
+- Deferrable operators doc clarification (#20150)
+- Ensure the example DAGs are all working (#19355)
+- Updating core example DAGs to use TaskFlow API where applicable (#18562)
+- Add xcom clearing behaviour on task retries (#19968)
+- Add a short chapter focusing on adapting secret format for connections (#19859)
+- Add information about supported OS-es for Apache Airflow (#19855)
+- Update docs to reflect that changes to the ``base_log_folder`` require updating other configs (#19793)
+- Disclaimer in ``KubernetesExecutor`` pod template docs (#19686)
+- Add upgrade note on ``execution_date`` -> ``run_id`` (#19593)
+- Expanding ``.output`` operator property information in TaskFlow tutorial doc (#19214)
+- Add example SLA DAG (#19563)
+- Add a proper example to patch DAG (#19465)
+- Add DAG file processing description to Scheduler Concepts (#18954)
+- Updating explicit arg example in TaskFlow API tutorial doc (#18907)
+- Adds back documentation about context usage in Python/@task (#18868)
+- Add release date for when an endpoint/field is added in the REST API (#19203)
+- Better ``pod_template_file`` examples (#19691)
+- Add decription on how you can customize image entrypoint (#18915)
+- Dags-in-image pod template example should not have dag mounts (#19337)
+
+Airflow 2.2.2, 2021-11-15
+-------------------------
+
+Bug Fixes
+"""""""""
+
+- Fix bug when checking for existence of a Variable (#19395)
+- Fix Serialization when ``relativedelta`` is passed as ``schedule_interval``  (#19418)
+- Fix moving of dangling TaskInstance rows for SQL Server (#19425)
+- Fix task instance modal in gantt view (#19258)
+- Fix serialization of ``Params`` with set data type (#19267)
+- Check if job object is ``None`` before calling ``.is_alive()`` (#19380)
+- Task should fail immediately when pod is unprocessable (#19359)
+- Fix downgrade for a DB Migration (#19390)
+- Only mark SchedulerJobs as failed, not any jobs (#19375)
+- Fix message on "Mark as" confirmation page (#19363)
+- Bugfix: Check next run exists before reading data interval (#19307)
+- Fix MySQL db migration with default encoding/collation (#19268)
+- Fix hidden tooltip position (#19261)
+- ``sqlite_default`` Connection has been hard-coded to ``/tmp``, use ``gettempdir`` instead (#19255)
+- Fix Toggle Wrap on DAG code page (#19211)
+- Clarify "dag not found" error message in CLI (#19338)
+- Add Note to SLA regarding ``schedule_interval`` (#19173)
+- Use ``execution_date`` to check for existing ``DagRun`` for ``TriggerDagRunOperator`` (#18968)
+- Add explicit session parameter in ``PoolSlotsAvailableDep`` (#18875)
+- FAB still requires ``WTForms<3.0`` (#19466)
+- Fix missing dagruns when ``catchup=True`` (#19528)
+
+Doc only changes
+""""""""""""""""
+
+- Add missing parameter documentation for "timetable" (#19282)
+- Improve Kubernetes Executor docs (#19339)
+- Update image tag used in docker docs
+
+Airflow 2.2.1, 2021-10-29
+-------------------------
+
+Bug Fixes
+"""""""""
+
+- Fix Unexpected commit error in schedulerjob (#19213)
+- Add DagRun.logical_date as a property (#19198)
+- Clear ``ti.next_method`` and ``ti.next_kwargs`` on task finish (#19183)
+- Faster PostgreSQL db migration to Airflow 2.2 (#19166)
+- Remove incorrect type comment in ``Swagger2Specification._set_defaults`` classmethod (#19065)
+- Add TriggererJob to jobs check command (#19179, #19185)
+- Hide tooltip when next run is ``None`` (#19112)
+- Create TI context with data interval compat layer (#19148)
+- Fix queued dag runs changes ``catchup=False`` behaviour (#19130, #19145)
+- add detailed information to logging when a dag or a task finishes. (#19097)
+- Warn about unsupported Python 3.10 (#19060)
+- Fix catchup by limiting queued dagrun creation using ``max_active_runs`` (#18897)
+- Prevent scheduler crash when serialized dag is missing (#19113)
+- Don't install SQLAlchemy/Pendulum adapters for other DBs (#18745)
+- Workaround libstdcpp TLS error (#19010)
+- Change ``ds``, ``ts``, etc. back to use logical date (#19088)
+- Ensure task state doesn't change when marked as failed/success/skipped (#19095)
+- Relax packaging requirement (#19087)
+- Rename trigger page label to Logical Date (#19061)
+- Allow Param to support a default value of ``None`` (#19034)
+- Upgrade old DAG/task param format when deserializing from the DB (#18986)
+- Don't bake ENV and _cmd into tmp config for non-sudo (#18772)
+- CLI: Fail ``backfill`` command before loading DAGs if missing args (#18994)
+- BugFix: Null execution date on insert to ``task_fail`` violating NOT NULL (#18979)
+- Try to move "dangling" rows in upgradedb (#18953)
+- Row lock TI query in ``SchedulerJob._process_executor_events`` (#18975)
+- Sentry before send fallback (#18980)
+- Fix ``XCom.delete`` error in Airflow 2.2.0 (#18956)
+- Check python version before starting triggerer (#18926)
+
+Doc only changes
+""""""""""""""""
+
+- Update access control documentation for TaskInstances and DagRuns (#18644)
+- Add information about keepalives for managed Postgres (#18850)
+- Doc: Add Callbacks Section to Logging & Monitoring (#18842)
+- Group PATCH DAGrun together with other DAGRun endpoints (#18885)
+
+Airflow 2.2.0, 2021-10-11
+-------------------------
+
+New Features
+""""""""""""
+
+- AIP-39: Add (customizable) Timetable class to Airflow for richer scheduling behaviour (#15397, #16030,
+  #16352, #17030, #17122, #17414, #17552, #17755, #17989, #18084, #18088, #18244, #18266, #18420, #18434,
+  #18421, #18475, #18499, #18573, #18522, #18729, #18706, #18742, #18786, #18804)
+- AIP-40: Add Deferrable "Async" Tasks (#15389, #17564, #17565, #17601, #17745, #17747, #17748, #17875,
+  #17876, #18129, #18210, #18214, #18552, #18728, #18414)
+- Add a Docker Taskflow decorator (#15330, #18739)
+- Add Airflow Standalone command (#15826)
+- Display alert messages on dashboard from local settings (#18284)
+- Advanced Params using json-schema (#17100)
+- Ability to test connections from UI or API (#15795, #18750)
+- Add Next Run to UI (#17732)
+- Add default weight rule configuration option (#18627)
+- Add a calendar field to choose the execution date of the DAG when triggering it (#16141)
+- Allow setting specific ``cwd`` for BashOperator (#17751)
+- Show import errors in DAG views (#17818)
+- Add pre/post execution hooks [Experimental] (#17576)
+- Added table to view providers in Airflow ui under admin tab (#15385)
+- Adds secrets backend/logging/auth information to provider yaml (#17625)
+- Add date format filters to Jinja environment (#17451)
+- Introduce ``RESTARTING`` state (#16681)
+- Webserver: Unpause DAG on manual trigger (#16569)
+- API endpoint to create new user (#16609)
+- Add ``insert_args`` for support transfer replace (#15825)
+- Add recursive flag to glob in filesystem sensor (#16894)
+- Add conn to jinja template context (#16686)
+- Add ``default_args`` for ``TaskGroup`` (#16557)
+- Allow adding duplicate connections from UI (#15574)
+- Allow specifying multiple URLs via the CORS config option (#17941)
+- Implement API endpoint for DAG deletion (#17980)
+- Add DAG run endpoint for marking a dagrun success or failed(#17839)
+- Add support for ``kinit`` options ``[-f|-F]`` and ``[-a|-A]`` (#17816)
+- Queue support for ``DaskExecutor`` using Dask Worker Resources (#16829, #18720)
+- Make auto refresh interval configurable (#18107)
+
+Improvements
+""""""""""""
+- Small improvements for Airflow UI (#18715, #18795)
+- Rename ``processor_poll_interval`` to ``scheduler_idle_sleep_time`` (#18704)
+- Check the allowed values for the logging level (#18651)
+- Fix error on triggering a dag that doesn't exist using ``dagrun_conf`` (#18655)
+- Add muldelete action to ``TaskInstanceModelView`` (#18438)
+- Avoid importing DAGs during clean DB installation (#18450)
+- Require can_edit on DAG privileges to modify TaskInstances and DagRuns (#16634)
+- Make Kubernetes job description fit on one log line (#18377)
+- Always draw borders if task instance state is null or undefined (#18033)
+- Inclusive Language (#18349)
+- Improved log handling for zombie tasks (#18277)
+- Adding ``Variable.update`` method and improving detection of variable key collisions (#18159)
+- Add note about params on trigger DAG page (#18166)
+- Change ``TaskInstance`` and ``TaskReschedule`` PK from ``execution_date`` to ``run_id`` (#17719)
+- Adding ``TaskGroup`` support in ``BaseOperator.chain()`` (#17456)
+- Allow filtering DAGS by tags in the REST API (#18090)
+- Optimize imports of Providers Manager (#18052)
+- Adds capability of Warnings for incompatible community providers (#18020)
+- Serialize the ``template_ext`` attribute to show it in UI (#17985)
+- Add ``robots.txt`` and ``X-Robots-Tag`` header (#17946)
+- Refactor ``BranchDayOfWeekOperator``, ``DayOfWeekSensor`` (#17940)
+- Update error message to guide the user into self-help mostly (#17929)
+- Update to Celery 5 (#17397)
+- Add links to provider's documentation (#17736)
+- Remove Marshmallow schema warnings (#17753)
+- Rename ``none_failed_or_skipped`` by ``none_failed_min_one_success`` trigger rule (#17683)
+- Remove ``[core] store_dag_code`` & use DB to get Dag Code (#16342)
+- Rename ``task_concurrency`` to ``max_active_tis_per_dag`` (#17708)
+- Import Hooks lazily individually in providers manager (#17682)
+- Adding support for multiple task-ids in the external task sensor (#17339)
+- Replace ``execution_date`` with ``run_id`` in airflow tasks run command (#16666)
+- Make output from users cli command more consistent (#17642)
+- Open relative extra links in place (#17477)
+- Move ``worker_log_server_port`` option to the logging section (#17621)
+- Use gunicorn to serve logs generated by worker (#17591)
+- Improve validation of Group id (#17578)
+- Simplify 404 page (#17501)
+- Add XCom.clear so it's hookable in custom XCom backend (#17405)
+- Add deprecation notice for ``SubDagOperator`` (#17488)
+- Support DAGS folder being in different location on scheduler and runners (#16860)
+- Remove /dagrun/create and disable edit form generated by F.A.B (#17376)
+- Enable specifying dictionary paths in ``template_fields_renderers`` (#17321)
+- error early if virtualenv is missing (#15788)
+- Handle connection parameters added to Extra and custom fields (#17269)
+- Fix ``airflow celery stop`` to accept the pid file. (#17278)
+- Remove DAG refresh buttons (#17263)
+- Deprecate dummy trigger rule in favor of always (#17144)
+- Be verbose about failure to import ``airflow_local_settings`` (#17195)
+- Include exit code in ``AirflowException`` str when ``BashOperator`` fails. (#17151)
+- Adding EdgeModifier support for chain() (#17099)
+- Only allows supported field types to be used in custom connections (#17194)
+- Secrets backend failover (#16404)
+- Warn on Webserver when using ``SQLite`` or ``SequentialExecutor`` (#17133)
+- Extend ``init_containers`` defined in ``pod_override`` (#17537)
+- Client-side filter dag dependencies (#16253)
+- Improve executor validation in CLI (#17071)
+- Prevent running ``airflow db init/upgrade`` migrations and setup in parallel. (#17078)
+- Update ``chain()`` and ``cross_downstream()`` to support ``XComArgs`` (#16732)
+- Improve graph view refresh (#16696)
+- When a task instance fails with exception, log it (#16805)
+- Set process title for ``serve-logs`` and ``LocalExecutor`` (#16644)
+- Rename ``test_cycle`` to ``check_cycle`` (#16617)
+- Add schema as ``DbApiHook`` instance attribute (#16521, #17423)
+- Improve compatibility with MSSQL (#9973)
+- Add transparency for unsupported connection type (#16220)
+- Call resource based fab methods (#16190)
+- Format more dates with timezone (#16129)
+- Replace deprecated ``dag.sub_dag`` with ``dag.partial_subset`` (#16179)
+- Treat ``AirflowSensorTimeout`` as immediate failure without retrying (#12058)
+- Marking success/failed automatically clears failed downstream tasks  (#13037)
+- Add close/open indicator for import dag errors (#16073)
+- Add collapsible import errors (#16072)
+- Always return a response in TI's ``action_clear`` view (#15980)
+- Add cli command to delete user by email (#15873)
+- Use resource and action names for FAB permissions (#16410)
+- Rename DAG concurrency (``[core] dag_concurrency``) settings for easier understanding (#16267, #18730)
+- Calendar UI improvements (#16226)
+- Refactor: ``SKIPPED`` should not be logged again as ``SUCCESS`` (#14822)
+- Remove  version limits for dnspython (#18046, #18162)
+- Accept custom run ID in TriggerDagRunOperator (#18788)
+
+Bug Fixes
+"""""""""
+- Make REST API patch user endpoint work the same way as the UI (#18757)
+- Properly set ``start_date`` for cleared tasks (#18708)
+- Ensure task_instance exists before running update on its state(REST API) (#18642)
+- Make ``AirflowDateTimePickerWidget`` a required field (#18602)
+- Retry deadlocked transactions on deleting old rendered task fields (#18616)
+- Fix `retry_exponential_backoff` divide by zero error when retry delay is zero (#17003)
+- Improve how UI handles datetimes (#18611, #18700)
+- Bugfix: dag_bag.get_dag should return None, not raise exception (#18554)
+- Only show the task modal if it is a valid instance (#18570)
+- Fix accessing rendered ``{{ task.x }}`` attributes from within templates (#18516)
+- Add missing email type of connection (#18502)
+- Don't use flash for "same-page" UI messages. (#18462)
+- Fix task group tooltip (#18406)
+- Properly fix dagrun update state endpoint (#18370)
+- Properly handle ti state difference between executor and scheduler (#17819)
+- Fix stuck "queued" tasks in KubernetesExecutor (#18152)
+- Don't permanently add zip DAGs to ``sys.path`` (#18384)
+- Fix random deadlocks in MSSQL database (#18362)
+- Deactivating DAGs which have been removed from files (#17121)
+- When syncing dags to db remove ``dag_tag`` rows that are now unused (#8231)
+- Graceful scheduler shutdown on error (#18092)
+- Fix mini scheduler not respecting ``wait_for_downstream`` dep (#18338)
+- Pass exception to ``run_finished_callback`` for Debug Executor (#17983)
+- Make ``XCom.get_one`` return full, not abbreviated values (#18274)
+- Use try/except when closing temporary file in task_runner (#18269)
+- show next run if not none (#18273)
+- Fix DB session handling in ``XCom.set`` (#18240)
+- Fix external_executor_id not being set for manually run jobs (#17207)
+- Fix deleting of zipped Dags in Serialized Dag Table (#18243)
+- Return explicit error on user-add for duplicated email (#18224)
+- Remove loading dots even when last run data is empty (#18230)
+- Swap dag import error dropdown icons (#18207)
+- Automatically create section when migrating config (#16814)
+- Set encoding to utf-8 by default while reading task logs (#17965)
+- Apply parent dag permissions to subdags (#18160)
+- Change id collation for MySQL to case-sensitive (#18072)
+- Logs task launch exception in ``StandardTaskRunner`` (#17967)
+- Applied permissions to ``self._error_file`` (#15947)
+- Fix blank dag dependencies view (#17990)
+- Add missing menu access for dag dependencies and configurations pages (#17450)
+- Fix passing Jinja templates in ``DateTimeSensor`` (#17959)
+- Fixing bug which restricted the visibility of ImportErrors (#17924)
+- Fix grammar in ``traceback.html`` (#17942)
+- Fix ``DagRunState`` enum query for ``MySQLdb`` driver (#17886)
+- Fixed button size in "Actions" group. (#17902)
+- Only show import errors for DAGs a user can access (#17835)
+- Show all import_errors from zip files (#17759)
+- fix EXTRA_LOGGER_NAMES param and related docs (#17808)
+- Use one interpreter for Airflow and gunicorn (#17805)
+- Fix: Mysql 5.7 id utf8mb3 (#14535)
+- Fix dag_processing.last_duration metric random holes (#17769)
+- Automatically use ``utf8mb3_general_ci`` collation for MySQL (#17729)
+- fix: filter condition of ``TaskInstance`` does not work #17535 (#17548)
+- Dont use TaskInstance in CeleryExecutor.trigger_tasks (#16248)
+- Remove locks for upgrades in MSSQL (#17213)
+- Create virtualenv via python call (#17156)
+- Ensure a DAG is acyclic when running ``DAG.cli()`` (#17105)
+- Translate non-ascii characters (#17057)
+- Change the logic of ``None`` comparison in ``model_list`` template (#16893)
+- Have UI and POST /task_instances_state API endpoint have same behaviour (#16539)
+- ensure task is skipped if missing sla (#16719)
+- Fix direct use of ``cached_property`` module (#16710)
+- Fix TI success confirm page (#16650)
+- Modify return value check in python virtualenv jinja template (#16049)
+- Fix dag dependency search (#15924)
+- Make custom JSON encoder support ``Decimal`` (#16383)
+- Bugfix: Allow clearing tasks with just ``dag_id`` and empty ``subdir`` (#16513)
+- Convert port value to a number before calling test connection (#16497)
+- Handle missing/null serialized DAG dependencies (#16393)
+- Correctly set ``dag.fileloc`` when using the ``@dag`` decorator (#16384)
+- Fix TI success/failure links (#16233)
+- Correctly implement autocomplete early return in ``airflow/www/views.py`` (#15940)
+- Backport fix to allow pickling of Loggers to Python 3.6 (#18798)
+- Fix bug that Backfill job fail to run when there are tasks run into ``reschedule`` state (#17305, #18806)
+
+Doc only changes
+""""""""""""""""
+- Update ``dagbag_size`` documentation (#18824)
+- Update documentation about bundle extras (#18828)
+- Fix wrong Postgres ``search_path`` set up instructions (#17600)
+- Remove ``AIRFLOW_GID`` from Docker images (#18747)
+- Improve error message for BranchPythonOperator when no task_id to follow (#18471)
+- Improve guidance to users telling them what to do on import timeout (#18478)
+- Explain scheduler fine-tuning better (#18356)
+- Added example JSON for airflow pools import (#18376)
+- Add ``sla_miss_callback`` section to the documentation (#18305)
+- Explain sentry default environment variable for subprocess hook (#18346)
+- Refactor installation pages (#18282)
+- Improves quick-start docker-compose warnings and documentation (#18164)
+- Production-level support for MSSQL (#18382)
+- Update non-working example in documentation (#18067)
+- Remove default_args pattern + added get_current_context() use for Core Airflow example DAGs (#16866)
+- Update max_tis_per_query to better render on the webpage (#17971)
+- Adds Github Oauth example with team based authorization (#17896)
+- Update docker.rst (#17882)
+- Example xcom update (#17749)
+- Add doc warning about connections added via envvars (#17915)
+- fix wrong documents around upgrade-check.rst (#17903)
+- Add Brent to Committers list (#17873)
+- Improves documentation about modules management (#17757)
+- Remove deprecated metrics from metrics.rst (#17772)
+- Make sure "production-readiness" of docker-compose is well explained (#17731)
+- Doc: Update Upgrade to v2 docs with Airflow 1.10.x EOL dates (#17710)
+- Doc: Replace deprecated param from docstrings (#17709)
+- docs(dagowner): describe dag owner more carefully (#17699)
+- docs(impersonation): update note so avoid misintrepretation (#17701)
+- Docs: Make ``DAG.is_active`` read-only in API (#17667)
+- Update documentation regarding Python 3.9 support (#17611)
+- Fix MySQL database character set instruction (#17603)
+- Document overriding ``XCom.clear`` for data lifecycle management (#17589)
+- Path correction in docs for airflow core (#17567)
+- docs(celery): reworded, add actual multiple queues example (#17541)
+- Doc: Add FAQ to speed up parsing with tons of dag files (#17519)
+- Improve image building documentation for new users (#17409)
+- Doc: Strip unnecessary arguments from MariaDB JIRA URL (#17296)
+- Update warning about MariaDB and multiple schedulers (#17287)
+- Doc: Recommend using same configs on all Airflow components (#17146)
+- Move docs about masking to a new page (#17007)
+- Docs: Suggest use of Env vars instead of Airflow Vars in best practises doc (#16926)
+- Docs: Better description for ``pod_template_file`` (#16861)
+- Add Aneesh Joseph as Airflow Committer (#16835)
+- Docs: Added new pipeline example for the tutorial docs (#16548)
+- Remove upstart from docs (#16672)
+- Add new committers: ``Jed`` and ``TP`` (#16671)
+- Docs: Fix ``flask-ouathlib`` to ``flask-oauthlib`` in Upgrading docs (#16320)
+- Docs: Fix creating a connection docs (#16312)
+- Docs: Fix url for ``Elasticsearch`` (#16275)
+- Small improvements for README.md files (#16244)
+- Fix docs for ``dag_concurrency`` (#16177)
+- Check syntactic correctness for code-snippets (#16005)
+- Add proper link for wheel packages in docs. (#15999)
+- Add Docs for ``default_pool`` slots (#15997)
+- Add memory usage warning in quick-start documentation (#15967)
+- Update example ``KubernetesExecutor`` ``git-sync`` pod template file (#15904)
+- Docs: Fix Taskflow API docs (#16574)
+- Added new pipeline example for the tutorial docs (#16084)
+- Updating the DAG docstring to include ``render_template_as_native_obj`` (#16534)
+- Update docs on setting up SMTP (#16523)
+- Docs: Fix API verb from ``POST`` to ``PATCH`` (#16511)
+
+Misc/Internal
+"""""""""""""
+- Renaming variables to be consistent with code logic (#18685)
+- Simplify strings previously split across lines (#18679)
+- fix exception string of ``BranchPythonOperator`` (#18623)
+- Add multiple roles when creating users (#18617)
+- Move FABs base Security Manager into Airflow. (#16647)
+- Remove unnecessary css state colors (#18461)
+- Update ``boto3`` to ``<1.19`` (#18389)
+- Improve coverage for ``airflow.security.kerberos module`` (#18258)
+- Fix kinesis test (#18337)
+- Fix provider test accessing importlib-resources (#18228)
+- Silence warnings in tests from using SubDagOperator (#18275)
+- Fix usage of ``range(len())`` to ``enumerate`` (#18174)
+- Test coverage on the autocomplete view (#15943)
+- Add "packaging" to core requirements (#18122)
+- Adds LoggingMixins to BaseTrigger (#18106)
+- Fix building docs in ``main`` builds (#18035)
+- Remove upper-limit on ``tenacity`` (#17593)
+- Remove  redundant ``numpy`` dependency (#17594)
+- Bump ``mysql-connector-python`` to latest version (#17596)
+- Make ``pandas`` an optional core dependency (#17575)
+- Add more typing to airflow.utils.helpers (#15582)
+- Chore: Some code cleanup in ``airflow/utils/db.py`` (#17090)
+- Refactor: Remove processor_factory from DAG processing (#16659)
+- Remove AbstractDagFileProcessorProcess from dag processing (#16816)
+- Update TaskGroup typing (#16811)
+- Update ``click`` to 8.x (#16779)
+- Remove remaining Pylint disables (#16760)
+- Remove duplicated try, there is already a try in create_session (#16701)
+- Removes pylint from our toolchain (#16682)
+- Refactor usage of unneeded function call (#16653)
+- Add type annotations to setup.py (#16658)
+- Remove SQLAlchemy <1.4 constraint (#16630) (Note: our dependencies still have a requirement on <1.4)
+- Refactor ``dag.clear`` method (#16086)
+- Use ``DAG_ACTIONS`` constant (#16232)
+- Use updated ``_get_all_non_dag_permissions`` method (#16317)
+- Add updated-name wrappers for built-in FAB methods (#16077)
+- Remove ``TaskInstance.log_filepath`` attribute (#15217)
+- Removes unnecessary function call in ``airflow/www/app.py`` (#15956)
+- Move ``plyvel`` to google provider extra (#15812)
+- Update permission migrations to use new naming scheme (#16400)
+- Use resource and action names for FAB (#16380)
+- Swap out calls to ``find_permission_view_menu`` for ``get_permission`` wrapper (#16377)
+- Fix deprecated default for ``fab_logging_level`` to ``WARNING`` (#18783)
+- Allow running tasks from UI when using ``CeleryKubernetesExecutor`` (#18441)
+
+Airflow 2.1.4, 2021-09-18
+-------------------------
+
+Bug Fixes
+"""""""""
+
+- Fix deprecation error message rather than silencing it (#18126)
+- Limit the number of queued dagruns created by the Scheduler (#18065)
+- Fix ``DagRun`` execution order from queued to running not being properly followed (#18061)
+- Fix ``max_active_runs`` not allowing moving of queued dagruns to running (#17945)
+- Avoid redirect loop for users with no permissions (#17838)
+- Avoid endless redirect loop when user has no roles (#17613)
+- Fix log links on graph TI modal (#17862)
+- Hide variable import form if user lacks permission (#18000)
+- Improve dag/task concurrency check (#17786)
+- Fix Clear task instances endpoint resets all DAG runs bug (#17961)
+- Fixes incorrect parameter passed to views (#18083) (#18085)
+- Fix Sentry handler from ``LocalTaskJob`` causing error (#18119)
+- Limit ``colorlog`` version (6.x is incompatible) (#18099)
+- Only show Pause/Unpause tooltip on hover (#17957)
+- Improve graph view load time for dags with open groups (#17821)
+- Increase width for Run column (#17817)
+- Fix wrong query on running tis (#17631)
+- Add root to tree refresh url (#17633)
+- Do not delete running DAG from the UI (#17630)
+- Improve discoverability of Provider packages' functionality
+- Do not let ``create_dagrun`` overwrite explicit ``run_id`` (#17728)
+- Regression on pid reset to allow task start after heartbeat (#17333)
+- Set task state to failed when pod is DELETED while running (#18095)
+- Advises the kernel to not cache log files generated by Airflow (#18054)
+- Sort adopted tasks in ``_check_for_stalled_adopted_tasks`` method (#18208)
+
+Doc only changes
+""""""""""""""""
+
+- Update version added fields in airflow/config_templates/config.yml (#18128)
+- Improve the description of how to handle dynamic task generation (#17963)
+- Improve cross-links to operators and hooks references (#17622)
+- Doc: Fix replacing Airflow version for Docker stack (#17711)
+- Make the providers operators/hooks reference much more usable (#17768)
+- Update description about the new ``connection-types`` provider meta-data
+- Suggest to use secrets backend for variable when it contains sensitive data (#17319)
+- Separate Installing from sources section and add more details (#18171)
+- Doc: Use ``closer.lua`` script for downloading sources (#18179)
+- Doc: Improve installing from sources (#18194)
+- Improves installing from sources pages for all components (#18251)
+
+Airflow 2.1.3, 2021-08-23
+-------------------------
+
+Bug Fixes
+"""""""""
+
+- Fix task retries when they receive ``sigkill`` and have retries and properly handle ``sigterm`` (#16301)
+- Fix redacting secrets in context exceptions. (#17618)
+- Fix race condition with dagrun callbacks (#16741)
+- Add 'queued' to DagRunState (#16854)
+- Add 'queued' state to DagRun (#16401)
+- Fix external elasticsearch logs link (#16357)
+- Add proper warning message when recorded PID is different from current PID (#17411)
+- Fix running tasks with ``default_impersonation`` config (#17229)
+- Rescue if a DagRun's DAG was removed from db (#17544)
+- Fixed broken json_client (#17529)
+- Handle and log exceptions raised during task callback (#17347)
+- Fix CLI ``kubernetes cleanup-pods`` which fails on invalid label key (#17298)
+- Show serialization exceptions in DAG parsing log (#17277)
+- Fix: ``TaskInstance`` does not show ``queued_by_job_id`` & ``external_executor_id`` (#17179)
+- Adds more explanatory message when ``SecretsMasker`` is not configured (#17101)
+- Enable the use of ``__init_subclass__`` in subclasses of ``BaseOperator`` (#17027)
+- Fix task instance retrieval in XCom view (#16923)
+- Validate type of ``priority_weight`` during parsing (#16765)
+- Correctly handle custom ``deps` and ``task_group`` during DAG Serialization (#16734)
+- Fix slow (cleared) tasks being be adopted by Celery worker. (#16718)
+- Fix calculating duration in tree view (#16695)
+- Fix ``AttributeError``: ``datetime.timezone`` object has no attribute ``name`` (#16599)
+- Redact conn secrets in webserver logs (#16579)
+- Change graph focus to top of view instead of center (#16484)
+- Fail tasks in scheduler when executor reports they failed (#15929)
+- fix(smart_sensor): Unbound variable errors (#14774)
+- Add back missing permissions to ``UserModelView`` controls. (#17431)
+- Better diagnostics and self-healing of docker-compose (#17484)
+- Improve diagnostics message when users have ``secret_key`` mis-configured (#17410)
+- Stop checking ``execution_date`` in ``task_instance.refresh_from_db`` (#16809)
+
+Improvements
+""""""""""""
+
+- Run mini scheduler in ``LocalTaskJob`` during task exit (#16289)
+- Remove ``SQLAlchemy<1.4`` constraint (#16630)
+- Bump Jinja2 upper-bound from 2.12.0 to 4.0.0 (#16595)
+- Bump ``dnspython`` (#16698)
+- Updates to ``FlaskAppBuilder`` 3.3.2+ (#17208)
+- Add State types for tasks and DAGs (#15285)
+- Set Process title for Worker when using ``LocalExecutor`` (#16623)
+- Move ``DagFileProcessor`` and ``DagFileProcessorProcess`` out of ``scheduler_job.py`` (#16581)
+
+Doc only changes
+""""""""""""""""
+
+- Fix inconsistencies in configuration docs (#17317)
+- Fix docs link for using SQLite as Metadata DB (#17308)
+
+Misc
+""""
+
+- Switch back http provider after requests removes LGPL dependency (#16974)
+
+Airflow 2.1.2, 2021-07-14
+-------------------------
+
+Bug Fixes
+"""""""""
+
+- Only allow webserver to request from the worker log server (#16754)
+- Fix "Invalid JSON configuration, must be a dict" bug (#16648)
+- Fix ``CeleryKubernetesExecutor`` (#16700)
+- Mask value if the key is ``token`` (#16474)
+- Fix impersonation issue with ``LocalTaskJob`` (#16852)
+- Resolve all npm vulnerabilities including bumping ``jQuery`` to ``3.5`` (#16440)
+
+Misc
+""""
+
+- Add Python 3.9 support (#15515)
+
+
+Airflow 2.1.1, 2021-07-02
+-------------------------
+
+Bug Fixes
+"""""""""
+
+- Don't crash attempting to mask secrets in dict with non-string keys (#16601)
+- Always install sphinx_airflow_theme from ``PyPI`` (#16594)
+- Remove limitation for elasticsearch library (#16553)
+- Adding extra requirements for build and runtime of the PROD image. (#16170)
+- Cattrs 1.7.0 released by the end of May 2021 break lineage usage (#16173)
+- Removes unnecessary packages from setup_requires (#16139)
+- Pins docutils to <0.17 until breaking behaviour is fixed (#16133)
+- Improvements for Docker Image docs (#14843)
+- Ensure that ``dag_run.conf`` is a dict (#15057)
+- Fix CLI connections import and migrate logic from secrets to Connection model (#15425)
+- Fix Dag Details start date bug (#16206)
+- Fix DAG run state not updated while DAG is paused (#16343)
+- Allow null value for operator field in task_instance schema(REST API) (#16516)
+- Avoid recursion going too deep when redacting logs (#16491)
+- Backfill: Don't create a DagRun if no tasks match task regex (#16461)
+- Tree View UI for larger DAGs & more consistent spacing in Tree View (#16522)
+- Correctly handle None returns from Query.scalar() (#16345)
+- Adding ``only_active`` parameter to /dags endpoint (#14306)
+- Don't show stale Serialized DAGs if they are deleted in DB (#16368)
+- Make REST API List DAGs endpoint consistent with UI/CLI behaviour (#16318)
+- Support remote logging in elasticsearch with ``filebeat 7`` (#14625)
+- Queue tasks with higher priority and earlier execution_date first. (#15210)
+- Make task ID on legend have enough width and width of line chart to be 100%.  (#15915)
+- Fix normalize-url vulnerability (#16375)
+- Validate retries value on init for better errors (#16415)
+- add num_runs query param for tree refresh (#16437)
+- Fix templated default/example values in config ref docs (#16442)
+- Add ``passphrase`` and ``private_key`` to default sensitive field names (#16392)
+- Fix tasks in an infinite slots pool were never scheduled (#15247)
+- Fix Orphaned tasks stuck in CeleryExecutor as running (#16550)
+- Don't fail to log if we can't redact something (#16118)
+- Set max tree width to 1200 pixels (#16067)
+- Fill the "job_id" field for ``airflow task run`` without ``--local``/``--raw`` for KubeExecutor (#16108)
+- Fixes problem where conf variable was used before initialization (#16088)
+- Fix apply defaults for task decorator (#16085)
+- Parse recently modified files even if just parsed (#16075)
+- Ensure that we don't try to mask empty string in logs (#16057)
+- Don't die when masking ``log.exception`` when there is no exception (#16047)
+- Restores apply_defaults import in base_sensor_operator (#16040)
+- Fix auto-refresh in tree view When webserver ui is not in ``/`` (#16018)
+- Fix dag.clear() to set multiple dags to running when necessary (#15382)
+- Fix Celery executor getting stuck randomly because of reset_signals in multiprocessing (#15989)
+
+
+Airflow 2.1.0, 2021-05-21
+-------------------------
+
+New Features
+""""""""""""
+
+- Add ``PythonVirtualenvDecorator`` to Taskflow API (#14761)
+- Add ``Taskgroup`` decorator (#15034)
+- Create a DAG Calendar View (#15423)
+- Create cross-DAG dependencies view (#13199)
+- Add rest API to query for providers (#13394)
+- Mask passwords and sensitive info in task logs and UI (#15599)
+- Add ``SubprocessHook`` for running commands from operators (#13423)
+- Add DAG Timeout in UI page "DAG Details" (#14165)
+- Add ``WeekDayBranchOperator`` (#13997)
+- Add JSON linter to DAG Trigger UI (#13551)
+- Add DAG Description Doc to Trigger UI Page (#13365)
+- Add airflow webserver URL into SLA miss email. (#13249)
+- Add read only REST API endpoints for users (#14735)
+- Add files to generate Airflow's Python SDK (#14739)
+- Add dynamic fields to snowflake connection (#14724)
+- Add read only REST API endpoint for roles and permissions (#14664)
+- Add new datetime branch operator (#11964)
+- Add Google leveldb hook and operator (#13109) (#14105)
+- Add plugins endpoint to the REST API (#14280)
+- Add ``worker_pod_pending_timeout`` support (#15263)
+- Add support for labeling DAG edges (#15142)
+- Add CUD REST API endpoints for Roles (#14840)
+- Import connections from a file (#15177)
+- A bunch of ``template_fields_renderers`` additions (#15130)
+- Add REST API query sort and order to some endpoints (#14895)
+- Add timezone context in new ui (#15096)
+- Add query mutations to new UI (#15068)
+- Add different modes to sort dag files for parsing (#15046)
+- Auto refresh on Tree View (#15474)
+- BashOperator to raise ``AirflowSkipException`` on exit code 99 (by default, configurable) (#13421) (#14963)
+- Clear tasks by task ids in REST API (#14500)
+- Support jinja2 native Python types (#14603)
+- Allow celery workers without gossip or mingle modes (#13880)
+- Add ``airflow jobs check`` CLI command to check health of jobs (Scheduler etc) (#14519)
+- Rename ``DateTimeBranchOperator`` to ``BranchDateTimeOperator`` (#14720)
+
+Improvements
+""""""""""""
+
+- Add optional result handler callback to ``DbApiHook`` (#15581)
+- Update Flask App Builder limit to recently released 3.3 (#15792)
+- Prevent creating flask sessions on REST API requests (#15295)
+- Sync DAG specific permissions when parsing (#15311)
+- Increase maximum length of pool name on Tasks to 256 characters (#15203)
+- Enforce READ COMMITTED isolation when using mysql (#15714)
+- Auto-apply ``apply_default`` to subclasses of ``BaseOperator`` (#15667)
+- Emit error on duplicated DAG ID (#15302)
+- Update ``KubernetesExecutor`` pod templates to allow access to IAM permissions (#15669)
+- More verbose logs when running ``airflow db check-migrations`` (#15662)
+- When one_success mark task as failed if no success (#15467)
+- Add an option to trigger a dag w/o changing conf (#15591)
+- Add Airflow UI instance_name configuration option (#10162)
+- Add a decorator to retry functions with DB transactions (#14109)
+- Add return to PythonVirtualenvOperator's execute method (#14061)
+- Add verify_ssl config for kubernetes (#13516)
+- Add description about ``secret_key`` when Webserver > 1 (#15546)
+- Add Traceback in LogRecord in ``JSONFormatter`` (#15414)
+- Add support for arbitrary json in conn uri format (#15100)
+- Adds description field in variable (#12413) (#15194)
+- Add logs to show last modified in SFTP, FTP and Filesystem sensor (#15134)
+- Execute ``on_failure_callback`` when SIGTERM is received (#15172)
+- Allow hiding of all edges when highlighting states (#15281)
+- Display explicit error in case UID has no actual username (#15212)
+- Serve logs with Scheduler when using Local or Sequential Executor (#15557)
+- Deactivate trigger, refresh, and delete controls on dag detail view. (#14144)
+- Turn off autocomplete for connection forms (#15073)
+- Increase default ``worker_refresh_interval`` to ``6000`` seconds (#14970)
+- Only show User's local timezone if it's not UTC (#13904)
+- Suppress LOG/WARNING for a few tasks CLI for better CLI experience (#14567)
+- Configurable API response (CORS) headers (#13620)
+- Allow viewers to see all docs links (#14197)
+- Update Tree View date ticks (#14141)
+- Make the tooltip to Pause / Unpause a DAG clearer (#13642)
+- Warn about precedence of env var when getting variables (#13501)
+- Move ``[celery] default_queue`` config to ``[operators] default_queue`` to re-use between executors  (#14699)
+
+Bug Fixes
+"""""""""
+
+- Fix 500 error from ``updateTaskInstancesState`` API endpoint when ``dry_run`` not passed (#15889)
+- Ensure that task preceding a PythonVirtualenvOperator doesn't fail (#15822)
+- Prevent mixed case env vars from crashing processes like worker (#14380)
+- Fixed type annotations in DAG decorator (#15778)
+- Fix on_failure_callback when task receive SIGKILL (#15537)
+- Fix dags table overflow (#15660)
+- Fix changing the parent dag state on subdag clear (#15562)
+- Fix reading from zip package to default to text (#13962)
+- Fix wrong parameter for ``drawDagStatsForDag`` in dags.html (#13884)
+- Fix QueuedLocalWorker crashing with EOFError (#13215)
+- Fix typo in ``NotPreviouslySkippedDep`` (#13933)
+- Fix parallelism after KubeExecutor pod adoption (#15555)
+- Fix kube client on mac with keepalive enabled (#15551)
+- Fixes wrong limit for dask for python>3.7 (should be <3.7) (#15545)
+- Fix Task Adoption in ``KubernetesExecutor`` (#14795)
+- Fix timeout when using XCom with ``KubernetesPodOperator`` (#15388)
+- Fix deprecated provider aliases in "extras" not working (#15465)
+- Fixed default XCom deserialization. (#14827)
+- Fix used_group_ids in ``dag.partial_subset`` (#13700) (#15308)
+- Further fix trimmed ``pod_id`` for ``KubernetesPodOperator`` (#15445)
+- Bugfix: Invalid name when trimmed `pod_id` ends with hyphen in ``KubernetesPodOperator`` (#15443)
+- Fix incorrect slots stats when TI ``pool_slots > 1`` (#15426)
+- Fix DAG last run link (#15327)
+- Fix ``sync-perm`` to work correctly when update_fab_perms = False (#14847)
+- Fixes limits on Arrow for plexus test (#14781)
+- Fix UI bugs in tree view (#14566)
+- Fix AzureDataFactoryHook failing to instantiate its connection (#14565)
+- Fix permission error on non-POSIX filesystem (#13121)
+- Fix spelling in "ignorable" (#14348)
+- Fix get_context_data doctest import (#14288)
+- Correct typo in ``GCSObjectsWtihPrefixExistenceSensor``  (#14179)
+- Fix order of failed deps (#14036)
+- Fix critical ``CeleryKubernetesExecutor`` bug (#13247)
+- Fix four bugs in ``StackdriverTaskHandler`` (#13784)
+- ``func.sum`` may return ``Decimal`` that break rest APIs (#15585)
+- Persist tags params in pagination (#15411)
+- API: Raise ``AlreadyExists`` exception when the ``execution_date`` is same (#15174)
+- Remove duplicate call to ``sync_metadata`` inside ``DagFileProcessorManager`` (#15121)
+- Extra ``docker-py`` update to resolve docker op issues (#15731)
+- Ensure executors end method is called (#14085)
+- Remove ``user_id`` from API schema (#15117)
+- Prevent clickable bad links on disabled pagination (#15074)
+- Acquire lock on db for the time of migration (#10151)
+- Skip SLA check only if SLA is None (#14064)
+- Print right version in airflow info command (#14560)
+- Make ``airflow info`` work with pipes (#14528)
+- Rework client-side script for connection form. (#14052)
+- API: Add ``CollectionInfo`` in all Collections that have ``total_entries`` (#14366)
+- Fix ``task_instance_mutation_hook`` when importing airflow.models.dagrun (#15851)
+
+Doc only changes
+""""""""""""""""
+
+- Fix docstring of SqlSensor (#15466)
+- Small changes on "DAGs and Tasks documentation" (#14853)
+- Add note on changes to configuration options (#15696)
+- Add docs to the ``markdownlint`` and ``yamllint`` config files (#15682)
+- Rename old "Experimental" API to deprecated in the docs. (#15653)
+- Fix documentation error in `git_sync_template.yaml` (#13197)
+- Fix doc link permission name (#14972)
+- Fix link to Helm chart docs (#14652)
+- Fix docstrings for Kubernetes code (#14605)
+- docs: Capitalize & minor fixes (#14283) (#14534)
+- Fixed reading from zip package to default to text. (#13984)
+- An initial rework of the "Concepts" docs (#15444)
+- Improve docstrings for various modules (#15047)
+- Add documentation on database connection URI (#14124)
+- Add Helm Chart logo to docs index (#14762)
+- Create a new documentation package for Helm Chart (#14643)
+- Add docs about supported logging levels (#14507)
+- Update docs about tableau and salesforce provider (#14495)
+- Replace deprecated doc links to the correct one (#14429)
+- Refactor redundant doc url logic to use utility (#14080)
+- docs: NOTICE: Updated 2016-2019 to 2016-now (#14248)
+- Skip DAG perm sync during parsing if possible (#15464)
+- Add picture and examples for Edge Labels (#15310)
+- Add example DAG & how-to guide for sqlite (#13196)
+- Add links to new modules for deprecated modules (#15316)
+- Add note in Updating.md about FAB data model change (#14478)
+
+Misc/Internal
+"""""""""""""
+
+- Fix ``logging.exception`` redundancy (#14823)
+- Bump ``stylelint`` to remove vulnerable sub-dependency (#15784)
+- Add resolution to force dependencies to use patched version of lodash (#15777)
+- Update croniter to 1.0.x series (#15769)
+- Get rid of Airflow 1.10 in Breeze (#15712)
+- Run helm chart tests in parallel (#15706)
+- Bump ``ssri`` from 6.0.1 to 6.0.2 in /airflow/www (#15437)
+- Remove the limit on Gunicorn dependency (#15611)
+- Better "dependency already registered" warning message for tasks #14613 (#14860)
+- Pin pandas-gbq to <0.15.0 (#15114)
+- Use Pip 21.* to install airflow officially (#15513)
+- Bump mysqlclient to support the 1.4.x and 2.x series (#14978)
+- Finish refactor of DAG resource name helper (#15511)
+- Refactor/Cleanup Presentation of Graph Task and Path Highlighting (#15257)
+- Standardize default fab perms (#14946)
+- Remove ``datepicker`` for task instance detail view (#15284)
+- Turn provider's import warnings into debug logs (#14903)
+- Remove left-over fields from required in provider_info schema. (#14119)
+- Deprecate ``tableau`` extra (#13595)
+- Use built-in `cached_property` on Python 3.8 where possible (#14606)
+- Clean-up JS code in UI templates (#14019)
+- Bump elliptic from 6.5.3 to 6.5.4 in /airflow/www (#14668)
+- Switch to f-strings using ``flynt``. (#13732)
+- use ``jquery`` ready instead of vanilla js (#15258)
+- Migrate task instance log (ti_log) js (#15309)
+- Migrate graph js (#15307)
+- Migrate dags.html javascript (#14692)
+- Removes unnecessary AzureContainerInstance connection type (#15514)
+- Separate Kubernetes pod_launcher from core airflow (#15165)
+- update remaining old import paths of operators (#15127)
+- Remove broken and undocumented "demo mode" feature (#14601)
+- Simplify configuration/legibility of ``Webpack`` entries (#14551)
+- remove inline tree js (#14552)
+- Js linting and inline migration for simple scripts (#14215)
+- Remove use of repeated constant in AirflowConfigParser (#14023)
+- Deprecate email credentials from environment variables. (#13601)
+- Remove unused 'context' variable in task_instance.py (#14049)
+- Disable suppress_logs_and_warning in cli when debugging (#13180)
+
+
+Airflow 2.0.2, 2021-04-19
+-------------------------
+
+Bug Fixes
+"""""""""
+
+* Bugfix: ``TypeError`` when Serializing & sorting iterable properties of DAGs (#15395)
+* Fix missing ``on_load`` trigger for folder-based plugins (#15208)
+* ``kubernetes cleanup-pods`` subcommand will only clean up Airflow-created Pods (#15204)
+* Fix password masking in CLI action_logging (#15143)
+* Fix url generation for TriggerDagRunOperatorLink (#14990)
+* Restore base lineage backend (#14146)
+* Unable to trigger backfill or manual jobs with Kubernetes executor. (#14160)
+* Bugfix: Task docs are not shown in the Task Instance Detail View (#15191)
+* Bugfix: Fix overriding ``pod_template_file`` in KubernetesExecutor (#15197)
+* Bugfix: resources in ``executor_config`` breaks Graph View in UI (#15199)
+* Fix celery executor bug trying to call len on map (#14883)
+* Fix bug in airflow.stats timing that broke dogstatsd mode (#15132)
+* Avoid scheduler/parser manager deadlock by using non-blocking IO (#15112)
+* Re-introduce ``dagrun.schedule_delay`` metric (#15105)
+* Compare string values, not if strings are the same object in Kube executor(#14942)
+* Pass queue to BaseExecutor.execute_async like in airflow 1.10 (#14861)
+* Scheduler: Remove TIs from starved pools from the critical path. (#14476)
+* Remove extra/needless deprecation warnings from airflow.contrib module (#15065)
+* Fix support for long dag_id and task_id in KubernetesExecutor (#14703)
+* Sort lists, sets and tuples in Serialized DAGs (#14909)
+* Simplify cleaning string passed to origin param (#14738) (#14905)
+* Fix error when running tasks with Sentry integration enabled. (#13929)
+* Webserver: Sanitize string passed to origin param (#14738)
+* Fix losing duration < 1 secs in tree (#13537)
+* Pin SQLAlchemy to <1.4 due to breakage of sqlalchemy-utils (#14812)
+* Fix KubernetesExecutor issue with deleted pending pods (#14810)
+* Default to Celery Task model when backend model does not exist (#14612)
+* Bugfix: Plugins endpoint was unauthenticated (#14570)
+* BugFix: fix DAG doc display (especially for TaskFlow DAGs) (#14564)
+* BugFix: TypeError in airflow.kubernetes.pod_launcher's monitor_pod (#14513)
+* Bugfix: Fix wrong output of tags and owners in dag detail API endpoint (#14490)
+* Fix logging error with task error when JSON logging is enabled (#14456)
+* Fix statsd metrics not sending when using daemon mode (#14454)
+* Gracefully handle missing start_date and end_date for DagRun (#14452)
+* BugFix: Serialize max_retry_delay as a timedelta (#14436)
+* Fix crash when user clicks on  "Task Instance Details" caused by start_date being None (#14416)
+* BugFix: Fix TaskInstance API call fails if a task is removed from running DAG (#14381)
+* Scheduler should not fail when invalid ``executor_config`` is passed (#14323)
+* Fix bug allowing task instances to survive when dagrun_timeout is exceeded (#14321)
+* Fix bug where DAG timezone was not always shown correctly in UI tooltips (#14204)
+* Use ``Lax`` for ``cookie_samesite`` when empty string is passed (#14183)
+* [AIRFLOW-6076] fix ``dag.cli()`` KeyError (#13647)
+* Fix running child tasks in a subdag after clearing a successful subdag (#14776)
+
+Improvements
+""""""""""""
+
+* Remove unused JS packages causing false security alerts (#15383)
+* Change default of ``[kubernetes] enable_tcp_keepalive`` for new installs to ``True`` (#15338)
+* Fixed #14270: Add error message in OOM situations (#15207)
+* Better compatibility/diagnostics for arbitrary UID in docker image (#15162)
+* Updates 3.6 limits for latest versions of a few libraries (#15209)
+* Adds Blinker dependency which is missing after recent changes (#15182)
+* Remove 'conf' from search_columns in DagRun View (#15099)
+* More proper default value for namespace in K8S cleanup-pods CLI (#15060)
+* Faster default role syncing during webserver start (#15017)
+* Speed up webserver start when there are many DAGs (#14993)
+* Much easier to use and better documented Docker image (#14911)
+* Use ``libyaml`` C library when available. (#14577)
+* Don't create unittest.cfg when not running in unit test mode (#14420)
+* Webserver: Allow Filtering TaskInstances by queued_dttm (#14708)
+* Update Flask-AppBuilder dependency to allow 3.2 (and all 3.x series) (#14665)
+* Remember expanded task groups in browser local storage (#14661)
+* Add plain format output to cli tables (#14546)
+* Make ``airflow dags show`` command display TaskGroups (#14269)
+* Increase maximum size of ``extra`` connection field. (#12944)
+* Speed up clear_task_instances by doing a single sql delete for TaskReschedule (#14048)
+* Add more flexibility with FAB menu links (#13903)
+* Add better description and guidance in case of sqlite version mismatch (#14209)
+
+Doc only changes
+""""""""""""""""
+
+* Add documentation create/update community providers (#15061)
+* Fix mistake and typos in airflow.utils.timezone docstrings (#15180)
+* Replace new url for Stable Airflow Docs (#15169)
+* Docs: Clarify behavior of delete_worker_pods_on_failure (#14958)
+* Create a documentation package for Docker image (#14846)
+* Multiple minor doc (OpenAPI) fixes (#14917)
+* Replace Graph View Screenshot to show Auto-refresh (#14571)
+
+Misc/Internal
+"""""""""""""
+
+* Import Connection lazily in hooks to avoid cycles (#15361)
+* Rename last_scheduler_run into last_parsed_time, and ensure it's updated in DB (#14581)
+* Make TaskInstance.pool_slots not nullable with a default of 1 (#14406)
+* Log migrations info in consistent way (#14158)
+
+Airflow 2.0.1, 2021-02-08
+-------------------------
+
+Bug Fixes
+"""""""""
+
+- Bugfix: Return XCom Value in the XCom Endpoint API (#13684)
+- Bugfix: Import error when using custom backend and ``sql_alchemy_conn_secret`` (#13260)
+- Allow PID file path to be relative when daemonize a process (scheduler, kerberos, etc) (#13232)
+- Bugfix: no generic ``DROP CONSTRAINT`` in MySQL during ``airflow db upgrade`` (#13239)
+- Bugfix: Sync Access Control defined in DAGs when running ``sync-perm`` (#13377)
+- Stop sending Callback Requests if no callbacks are defined on DAG (#13163)
+- BugFix: Dag-level Callback Requests were not run (#13651)
+- Stop creating duplicate Dag File Processors (#13662)
+- Filter DagRuns with Task Instances in removed State while Scheduling (#13165)
+- Bump ``datatables.net`` from 1.10.21 to 1.10.22 in /airflow/www (#13143)
+- Bump ``datatables.net`` JS to 1.10.23 (#13253)
+- Bump ``dompurify`` from 2.0.12 to 2.2.6 in /airflow/www (#13164)
+- Update minimum ``cattrs`` version (#13223)
+- Remove inapplicable arg 'output' for CLI pools import/export (#13071)
+- Webserver: Fix the behavior to deactivate the authentication option and add docs (#13191)
+- Fix: add support for no-menu plugin views (#11742)
+- Add ``python-daemon`` limit for Python 3.8+ to fix daemon crash (#13540)
+- Change the default celery ``worker_concurrency`` to 16 (#13612)
+- Audit Log records View should not contain link if ``dag_id`` is None (#13619)
+- Fix invalid ``continue_token`` for cleanup list pods (#13563)
+- Switches to latest version of snowflake connector (#13654)
+- Fix backfill crash on task retry or reschedule (#13712)
+- Setting ``max_tis_per_query`` to ``0`` now correctly removes the limit (#13512)
+- Fix race conditions in task callback invocations (#10917)
+- Fix webserver exiting when gunicorn master crashes (#13518)(#13780)
+- Fix SQL syntax to check duplicate connections (#13783)
+- ``BaseBranchOperator`` will push to xcom by default (#13704) (#13763)
+- Fix Deprecation for ``configuration.getsection`` (#13804)
+- Fix TaskNotFound in log endpoint (#13872)
+- Fix race condition when using Dynamic DAGs (#13893)
+- Fix: Linux/Chrome window bouncing in Webserver
+- Fix db shell for sqlite (#13907)
+- Only compare updated time when Serialized DAG exists (#13899)
+- Fix dag run type enum query for mysqldb driver (#13278)
+- Add authentication to lineage endpoint for experimental API (#13870)
+- Do not add User role perms to custom roles. (#13856)
+- Do not add ``Website.can_read`` access to default roles. (#13923)
+- Fix invalid value error caused by long Kubernetes pod name (#13299)
+- Fix DB Migration for SQLite to upgrade to 2.0 (#13921)
+- Bugfix: Manual DagRun trigger should not skip scheduled runs (#13963)
+- Stop loading Extra Operator links in Scheduler (#13932)
+- Added missing return parameter in read function of ``FileTaskHandler`` (#14001)
+- Bugfix: Do not try to create a duplicate Dag Run in Scheduler (#13920)
+- Make ``v1/config`` endpoint respect webserver ``expose_config`` setting (#14020)
+- Disable row level locking for Mariadb and MySQL <8 (#14031)
+- Bugfix: Fix permissions to triggering only specific DAGs (#13922)
+- Fix broken SLA Mechanism (#14056)
+- Bugfix: Scheduler fails if task is removed at runtime (#14057)
+- Remove permissions to read Configurations for User and Viewer roles (#14067)
+- Fix DB Migration from 2.0.1rc1
+
+Improvements
+""""""""""""
+
+- Increase the default ``min_file_process_interval`` to decrease CPU Usage (#13664)
+- Dispose connections when running tasks with ``os.fork`` & ``CeleryExecutor`` (#13265)
+- Make function purpose clearer in ``example_kubernetes_executor`` example dag (#13216)
+- Remove unused libraries - ``flask-swagger``, ``funcsigs`` (#13178)
+- Display alternative tooltip when a Task has yet to run (no TI) (#13162)
+- User werkzeug's own type conversion for request args (#13184)
+- UI: Add ``queued_by_job_id`` & ``external_executor_id`` Columns to TI View (#13266)
+- Make ``json-merge-patch`` an optional library and unpin it (#13175)
+- Adds missing LDAP "extra" dependencies to ldap provider. (#13308)
+- Refactor ``setup.py`` to better reflect changes in providers (#13314)
+- Pin ``pyjwt`` and Add integration tests for Apache Pinot (#13195)
+- Removes provider-imposed requirements from ``setup.cfg`` (#13409)
+- Replace deprecated decorator (#13443)
+- Streamline & simplify ``__eq__`` methods in models Dag and BaseOperator (#13449)
+- Additional properties should be allowed in provider schema (#13440)
+- Remove unused dependency - ``contextdecorator`` (#13455)
+- Remove 'typing' dependency (#13472)
+- Log migrations info in consistent way (#13458)
+- Unpin ``mysql-connector-python`` to allow ``8.0.22`` (#13370)
+- Remove thrift as a core dependency (#13471)
+- Add ``NotFound`` response for DELETE methods in OpenAPI YAML (#13550)
+- Stop Log Spamming when ``[core] lazy_load_plugins`` is ``False`` (#13578)
+- Display message and docs link when no plugins are loaded (#13599)
+- Unpin restriction for ``colorlog`` dependency (#13176)
+- Add missing Dag Tag for Example DAGs (#13665)
+- Support tables in DAG docs (#13533)
+- Add ``python3-openid`` dependency (#13714)
+- Add ``__repr__`` for Executors (#13753)
+- Add description to hint if ``conn_type`` is missing (#13778)
+- Upgrade Azure blob to v12 (#12188)
+- Add extra field to ``get_connnection`` REST endpoint (#13885)
+- Make Smart Sensors DB Migration idempotent (#13892)
+- Improve the error when DAG does not exist when running dag pause command (#13900)
+- Update ``airflow_local_settings.py`` to fix an error message (#13927)
+- Only allow passing JSON Serializable conf to ``TriggerDagRunOperator`` (#13964)
+- Bugfix: Allow getting details of a DAG with null ``start_date`` (REST API) (#13959)
+- Add params to the DAG details endpoint (#13790)
+- Make the role assigned to anonymous users customizable (#14042)
+- Retry critical methods in Scheduler loop in case of ``OperationalError`` (#14032)
+
+Doc only changes
+""""""""""""""""
+
+- Add Missing Statsd Metrics in Docs (#13708)
+- Add Missing Email configs in Configuration doc (#13709)
+- Add quick start for Airflow on Docker (#13660)
+- Describe which Python versions are supported (#13259)
+- Add note block to 2.x migration docs (#13094)
+- Add documentation about webserver_config.py (#13155)
+- Add missing version information to recently added configs (#13161)
+- API: Use generic information in UpdateMask component (#13146)
+- Add Airflow 2.0.0 to requirements table (#13140)
+- Avoid confusion in doc for CeleryKubernetesExecutor (#13116)
+- Update docs link in REST API spec (#13107)
+- Add link to PyPI Repository to provider docs (#13064)
+- Fix link to Airflow master branch documentation (#13179)
+- Minor enhancements to Sensors docs (#13381)
+- Use 2.0.0 in Airflow docs & Breeze (#13379)
+- Improves documentation regarding providers and custom connections (#13375)(#13410)
+- Fix malformed table in production-deployment.rst (#13395)
+- Update celery.rst to fix broken links (#13400)
+- Remove reference to scheduler run_duration param in docs (#13346)
+- Set minimum SQLite version supported (#13412)
+- Fix installation doc (#13462)
+- Add docs about mocking variables and connections (#13502)
+- Add docs about Flask CLI (#13500)
+- Fix Upgrading to 2 guide to use ``rbac`` UI (#13569)
+- Make docs clear that Auth can not be disabled for Stable API (#13568)
+- Remove archived links from docs & add link for AIPs (#13580)
+- Minor fixes in upgrading-to-2.rst (#13583)
+- Fix Link in Upgrading to 2.0 guide (#13584)
+- Fix heading for Mocking section in best-practices.rst (#13658)
+- Add docs on how to use custom operators within plugins folder (#13186)
+- Update docs to register Operator Extra Links (#13683)
+- Improvements for database setup docs (#13696)
+- Replace module path to Class with just Class Name (#13719)
+- Update DAG Serialization docs (#13722)
+- Fix link to Apache Airflow docs in webserver (#13250)
+- Clarifies differences between extras and provider packages (#13810)
+- Add information about all access methods to the environment (#13940)
+- Docs: Fix FAQ on scheduler latency (#13969)
+- Updated taskflow api doc to show dependency with sensor (#13968)
+- Add deprecated config options to docs (#13883)
+- Added a FAQ section to the Upgrading to 2 doc (#13979)
+
+Airflow 2.0.0, 2020-12-18
+----------------------------
+
+The full changelog is about 3,000 lines long (already excluding everything backported to 1.10)
+so please check `Airflow 2.0.0 Highligths Blog Post <https://airflow.apache.org/blog/airflow-two-point-oh-is-here/>`_
+instead.
+
+Airflow 1.10.15, 2021-03-17
+----------------------------
+
+Bug Fixes
+"""""""""
+
+- Fix ``airflow db upgrade`` to upgrade db as intended (#13267)
+- Moved boto3 limitation to snowflake (#13286)
+- ``KubernetesExecutor`` should accept images from ``executor_config`` (#13074)
+- Scheduler should acknowledge active runs properly (#13803)
+- Include ``airflow/contrib/executors`` in the dist package
+- Pin Click version for Python 2.7 users
+- Ensure all statsd timers use millisecond values. (#10633)
+- [``kubernetes_generate_dag_yaml``] - Fix dag yaml generate function (#13816)
+- Fix ``airflow tasks clear` cli command with ``--yes`` (#14188)
+- Fix permission error on non-POSIX filesystem (#13121) (#14383)
+- Fixed deprecation message for "variables" command (#14457)
+- BugFix: fix the ``delete_dag`` function of json_client (#14441)
+- Fix merging of secrets and configmaps for ``KubernetesExecutor`` (#14090)
+- Fix webserver exiting when gunicorn master crashes (#13470)
+- Bump ``ini`` from 1.3.5 to 1.3.8 in ``airflow/www_rbac``
+- Bump ``datatables.net`` from 1.10.21 to 1.10.23 in ``airflow/www_rbac``
+- Webserver: Sanitize string passed to origin param (#14738)
+- Make ``rbac_app``'s ``db.session`` use the same timezone with ``@provide_session`` (#14025)
+
+Improvements
+""""""""""""
+
+- Adds airflow as viable docker command in official image (#12878)
+- ``StreamLogWriter``: Provide (no-op) close method (#10885)
+- Add 'airflow variables list' command for 1.10.x transition version (#14462)
+
+Doc only changes
+""""""""""""""""
+
+- Update URL for Airflow docs (#13561)
+- Clarifies version args for installing 1.10 in Docker (#12875)
+
+Airflow 1.10.14, 2020-12-10
+----------------------------
+
+Bug Fixes
+"""""""""
+
+- BugFix: Tasks with ``depends_on_past`` or ``task_concurrency`` are stuck (#12663)
+- Fix issue with empty Resources in executor_config (#12633)
+- Fix: Deprecated config ``force_log_out_after`` was not used (#12661)
+- Fix empty asctime field in JSON formatted logs (#10515)
+- [AIRFLOW-2809] Fix security issue regarding Flask SECRET_KEY (#3651)
+- [AIRFLOW-2884] Fix Flask SECRET_KEY security issue in www_rbac (#3729)
+- [AIRFLOW-2886] Generate random Flask SECRET_KEY in default config (#3738)
+- Add missing comma in setup.py (#12790)
+- Bugfix: Unable to import Airflow plugins on Python 3.8 (#12859)
+- Fix setup.py missing comma in ``setup_requires`` (#12880)
+- Don't emit first_task_scheduling_delay metric for only-once dags (#12835)
+
+Improvements
+""""""""""""
+
+- Update setup.py to get non-conflicting set of dependencies (#12636)
+- Rename ``[scheduler] max_threads`` to ``[scheduler] parsing_processes`` (#12605)
+- Add metric for scheduling delay between first run task & expected start time (#9544)
+- Add new-style 2.0 command names for Airflow 1.10.x (#12725)
+- Add Kubernetes cleanup-pods CLI command for Helm Chart (#11802)
+- Don't let webserver run with dangerous config (#12747)
+- Replace pkg_resources with ``importlib.metadata`` to avoid VersionConflict errors (#12694)
+
+Doc only changes
+""""""""""""""""
+
+- Clarified information about supported Databases
+
+Airflow 1.10.13, 2020-11-25
+----------------------------
+
+New Features
+""""""""""""
+
+- Add "already checked" to failed pods in K8sPodOperator (#11368)
+- Pass SQLAlchemy engine options to FAB based UI (#11395)
+- [AIRFLOW-4438] Add Gzip compression to S3_hook (#8571)
+- Add permission "extra_links" for Viewer role and above (#10719)
+- Add generate_yaml command to easily test KubernetesExecutor before deploying pods (#10677)
+- Add Secrets backend for Microsoft Azure Key Vault (#10898)
+
+Bug Fixes
+"""""""""
+
+- SkipMixin: Handle empty branches (#11120)
+- [AIRFLOW-5274] dag loading duration metric name too long (#5890)
+- Handle no Dagrun in DagrunIdDep (#8389) (#11343)
+- Fix Kubernetes Executor logs for long dag names (#10942)
+- Add on_kill support for the KubernetesPodOperator (#10666)
+- KubernetesPodOperator template fix (#10963)
+- Fix displaying of add serialized_dag table migration
+- Fix Start Date tooltip on DAGs page (#10637)
+- URL encode execution date in the Last Run link (#10595)
+- Fixes issue with affinity backcompat in Airflow 1.10
+- Fix KubernetesExecutor import in views.py
+- Fix issues with Gantt View (#12419)
+- Fix Entrypoint and _CMD config variables (#12411)
+- Fix operator field update for SerializedBaseOperator (#10924)
+- Limited cryptography to < 3.2 for Python 2.7
+- Install cattr on Python 3.7 - Fix docs build on RTD (#12045)
+- Limit version of marshmallow-sqlalchemy
+- Pin `kubernetes` to a max version of 11.0.0 (#11974)
+- Use snakebite-py3 for HDFS dependency for Python3 (#12340)
+- Removes snakebite kerberos dependency (#10865)
+- Fix failing dependencies for FAB and Celery (#10828)
+- Fix pod_mutation_hook for 1.10.13 (#10850)
+- Fix formatting of Host information
+- Fix Logout Google Auth issue in Non-RBAC UI (#11890)
+- Add missing imports to app.py (#10650)
+- Show Generic Error for Charts & Query View in old UI (#12495)
+- TimeSensor should respect the default_timezone config (#9699)
+- TimeSensor should respect DAG timezone (#9882)
+- Unify user session lifetime configuration (#11970)
+- Handle outdated webserver session timeout gracefully. (#12332)
+
+
+Improvements
+""""""""""""
+
+- Add XCom.deserialize_value to Airflow 1.10.13 (#12328)
+- Mount airflow.cfg to pod_template_file (#12311)
+- All k8s object must comply with JSON Schema (#12003)
+- Validate Airflow chart values.yaml & values.schema.json (#11990)
+- Pod template file uses custom custom env variable (#11480)
+- Bump attrs and cattrs dependencies (#11969)
+- Bump attrs to > 20.0 (#11799)
+- [AIRFLOW-3607] Only query DB once per DAG run for TriggerRuleDep (#4751)
+- Rename task with duplicate task_id
+- Manage Flask AppBuilder Tables using Alembic Migrations (#12352)
+- ``airflow test`` only works for tasks in 1.10, not whole dags (#11191)
+- Improve warning messaging for duplicate task_ids in a DAG (#11126)
+- Pins moto to 1.3.14 (#10986)
+- DbApiHook: Support kwargs in get_pandas_df (#9730)
+- Make grace_period_seconds option on K8sPodOperator (#10727)
+- Fix syntax error in Dockerfile 'maintainer' Label (#10899)
+- The entrypoints in Docker Image should be owned by Airflow (#10853)
+- Make dockerfiles Google Shell Guide Compliant (#10734)
+- clean-logs script for Dockerfile: trim logs before sleep (#10685)
+- When sending tasks to celery from a sub-process, reset signal handlers (#11278)
+- SkipMixin: Add missing session.commit() and test (#10421)
+- Webserver: Further Sanitize values passed to origin param (#12459)
+- Security upgrade lodash from 4.17.19 to 4.17.20 (#11095)
+- Log instead of raise an Error for unregistered OperatorLinks (#11959)
+- Mask Password in Log table when using the CLI (#11468)
+- [AIRFLOW-3607] Optimize dep checking when depends on past set and concurrency limit
+- Execute job cancel HTTPRequest in Dataproc Hook (#10361)
+- Use rst lexer to format Airflow upgrade check output (#11259)
+- Remove deprecation warning from contrib/kubernetes/pod.py
+- adding body as templated field for CloudSqlImportOperator (#10510)
+- Change log level for User's session to DEBUG (#12414)
+
+Deprecations
+""""""""""""
+
+- Deprecate importing Hooks from plugin-created module (#12133)
+- Deprecate adding Operators and Sensors via plugins (#12069)
+
+Doc only changes
+""""""""""""""""
+
+- [Doc] Correct description for macro task_instance_key_str (#11062)
+- Checks if all the libraries in setup.py are listed in installation.rst file (#12023)
+- Revise "Project Focus" copy (#12011)
+- Move Project focus and Principles higher in the README (#11973)
+- Remove archived link from README.md (#11945)
+- Update download url for Airflow Version (#11800)
+- Add Project URLs for PyPI page (#11801)
+- Move Backport Providers docs to our docsite (#11136)
+- Refactor rebase copy (#11030)
+- Add missing images for kubernetes executor docs (#11083)
+- Fix indentation in executor_config example (#10467)
+- Enhanced the Kubernetes Executor doc  (#10433)
+- Refactor content to a markdown table (#10863)
+- Rename "Beyond the Horizon" section and refactor content (#10802)
+- Refactor official source section to use bullets (#10801)
+- Add section for official source code (#10678)
+- Add redbubble link to Airflow merchandise (#10359)
+- README Doc: Link to Airflow directory in ASF Directory (#11137)
+- Fix the default value for VaultBackend's config_path (#12518)
+
+Airflow 1.10.12, 2020-08-25
+----------------------------
+
+New Features
+""""""""""""
+
+- Add DateTimeSensor (#9697)
+- Add AirflowClusterPolicyViolation support to Airflow local settings (#10282)
+- Get Airflow configs with sensitive data from Secret Backends (#9645)
+- [AIRFLOW-4734] Upsert functionality for PostgresHook.insert_rows() (#8625)
+- Allow defining custom XCom class (#8560)
+
+Bug Fixes
+"""""""""
+
+- Add pre 1.10.11 Kubernetes Paths back with Deprecation Warning (#10067)
+- Fixes PodMutationHook for backwards compatibility (#9903)
+- Fix bug in executor_config when defining resources (#9935)
+- Respect DAG Serialization setting when running sync_perm (#10321)
+- Show correct duration on graph view for running task (#8311) (#8675)
+- Fix regression in SQLThresholdCheckOperator (#9312)
+- [AIRFLOW-6931] Fixed migrations to find all dependencies for MSSQL (#9891)
+- Avoid sharing session with RenderedTaskInstanceFields write and delete (#9993)
+- Fix clear future recursive when ExternalTaskMarker is used (#9515)
+- Handle IntegrityError while creating TIs (#10136)
+- Fix airflow-webserver startup errors when using Kerberos Auth (#10047)
+- Fixes treatment of open slots in scheduler (#9316) (#9505)
+- Fix KubernetesPodOperator reattachment (#10230)
+- Fix more PodMutationHook issues for backwards compatibility (#10084)
+- [AIRFLOW-5391] Do not re-run skipped tasks when they are cleared (#7276)
+- Fix task_instance_mutation_hook (#9910)
+- Fixes failing formatting of DAG file containing {} in docstring (#9779)
+- Fix is_terminal_support_colors function (#9734)
+- Fix PythonVirtualenvOperator when using ``provide_context=True`` (#8256)
+- Fix issue with mounting volumes from secrets (#10366)
+- BugFix: K8s Executor Multinamespace mode is evaluated to true by default (#10410)
+- Make KubernetesExecutor recognize kubernetes_labels (#10412)
+- Fix broken Kubernetes PodRuntimeInfoEnv (#10478)
+
+Improvements
+""""""""""""
+
+- Use Hash of Serialized DAG to determine DAG is changed or not (#10227)
+- Update Serialized DAGs in Webserver when DAGs are Updated (#9851)
+- Do not Update Serialized DAGs in DB if DAG did not change (#9850)
+- Add __repr__ to SerializedDagModel (#9862)
+- Update JS packages to latest versions (#9811) (#9921)
+- UI Graph View: Focus upstream / downstream task dependencies on mouseover (#9303)
+- Allow ``image`` in ``KubernetesPodOperator`` to be templated (#10068)
+- [AIRFLOW-6843] Add delete_option_kwargs to delete_namespaced_pod (#7523)
+- Improve process terminating in scheduler_job (#8064)
+- Replace deprecated base classes used in bigquery_check_operator (#10272)
+- [AIRFLOW-5897] Allow setting -1 as pool slots value in webserver (#6550)
+- Limit all google-cloud api to <2.0.0 (#10317)
+- [AIRFLOW-6706] Lazy load operator extra links (#7327) (#10318)
+- Add Snowflake support to SQL operator and sensor (#9843)
+- Makes multi-namespace mode optional (#9570)
+- Pin pyarrow < 1.0
+- Pin pymongo version to <3.11.0
+- Pin google-cloud-container to <2 (#9901)
+- Dockerfile: Remove package.json and yarn.lock from the prod image (#9814)
+- Dockerfile: The group of embedded DAGs should be root to be OpenShift compatible (#9794)
+- Update upper limit of flask-swagger, gunicorn & jinja2 (#9684)
+- Webserver: Sanitize values passed to origin param (#10334)
+- Sort connection type list in add/edit page alphabetically (#8692)
+
+Doc only changes
+""""""""""""""""
+
+- Add new committers: Ry Walker & Leah Cole to project.rst (#9892)
+- Add Qingping Hou to committers list (#9725)
+- Updated link to official documentation (#9629)
+- Create a short-link for Airflow Slack Invites (#10034)
+- Set language on code-block on docs/howto/email-config.rst (#10238)
+- Remove duplicate line from 1.10.10 CHANGELOG (#10289)
+- Improve heading on Email Configuration page (#10175)
+- Fix link for the Jinja Project in docs/tutorial.rst (#10245)
+- Create separate section for Cron Presets (#10247)
+- Add Syntax Highlights to code-blocks in docs/best-practices.rst (#10258)
+- Fix docstrings in BigQueryGetDataOperator (#10042)
+- Fix typo in Task Lifecycle section (#9867)
+- Make Secret Backend docs clearer about Variable & Connection View (#8913)
+
+Airflow 1.10.11, 2020-07-10
+-----------------------------
+
+New Features
+""""""""""""
+
+- Add task instance mutation hook (#8852)
+- Allow changing Task States Colors (#9520)
+- Add support for AWS Secrets Manager as Secrets Backend (#8186)
+- Add Airflow info command to the CLI (#8704)
+- Add Local Filesystem Secret Backend (#8596)
+- Add Airflow config CLI command (#8694)
+- Add Support for Python 3.8 (#8836)(#8823)
+- Allow K8S worker pod to be configured from JSON/YAML file (#6230)
+- Add quarterly to crontab presets (#6873)
+- Add support for ephemeral storage on KubernetesPodOperator (#6337)
+- Add AirflowFailException to fail without any retry (#7133)
+- Add SQL Branch Operator (#8942)
+
+Bug Fixes
+"""""""""
+
+- Use NULL as dag.description default value (#7593)
+- BugFix: DAG trigger via UI error in RBAC UI (#8411)
+- Fix logging issue when running tasks (#9363)
+- Fix JSON encoding error in DockerOperator (#8287)
+- Fix alembic crash due to typing import (#6547)
+- Correctly restore upstream_task_ids when deserializing Operators (#8775)
+- Correctly store non-default Nones in serialized tasks/dags (#8772)
+- Correctly deserialize dagrun_timeout field on DAGs (#8735)
+- Fix tree view if config contains " (#9250)
+- Fix Dag Run UI execution date with timezone cannot be saved issue (#8902)
+- Fix Migration for MSSQL (#8385)
+- RBAC ui: Fix missing Y-axis labels with units in plots (#8252)
+- RBAC ui: Fix missing task runs being rendered as circles instead (#8253)
+- Fix: DagRuns page renders the state column with artifacts in old UI (#9612)
+- Fix task and dag stats on home page (#8865)
+- Fix the trigger_dag api in the case of nested subdags (#8081)
+- UX Fix: Prevent undesired text selection with DAG title selection in Chrome (#8912)
+- Fix connection add/edit for spark (#8685)
+- Fix retries causing constraint violation on MySQL with DAG Serialization (#9336)
+- [AIRFLOW-4472] Use json.dumps/loads for templating lineage data (#5253)
+- Restrict google-cloud-texttospeech to <v2 (#9137)
+- Fix pickling failure when spawning processes (#8671)
+- Pin Version of azure-cosmos to <4 (#8956)
+- Azure storage 0.37.0 is not installable any more (#8833)
+- Fix modal_backdrop z-index in the UI (#7313)
+- Fix Extra Links in Gantt View (#8308)
+- Bug fix for EmrAddStepOperator init with cluster_name error (#9235)
+- Fix KubernetesPodOperator pod name length validation (#8829)
+- Fix non updating DAG code by checking against last modification time (#8266)
+- BugFix: Unpausing a DAG with catchup=False creates an extra DAG run (#8776)
+
+
+Improvements
+""""""""""""
+
+- Improve add_dag_code_table migration (#8176)
+- Persistent display/filtering of DAG status (#8106)
+- Set unique logger names (#7330)
+- Update the version of cattrs from 0.9 to 1.0 to support Python 3.8 (#7100)
+- Reduce response payload size of /dag_stats and /task_stats (#8655)
+- Add authenticator parameter to snowflake_hook (#8642)
+- Show "Task Reschedule" table in Airflow Webserver (#9521)
+- Change worker_refresh_interval fallback to default of 30 (#9588)
+- Use pformat instead of str to render arguments in WebUI (#9587)
+- Simplify DagFileProcessorManager (#7521)
+- Reload gunicorn when plugins has been changed (#8997)
+- Fix the default value for store_dag_code (#9554)
+- Add support for fetching logs from running pods (#8626)
+- Persist start/end date and duration for DummyOperator Task Instance (#8663)
+- Ensure "started"/"ended" in tooltips are not shown if job not started (#8667)
+- Add context to execution_date_fn in ExternalTaskSensor (#8702)
+- Avoid color info in response of ``/dag_stats`` & ``/task_stats`` (#8742)
+- Make loading plugins from entrypoint fault-tolerant (#8732)
+- Refactor Kubernetes worker config (#7114)
+- Add default ``conf`` parameter to Spark JDBC Hook (#8787)
+- Allow passing backend_kwargs to AWS SSM client (#8802)
+- Filter dags by clicking on tag (#8897)
+- Support k8s auth method in Vault Secrets provider (#8640)
+- Monitor pods by labels instead of names (#6377)
+- Optimize count query on /home (#8729)
+- Fix JSON string escape in tree view (#8551)
+- Add TaskInstance state to TI Tooltip to be colour-blind friendlier (#8910)
+- Add a tip to trigger DAG screen (#9049)
+- Use Markup for htmlcontent for landing_times (#9242)
+- Pinning max pandas version to 2.0 (lesser than) to allow pandas 1.0 (#7954)
+- Update example webserver_config.py to show correct CSRF config (#8944)
+- Fix displaying Executor Class Name in "Base Job" table (#8679)
+- Use existing DagBag for 'dag_details' & 'trigger' Endpoints (#8501)
+- Flush pending Sentry exceptions before exiting (#7232)
+- Display DAG run conf in the list view (#6794)
+- Fix performance degradation when updating dagrun state (#8435)
+- Don't use the ``|safe`` filter in code, it's risky (#9180)
+- Validate only task commands are run by executors (#9178)
+- Show Deprecation warning on duplicate Task ids (#8728)
+- Move DAG._schedule_interval logic out of ``DAG.__init__`` (#8225)
+- Make retrieving Paused Dag ids a separate method (#7587)
+- Bulk fetch paused_dag_ids (#7476)
+- Add a configurable DAGs volume mount path for Kubernetes (#8147)
+- Add schedulername option for KubernetesPodOperator (#6088)
+- Support running git sync container as root (#6312)
+- Add extra options for Slack Webhook operator and Slack hook (#9409)
+- Monkey patch greenlet Celery pools (#8559)
+- Decrypt secrets from SystemsManagerParameterStoreBackend (#9214)
+- Prevent clickable sorting on non sortable columns in TI view (#8681)
+- Make hive macros py3 compatible (#8598)
+- Fix SVG tooltip positioning with custom scripting (#8269)
+- Avoid unnecessary sleep to maintain local task job heart rate (#6553)
+- Include some missing RBAC roles on User and Viewer roles (#9133)
+- Show Dag's Markdown docs on Tree View (#9448)
+- Improved compatibility with Python 3.5+ - Convert signal.SIGTERM to int (#9207)
+- Add 'main' param to template_fields in DataprocSubmitPySparkJobOperator (#9154)
+- Make it possible to silence warnings from Airflow (#9208)
+- Remove redundant count query in BaseOperator.clear() (#9362)
+- Fix DB migration message (#8988)
+- Fix awkward log info in dbapi_hook (#8482)
+- Fix Celery default to no longer allow pickle (#7205)
+- Further validation that only task commands are run by executors (#9240)
+- Remove vendored nvd3 and slugify libraries (#9136)
+- Enable configurable git sync depth  (#9094)
+- Reduce the required resources for the Kubernetes's sidecar (#6062)
+- Refactor K8S codebase with k8s API models (#5481)
+- Move k8s executor out of contrib to closer match master (#8904)
+- Allow filtering using "event" and "owner" in "Log" view (#4881)
+- Add Yandex.Cloud custom connection to 1.10 (#8791)
+- Add table-hover css class to DAGs table (#5033)
+- Show un/pause errors in dags view. (#7669)
+- Restructure database queries on /home (#4872)
+- Add Cross Site Scripting defense (#6913)
+- Make Gantt tooltip the same as Tree and Graph view (#8220)
+- Add config to only delete worker pod on task failure (#7507)(#8312)
+- Remove duplicate error message on chart connection failure (#8476)
+- Remove default value spark_binary (#8508)
+- Expose Airflow Webserver Port in Production Docker Image (#8228)
+- Commit after each alembic migration (#4797)
+- KubernetesPodOperator fixes and test (#6524)
+- Docker Image: Add ADDITIONAL_AIRFLOW_EXTRAS (#9032)
+- Docker Image: Add ADDITIONAL_PYTHON_DEPS (#9031)
+- Remove httplib2 from Google requirements (#9194)
+- Merging multiple SQL operators (#9124)
+- Adds hive as extra in pyhive dependency (#9075)
+- Change default auth for experimental backend to deny_all (#9611)
+- Restrict changing XCom values from the Webserver (#9614)
+- Add __repr__ for DagTag so tags display properly in /dagmodel/show (#8719)
+- Functionality to shuffle HMS connections used by HiveMetastoreHook facilitating load balancing (#9280)
+- Expose SQLAlchemy's connect_args and make it configurable (#6478)
+
+Doc only changes
+""""""""""""""""
+
+- Add docs on using DAGRun.conf (#9578)
+- Enforce code-block directives in doc (#9443)
+- Carefully parse warning messages when building documentation (#8693)
+- Make KubernetesPodOperator clear in docs (#8444)
+- Improve language in Pod Mutation Hook docs (#8445)
+- Fix formatting of Pool docs in concepts.rst (#8443)
+- Make doc clearer about Airflow Variables using Environment Variables (#8427)
+- Fix pools doc for LocalExecutor (#7643)
+- Add Local and Sequential Executors to Doc (#8084)
+- Add documentation for CLI command Airflow dags test (#8251)
+- Fix typo in DAG Serialization documentation (#8317)
+- Add scheduler in production section (#7351)
+- Add a structural dag validation example (#6727)
+- Adding Task re-run documentation (#6295)
+- Fix outdated doc on settings.policy (#7532)
+- Add docs about reload_on_plugin_change option (#9575)
+- Add copy button to Code Blocks in Airflow Docs (#9450)
+- Update commands in docs for v1.10+ (#9585)
+- Add more info on dry-run CLI option (#9582)
+- Document default timeout value for SSHOperator (#8744)
+- Fix docs on creating CustomOperator (#8678)
+- Enhanced documentation around Cluster Policy (#8661)
+- Use sphinx syntax in concepts.rst (#7729)
+- Update README to remove Python 3.8 limitation for Master (#9451)
+- Add note about using dag_run.conf in BashOperator (#9143)
+- Improve tutorial - Include all imports statements (#8670)
+- Added more precise Python requirements to README.md (#8455)
+- Fix Airflow Stable version in README.md (#9360)
+- Update AWS connection example to show how to set from env var (#9191)
+- Fix list formatting of plugins doc. (#8873)
+- Add 'Version Added' on Secrets Backend docs (#8264)
+- Simplify language re roll-your-own secrets backend (#8257)
+- Add installation description for repeatable PyPi installation (#8513)
+- Add note extra links only render on when using RBAC webserver  (#8788)
+- Remove unused Airflow import from docs (#9274)
+- Add PR/issue note in Contribution Workflow Example (#9177)
+- Don't use the term "whitelist" - language matters (#9174)
+- Add docs to change Colors on the Webserver (#9607)
+- Change 'initiate' to 'initialize' in installation.rst (#9619)
+- Replace old Variables View Screenshot with new (#9620)
+- Replace old SubDag zoom screenshot with new (#9621)
+- Update docs about the change to default auth for experimental API (#9617)
+
+
+Airflow 1.10.10, 2020-04-09
+---------------------------
+
+New Features
+""""""""""""
+- [AIRFLOW-7048] Allow user to chose timezone to use in UI (#8046)
+- Add Production Docker image support (#7832)
+- Get Airflow Variables from Environment Variables (#7923)
+- Get Airflow Variables from Hashicorp Vault (#7944)
+- Get Airflow Variables from AWS Systems Manager Parameter Store (#7945)
+- Get Airflow Variables from GCP Secrets Manager (#7946)
+- [AIRFLOW-5705] Add secrets backend and support for AWS SSM / Get Airflow Connections from AWS Parameter Store(#6376)
+- [AIRFLOW-7104] Add Secret backend for GCP Secrets Manager / Get Airflow Connections from GCP Secrets Manager (#7795)
+- [AIRFLOW-7076] Add support for HashiCorp Vault as Secrets Backend / Get Airflow Connections from Hashicorp Vault (#7741)
+- [AIRFLOW-6685] Add ThresholdCheckOperator (#7353)
+- [AIRFLOW-7080] Add API endpoint to return a DAG's paused state (#7737)
+
+Bug Fixes
+"""""""""
+- BugFix: Show task_id in the Graph View tooltip (#7859)
+- [AIRFLOW-6730] Use total_seconds instead of seconds (#7363)
+- [AIRFLOW-6167] Escape column name in create table in hive (#6741)
+- [AIRFLOW-6628] DAG auto-complete now suggests from all accessible DAGs (#7251)
+- [AIRFLOW-7113] Fix gantt render error (#7913)
+- [AIRFLOW-6399] Add _access control to validate deserialized DAGs (#7896)
+- [AIRFLOW-6399] Serialization: DAG access_control field should be decorated field in DAG serialization (#7879)
+- [AIRFLOW-4453] Make behavior of `none_failed` consistent with documentation (#7464)
+- [AIRFLOW-4363] Fix JSON encoding error (#7628)
+- [AIRFLOW-6683] Run REST API tests when DAGs are serialized (#7352)
+- [AIRFLOW-6704] Copy common TaskInstance attributes from Task (#7324)
+- [AIRFLOW-6734] Use configured base_template instead of hard-coding (#7367)
+- [AIRFLOW-7098] Simple salesforce release 1.0.0 breaks the build (#7775)
+- [AIRFLOW-6062] Executor would only delete workers in its own namespace (#7123)
+- [AIRFLOW-7074] Add Permissions to view SubDAGs (#7752)
+- [AIRFLOW-7025] Fix SparkSqlHook.run_query to handle its parameter properly (#7677)
+- [AIRFLOW-6855] Escape project_dataset_table in SQL query in gcs to bq operator (#7475)
+- [AIRFLOW-6949] Respect explicit conf to SparkSubmitOperator (#7575)
+- [AIRFLOW-6588] write_stdout and json_format are boolean (#7199)
+- [AIRFLOW-3439] Decode logs with  'utf-8' (#4474)
+- [AIRFLOW-6878] Fix misconfigured default value for kube_client_request_args
+- [AIRFLOW-5167] Update dependencies for GCP packages (#7116)
+- [AIRFLOW-6821] Success callback not called when task marked as success from UI (#7447)
+- [AIRFLOW-6740] Remove Undocumented, deprecated, dysfunctional PROXY_FIX_NUM_PROXIES (#7359)
+- [AIRFLOW-6728] Change various DAG info methods to POST (#7364)
+- [AIRFLOW-6997] Make sure worker pods initcontainers obtain env vars from config (#7663)
+- [AIRFLOW-7062] Fix pydruid release breaking the build (#7720)
+- [AIRFLOW-6040] ReadTimoutError in KubernetesExecutor should not raise exception (#7616)
+- [AIRFLOW-6943] Fix utf-8 encoded description in DAG in Python 2 (#7567)
+- [AIRFLOW-6892] Fix broken non-wheel releases (#7514)
+- [AIRFLOW-6789] BugFix: Fix Default Worker concurrency (#7494)
+- [AIRFLOW-6840] Bump up version of future (#7471)
+- [AIRFLOW-5705] Fix bugs in AWS SSM Secrets Backend (#7745)
+- [AIRFLOW-5705] Fix bug in Secrets Backend (#7742)
+- Fix CloudSecretsManagerBackend invalid connections_prefix (#7861)
+- [AIRFLOW-7045] BugFix: DebugExecutor fails to change task state. (#8073)
+- BugFix: Datetimepicker is stuck on the UI (#8092)
+- [AIRFLOW-5277] Gantt chart respects per-user the Timezone UI setting (#8096)
+- Fix timezones displayed in Task Instance tooltip (#8103)
+- BugFix: Fix writing & deleting Dag Code for Serialized DAGs (#8151)
+- Make the default TI pool slots '1' (#8153)
+- Fix 500 error in Security screens (#8165)
+- Fix Viewing Dag Code for Stateless Webserver (#8159)
+- Fix issue with sqlalchemy 1.3.16 (#8230)
+
+
+Improvements
+""""""""""""
+- Use same tooltip for Graph and Tree views for TaskInstances (#8043)
+- Allow DateTimePicker in Webserver to actually pick times too (#8034)
+- [AIRFLOW-5590] Add run_id to trigger DAG run API response (#6256)
+- [AIRFLOW-6695] Can now pass dagrun conf when triggering dags via UI (#7312)
+- [AIRFLOW-5336] Add ability to make updating FAB perms on webserver in it optional (#5940)
+- [AIRFLOW-1467] Allow tasks to use more than one pool slot (#7160)
+- [AIRFLOW-6987] Avoid creating default connections (#7629)
+- [AIRFLOW-4175] S3Hook load_file should support ACL policy parameter (#7733)
+- [AIRFLOW-4438] Add Gzip compression to S3_hook (#7680)
+- Allow setting Airflow Variable values to empty string (#8021)
+- Dont schedule dummy tasks (#7880)
+- Prevent sequential scan of task instance table (#8014)
+- [AIRFLOW-7017] Respect default dag view in trigger dag origin (#7667)
+- [AIRFLOW-6837] Limit description length of a Dag on HomePage (#7457)
+- [AIRFLOW-6989] Display Rendered template_fields without accessing Dag files (#7633)
+- [AIRFLOW-5944] Rendering templated_fields without accessing DAG files (#6788)
+- [AIRFLOW-5946] DAG Serialization: Store source code in db (#7217)
+- [AIRFLOW-7079] Remove redundant code for storing template_fields (#7750)
+- [AIRFLOW-7024] Add the verbose parameter support to SparkSqlOperator (#7676)
+- [AIRFLOW-6733] Extend not replace template (#7366)
+- [AIRFLOW-7001] Further fix for the MySQL 5.7 UtcDateTime (#7655)
+- [AIRFLOW-6014] Handle pods which are preempted & deleted by kubernetes but not restarted (#6606)
+- [AIRFLOW-6950] Remove refresh_executor_config from ti.refresh_from_db (#7577)
+- [AIRFLOW-7016] Sort dag tags in the UI (#7661)
+- [AIRFLOW-6762] Fix link to "Suggest changes on this page" (#7387)
+- [AIRFLOW-6948] Remove ASCII Airflow from version command (#7572)
+- [AIRFLOW-6767] Correct name for default Athena workgroup (#7394)
+- [AIRFLOW-6905] Update pin.svg with new pinwheel (#7524)
+- [AIRFLOW-6801] Make use of ImportError.timestamp (#7425)
+- [AIRFLOW-6830] Add Subject/MessageAttributes to SNS hook and operator (#7451)
+- [AIRFLOW-6630] Resolve handlebars advisory (#7284)
+- [AIRFLOW-6945] MySQL 5.7 is used in v1-10-test as an option
+- [AIRFLOW-6871] Optimize tree view for large DAGs (#7492)
+- [AIRFLOW-7063] Fix dag.clear() slowness caused by count (#7723)
+- [AIRFLOW-7023] Remove duplicated package definitions in setup.py (#7675)
+- [AIRFLOW-7001] Time zone removed from MySQL TIMSTAMP field inserts
+- [AIRFLOW-7105] Unify Secrets Backend method interfaces (#7830)
+- Make BaseSecretsBackend.build_path generic (#7948)
+- Allow hvac package installation using 'hashicorp' extra (#7915)
+- Standardize SecretBackend class names (#7846)
+- [AIRFLOW-5705] Make AwsSsmSecretsBackend consistent with VaultBackend (#7753)
+- [AIRFLOW-7045] Update SQL query to delete RenderedTaskInstanceFields (#8051)
+- Handle DST better in Task Instance tool tips (#8104)
+
+Misc/Internal
+"""""""""""""
+- Fix Flaky TriggerDAG UI test (#8022)
+- Remove unnecessary messages in CI (#7951)
+- Fixes too high parallelism in CI (#7947)
+- Install version is not persistent in breeze (#7914)
+- Fixed automated check for image rebuild (#7912)
+- Move Dockerfile to Dockerfile.ci (#7829)
+- Generate requirements are now sorted (#8040)
+- Change name of the common environment initialization function (#7805)
+- Requirements now depend on Python version (#7841)
+- Bring back reset db explicitly called at CI entry (#7798)
+- Fixes unclean installation of Airflow 1.10 (#7796)
+- [AIRFLOW-7029] Use separate docker image for running license check (#7678)
+- [AIRFLOW-5842] Switch to Debian buster image as a base (#7647)
+- [AIRFLOW-5828] Move build logic out from hooks/build (#7618)
+- [AIRFLOW-6839] Even more mypy speed improvements (#7460)
+- [AIRFLOW-6820] split breeze into functions (#7433)
+- [AIRFLOW-7097] Install gcloud beta components in CI image (#7772)
+- [AIRFLOW-7018] fixing travis's job name escaping problem (#7668)
+- [AIRFLOW-7054] Breeze has an option now to reset db at entry (#7710)
+- [AIRFLOW-7005] Added exec command to Breeze (#7649)
+- [AIRFLOW-7015] Detect Dockerhub repo/user when building on Dockerhub (#7673)
+- [AIRFLOW-6727] Fix minor bugs in Release Management scripts (#7355)
+- [AIRFLOW-7013] Automated check if Breeze image needs to be pulled (#7656)
+- [AIRFLOW-7010] Skip in-container checks for Dockerhub builds (#7652)
+- [AIRFLOW-7011] Pin JPype release to allow to build 1.10 images
+- [AIRFLOW-7006] Fix missing +e in Breeze script (#7648)
+- [AIRFLOW-6979] Fix breeze test-target specific test param issue (#7614)
+- [AIRFLOW-6932] Add restart-environment command to Breeze
+- [AIRFLOW-6919] Make Breeze DAG-test friendly (#7539)
+- [AIRFLOW-6838] Introduce real subcommands for Breeze (#7515)
+- [AIRFLOW-6763] Make systems tests ready for backport tests (#7389)
+- [AIRFLOW-6866] Fix wrong export for Mac on Breeze (#7485)
+- [AIRFLOW-6842] Skip fixing ownership on Mac (#7469)
+- [AIRFLOW-6841] Fixed unbounded variable on Mac (#7465)
+- [AIRFLOW-7067] Pinned version of Apache Airflow (#7730)
+- [AIRFLOW-7058] Add support for different DB versions (#7717)
+- [AIRFLOW-7002] Get rid of yaml "parser" in bash (#7646)
+- [AIRFLOW-6972] Shorter frequently used commands in Breeze (#7608)
+
+Doc only changes
+""""""""""""""""
+- Fix typo for store_serialized_dags config (#7952)
+- Fix broken link in README.md (#7893)
+- Separate supported Postgres versions with comma (#7892)
+- Fix grammar in setup.py (#7877)
+- Add Jiajie Zhong to committers list (#8047)
+- Update Security doc for 1.10.* for auth backends (#8072)
+- Fix Example in config_templates for Secrets Backend (#8074)
+- Add backticks in IMAGES.rst command description (#8075)
+- Change version_added for store_dag_code config (#8076)
+- [AIRFLOW-XXXX] Remove duplicate docs
+- [AIRFLOW-XXXX] Remove the defunct limitation of Dag Serialization (#7716)
+- [AIRFLOW-XXXX] Add prerequisite tasks for all GCP operators guide (#6049)
+- [AIRFLOW-XXXX] Simplify AWS/Azure/Databricks operators listing (#6047)
+- [AIRFLOW-XXXX] Add external reference to all GCP operator guide (#6048)
+- [AIRFLOW-XXXX] Simplify GCP operators listing
+- [AIRFLOW-XXXX] Simplify Qubole operators listing
+- [AIRFLOW-XXXX] Add autogenerated TOC (#6038)
+- [AIRFLOW-XXXX] Create "Using the CLI" page (#5823)
+- [AIRFLOW-XXXX] Group references in one section (#5776)
+- [AIRFLOW-XXXX] Fix analytics doc (#5885)
+- [AIRFLOW-XXXX] Add S3 Logging section (#6039)
+- [AIRFLOW-XXXX] Move Azure Logging section above operators (#6040)
+- [AIRFLOW-XXXX] Update temp link to a fixed link (#7715)
+- [AIRFLOW-XXXX] Add Updating.md section for 1.10.9 (#7385)
+- [AIRFLOW-XXXX] Remove duplication in BaseOperator docstring (#7321)
+- [AIRFLOW-XXXX] Update tests info in CONTRIBUTING.rst (#7466)
+- [AIRFLOW-XXXX] Small BREEZE.rst update (#7487)
+- [AIRFLOW-XXXX] Add instructions for logging to localstack S3 (#7461)
+- [AIRFLOW-XXXX] Remove travis config warnings (#7467)
+- [AIRFLOW-XXXX] Add communication chapter to contributing (#7204)
+- [AIRFLOW-XXXX] Add known issue - example_dags/__init__.py (#7444)
+- [AIRFLOW-XXXX] Fix breeze build-docs (#7445)
+- [AIRFLOW-XXXX] Less verbose docker builds
+- [AIRFLOW-XXXX] Speed up mypy runs (#7421)
+- [AIRFLOW-XXXX] Fix location of kubernetes tests (#7373)
+- [AIRFLOW-XXXX] Remove quotes from domains in Google Oauth (#4226)
+- [AIRFLOW-XXXX] Add explicit info about JIRAs for code-related PRs (#7318)
+- [AIRFLOW-XXXX] Fix typo in the word committer (#7392)
+- [AIRFLOW-XXXX] Remove duplicated paragraph in docs (#7662)
+- Fix reference to KubernetesPodOperator (#8100)
+
+
+Airflow 1.10.9, 2020-02-07
+--------------------------
+
+Bug Fixes
+"""""""""
+
+- [AIRFLOW-6751] Pin Werkzeug (dependency of a number of our dependencies) to < 1.0.0 (#7377)
+
+Airflow 1.10.8, 2020-02-07
+--------------------------
+
+New Features
+""""""""""""
+- [AIRFLOW-4026] Add filter by DAG tags (#6489)
+- [AIRFLOW-6613] Center dag on graph view load (#7238)
+- [AIRFLOW-5843] Add conf option to Add DAG Run view (#7281)
+- [AIRFLOW-4495] Allow externally triggered dags to run for future exec dates (#7038)
+
+Improvements
+""""""""""""
+- [AIRFLOW-6438] Filter DAGs returned by blocked (#7019)
+- [AIRFLOW-6666] Resolve js-yaml advisory (#7283)
+- [AIRFLOW-6632] Bump dagre-d3 to resolve lodash CVE advisory (#7280)
+- [AIRFLOW-6667] Resolve serialize-javascript advisory (#7282)
+- [AIRFLOW-6451] self._print_stat() in dag_processing.py should be skipable (#7134)
+- [AIRFLOW-6495] Load DAG only once when running a task using StandardTaskRunner (#7090)
+- [AIRFLOW-6319] Add support for AWS Athena workgroups (#6871)
+- [AIRFLOW-6677] Remove deprecation warning from SQLAlchmey (#7289)
+- [AIRFLOW-6428] Fix import path for airflow.utils.dates.days_ago in Example DAGs (#7007)
+- [AIRFLOW-6595] Use TaskNotFound exception instead of AirflowException (#7210)
+- [AIRFLOW-6620] Mock celery in worker cli test (#7243)
+- [AIRFLOW-6608] Change logging level for Bash & PyOperator Env exports
+- [AIRFLOW-2279] Clear tasks across DAGs if marked by ExternalTaskMarker (#6633)
+- [AIRFLOW-6359] Make Spark status_poll_interval explicit (#6978)
+- [AIRFLOW-6359] spark_submit_hook.py status polling interval config (#6909)
+- [AIRFLOW-6316] Use exampleinclude directives in tutorial.rst (#6868)
+- [AIRFLOW-6519] Make TI logs constants in Webserver configurable (#7113)
+- [AIRFLOW-6327] http_hook: Accept json= parameter for payload (#6886)
+- [AIRFLOW-6261] flower_basic_auth eligible to _cmd (#6825)
+- [AIRFLOW-6238] Filter dags returned by dag_stats
+- [AIRFLOW-5616] Switch PrestoHook from pyhive to presto-python-client
+- [AIRFLOW-6611] Add proxy_fix configs to default_airflow.cfg (#7236)
+- [AIRFLOW-6557] Add test for newly added fields in BaseOperator (#7162)
+- [AIRFLOW-6584] Pin cassandra driver (#7194)
+- [AIRFLOW-6537] Fix backticks in RST files (#7140)
+- [AIRFLOW-4428] Error if exec_date before default_args.start_date in trigger_dag (#6948)
+- [AIRFLOW-6330] Show cli help when param blank or typo (#6883)
+- [AIRFLOW-4113] Unpin boto3 (#6884)
+- [AIRFLOW-6181] Add DebugExecutor (#6740)
+- [AIRFLOW-6504] Allow specifying configmap for Airflow Local Setting (#7097)
+- [AIRFLOW-6436] Cleanup for Airflow configs doc generator code (#7036)
+- [AIRFLOW-6436] Add x_frame_enabled config in config.yml (#7024)
+- [AIRFLOW-6436] Create & Automate docs on Airflow Configs (#7015)
+- [AIRFLOW-6527] Make send_task_to_executor timeout configurable (#7143)
+- [AIRFLOW-6272] Switch from npm to yarnpkg for managing front-end dependencies (#6844)
+- [AIRFLOW-6350] Security - spark submit operator logging+exceptions should mask passwords
+- [AIRFLOW-6358] Log details of failed task (#6908)
+- [AIRFLOW-5149] Skip SLA checks config (#6923)
+- [AIRFLOW-6057] Update template_fields of the PythonSensor (#6656)
+- [AIRFLOW-4445] Mushroom cloud errors too verbose (#6952)
+- [AIRFLOW-6394] Simplify github PR template (#6955)
+- [AIRFLOW-5385] spark hook does not work on spark 2.3/2.4 (#6976)
+
+Bug Fixes
+"""""""""
+- [AIRFLOW-6345] Ensure arguments to ProxyFix are integers (#6901)
+- [AIRFLOW-6576] Fix scheduler crash caused by deleted task with sla misses (#7187)
+- [AIRFLOW-6686] Fix syntax error constructing list of process ids (#7298)
+- [AIRFLOW-6683] REST API respects store_serialized_dag setting (#7296)
+- [AIRFLOW-6553] Add upstream_failed in instance state filter to WebUI (#7159)
+- [AIRFLOW-6357] Highlight nodes in Graph UI if task id contains dots (#6904)
+- [AIRFLOW-3349] Use None instead of False as value for encoding in StreamLogWriter (#7329)
+- [AIRFLOW-6627] Email with incorrect DAG not delivered (#7250)
+- [AIRFLOW-6637] Fix Airflow test command in 1.10.x
+- [AIRFLOW-6636] Avoid exceptions when printing task instance
+- [AIRFLOW-6522] Clear task log file before starting to fix duplication in S3TaskHandler (#7120)
+- [AIRFLOW-5501] Make default `in_cluster` value in KubernetesPodOperator respect config (#6124)
+- [AIRFLOW-6514] Use RUNNING_DEPS to check run from UI (#6367)
+- [AIRFLOW-6381] Remove styling based on DAG id from DAGs page (#6985)
+- [AIRFLOW-6434] Add return statement back to DockerOperator.execute (#7013)
+- [AIRFLOW-2516] Fix mysql deadlocks (#6988)
+- [AIRFLOW-6528] Disable flake8 W503 line break before binary operator (#7124)
+- [AIRFLOW-6517] Make merge_dicts function recursive (#7111)
+- [AIRFLOW-5621] Failure callback is not triggered when marked Failed on UI (#7025)
+- [AIRFLOW-6353] Security - ui - add click jacking defense (#6995)
+- [AIRFLOW-6348] Security - cli.py is currently printing logs with password (#6915)
+- [AIRFLOW-6323] Remove non-ascii letters from default config (#6878)
+- [AIRFLOW-6506] Fix do_xcom_push defaulting to True in KubernetesPodOperator (#7122)
+- [AIRFLOW-6516] BugFix: airflow.cfg does not exist in Volume Mounts (#7109)
+- [AIRFLOW-6427] Fix broken example_qubole_operator dag (#7005)
+- [AIRFLOW-6385] BugFix: SlackAPIPostOperator fails when blocks not set (#7022)
+- [AIRFLOW-6347] BugFix: Can't get task logs when serialization is enabled (#7092)
+- [AIRFLOW-XXXX] Fix downgrade of db migration 0e2a74e0fc9f (#6859)
+- [AIRFLOW-6366] Fix migrations for MS SQL Server (#6920)
+- [AIRFLOW-5406] Allow spark without kubernetes (#6921)
+- [AIRFLOW-6229] SparkSubmitOperator polls forever if status JSON can't… (#6918)
+- [AIRFLOW-6352] Security - ui - add login timeout (#6912)
+- [AIRFLOW-6397] Ensure sub_process attribute exists before trying to kill it (#6958)
+- [AIRFLOW-6400] Fix pytest not working on Windows (#6964)
+- [AIRFLOW-6418] Remove SystemTest.skip decorator (#6991)
+- [AIRFLOW-6425] Serialization: Add missing DAG parameters to JSON Schema (#7002)
+
+Misc/Internal
+"""""""""""""
+- [AIRFLOW-6467] Use self.dag i/o creating a new one (#7067)
+- [AIRFLOW-6490] Improve time delta comparison in local task job tests (#7083)
+- [AIRFLOW-5814] Implementing Presto hook tests (#6491)
+- [AIRFLOW-5704] Improve Kind Kubernetes scripts for local testing (#6516)
+- [AIRFLOW-XXXX] Move airflow-config-yaml pre-commit before pylint (#7108)
+- [AIRFLOW-XXXX] Improve clarity of confirm message (#7110)
+- [AIRFLOW-6662] install dumb init (#7300)
+- [AIRFLOW-6705] One less chatty message at breeze initialisation (#7326)
+- [AIRFLOW-6705] Less chatty integration/backend checks (#7325)
+- [AIRFLOW-6662] Switch to --init docker flag for signal propagation (#7278)
+- [AIRFLOW-6661] Fail after 50 failing tests (#7277)
+- [AIRFLOW-6607] Get rid of old local scripts for Breeze (#7225)
+- [AIRFLOW-6589] BAT tests run in pre-commit on bash script changes (#7203)
+- [AIRFLOW-6592] Doc build is moved to test phase (#7208)
+- [AIRFLOW-6641] Better diagnostics for kubernetes flaky tests (#7261)
+- [AIRFLOW-6642] Make local task job test less flaky (#7262)
+- [AIRFLOW-6643] Fix flakiness of kerberos tests
+- [AIRFLOW-6638] Remove flakiness test from test_serialized_db remove
+- [AIRFLOW-6701] Rat is downloaded from stable backup/mirrors (#7323)
+- [AIRFLOW-6702] Dumping kind logs to file.io. (#7319)
+- [AIRFLOW-6491] Improve handling of Breeze parameters (#7084)
+- [AIRFLOW-6470] Avoid pipe to file when do curl (#7063)
+- [AIRFLOW-6471] Add pytest-instafail plugin (#7064)
+- [AIRFLOW-6462] Limit exported variables in Dockerfile/Breeze (#7057)
+- [AIRFLOW-6465] Add bash autocomplete for Airflow in Breeze (#7060)
+- [AIRFLOW-6464] Add cloud providers CLI tools in Breeze (#7059)
+- [AIRFLOW-6461] Remove silent flags in Dockerfile (#7052)
+- [AIRFLOW-6459] Increase verbosity of pytest (#7049)
+- [AIRFLOW-6370] Skip Cassandra tests if cluster is not up (#6926)
+- [AIRFLOW-6511] Remove BATS docker containers (#7103)
+- [AIRFLOW-6475] Remove duplication of volume mount specs in Breeze.. (#7065)
+- [AIRFLOW-6489] Add BATS support for Bash unit testing (#7081)
+- [AIRFLOW-6387] print details of success/skipped task (#6956)
+- [AIRFLOW-6568] Add Emacs related files to .gitignore (#7175)
+- [AIRFLOW-6575] Entropy source for CI tests is changed to unblocking (#7185)
+- [AIRFLOW-6496] Separate integrations in tests (#7091)
+- [AIRFLOW-6634] Set PYTHONPATH in interactive Breeze
+- [AIRFLOW-6564] Additional diagnostics information on CI check failure (#7172)
+- [AIRFLOW-6383] Add no trailing-whitespace pre-commit hook (#6941)
+
+Doc only changes
+""""""""""""""""
+- [AIRFLOW-XXXX] Consistency fixes in new documentation (#7207)
+- [AIRFLOW-XXXX] Improve grammar and structure in FAQ doc (#7291)
+- [AIRFLOW-XXXX] Fix email configuration link in CONTRIBUTING.rst (#7311)
+- [AIRFLOW-XXXX] Update docs with new BranchPythonOperator behaviour (#4682)
+- [AIRFLOW-XXXX] Fix Typo in scripts/ci/ci_run_airflow_testing.sh (#7235)
+- [AIRFLOW-XXXX] Screenshot showing disk space configuration for OSX (#7226)
+- [AIRFLOW-XXXX] Add mentoring information to contributing docs (#7202)
+- [AIRFLOW-XXXX] Add rebase info to contributing (#7201)
+- [AIRFLOW-XXXX] Increase verbosity of static checks in CI (#7200)
+- [AIRFLOW-XXXX] Adds branching strategy to documentation (#7193)
+- [AIRFLOW-XXXX] Move email configuration from the concept page (#7189)
+- [AIRFLOW-XXXX] Update task lifecycle diagram (#7161)
+- [AIRFLOW-XXXX] Fix reference in concepts doc (#7135)
+- [AIRFLOW-XXXX] Clear debug docs (#7104)
+- [AIRFLOW-XXXX] Fix typos and broken links in development docs (#7086)
+- [AIRFLOW-XXXX] Clarify wait_for_downstream and execution_date (#6999)
+- [AIRFLOW-XXXX] Add `airflow dags show` command guide (#7014)
+- [AIRFLOW-XXXX] Update operation chaining documentation (#7018)
+- [AIRFLOW-XXXX] Add `.autoenv_leave.zsh` to .gitignore (#6986)
+- [AIRFLOW-XXXX] Fix development packages installation instructions (#6942)
+- [AIRFLOW-XXXX] Update committers list (#7212)
+- [AIRFLOW-XXXX] Move UPDATING changes into correct versions (#7166)
+- [AIRFLOW-XXXX] Add Documentation for check_slas flag (#6974)
+- [AIRFLOW-XXXX] Fix gcp keyfile_dict typo (#6962)
+- [AIRFLOW-XXXX] Add tips for writing a note in UPDATIND.md (#6960)
+- [AIRFLOW-XXXX] Add note warning that bash>4.0 is required for docs build script (#6947)
+- [AIRFLOW-XXXX] Add autoenv to gitignore (#6946)
+- [AIRFLOW-XXXX] Fix GCSTaskHandler Comment Typo (#6928)
+- [AIRFLOW-XXXX] Fix broken DAG Serialization Link (#6891)
+- [AIRFLOW-XXXX] Add versions_added field to configs
+
+
+Airflow 1.10.7, 2019-12-24
+--------------------------
+
+New Features
+""""""""""""
+- [AIRFLOW-5088][AIP-24] Persisting serialized DAG in DB for webserver scalability (#5992)
+- [AIRFLOW-6083] Adding ability to pass custom configuration to AWS Lambda client. (#6678)
+- [AIRFLOW-5117] Automatically refresh EKS API tokens when needed (#5731)
+- [AIRFLOW-5118] Add ability to specify optional components in DataprocClusterCreateOperator (#5821)
+- [AIRFLOW-5681] Allow specification of a tag or hash for the git_sync init container (#6350)
+- [AIRFLOW-6025] Add label to uniquely identify creator of Pod (#6621)
+- [AIRFLOW-4843] Allow orchestration via Docker Swarm (SwarmOperator) (#5489)
+- [AIRFLOW-5751] add get_uri method to Connection (#6426)
+- [AIRFLOW-6056] Allow EmrAddStepsOperator to accept job_flow_name as alternative to job_flow_id (#6655)
+- [AIRFLOW-2694] Declare permissions in DAG definition (#4642)
+- [AIRFLOW-4940] Add DynamoDB to S3 operator (#5663)
+- [AIRFLOW-4161] BigQuery to MySQL Operator (#5711)
+- [AIRFLOW-6041] Add user agent to the Discovery API client (#6636)
+- [AIRFLOW-6089] Reorder setup.py dependencies and add ci (#6681)
+- [AIRFLOW-5921] Add bulk_load_custom to MySqlHook (#6575)
+- [AIRFLOW-5854] Add support for `tty` parameter in Docker related operators (#6542)
+- [AIRFLOW-4758] Add GcsToGDriveOperator operator (#5822)
+
+Improvements
+""""""""""""
+- [AIRFLOW-3656] Show doc link for the current installed version (#6690)
+- [AIRFLOW-5665] Add path_exists method to SFTPHook (#6344)
+- [AIRFLOW-5729] Make InputDataConfig optional in Sagemaker's training config (#6398)
+- [AIRFLOW-5045] Add ability to create Google Dataproc cluster with custom image from a different project (#5752)
+- [AIRFLOW-6132] Allow to pass in tags for the AzureContainerInstancesOperator (#6694)
+- [AIRFLOW-5945] Make inbuilt OperatorLinks work when using Serialization (#6715)
+- [AIRFLOW-5947] Make the JSON backend pluggable for DAG Serialization (#6630)
+- [AIRFLOW-6239] Filter dags return by last_dagruns (to only select visible dags, not all dags) (#6804)
+- [AIRFLOW-6095] Filter dags returned by task_stats (to only select visible dags, not all dags) (#6684)
+- [AIRFLOW-4482] Add execution_date to "trigger DagRun" API response (#5260)
+- [AIRFLOW-1076] Add get method for template variable accessor (#6793)
+- [AIRFLOW-5194] Add error handler to action log (#5883)
+- [AIRFLOW-5936] Allow explicit get_pty in SSHOperator (#6586)
+- [AIRFLOW-5474] Add Basic auth to Druid hook (#6095)
+- [AIRFLOW-5726] Allow custom filename in RedshiftToS3Transfer (#6396)
+- [AIRFLOW-5834] Option to skip serve_logs process with ``airflow worker`` (#6709)
+- [AIRFLOW-5583] Extend the 'DAG Details' page to display the start_date / end_date (#6235)
+- [AIRFLOW-6250] Ensure on_failure_callback always has a populated context (#6812)
+- [AIRFLOW-6222] http hook logs response body for any failure (#6779)
+- [AIRFLOW-6260] Drive _cmd config option by env var (``AIRFLOW__CORE__SQL_ALCHEMY_CONN_CMD`` for example) (#6801)
+- [AIRFLOW-6168] Allow proxy_fix middleware of webserver to be configurable (#6723)
+- [AIRFLOW-5931] Use os.fork when appropriate to speed up task execution. (#6627)
+- [AIRFLOW-4145] Allow RBAC roles permissions, ViewMenu to be over-rideable (#4960)
+- [AIRFLOW-5928] Hive hooks load_file short circuit (#6582)
+- [AIRFLOW-5313] Add params support for awsbatch_operator (#5900)
+- [AIRFLOW-2227] Add delete method to Variable class (#4963)
+- [AIRFLOW-5082] Add subject in AwsSnsHook (#5694)
+- [AIRFLOW-5715] Make email, owner context available (#6385)
+- [AIRFLOW-5345] Allow SqlSensor's hook to be customized by subclasses (#5946)
+- [AIRFLOW-5417] Fix DB disconnects during webserver startup (#6023)
+- [AIRFLOW-5730] Enable get_pandas_df on PinotDbApiHook (#6399)
+- [AIRFLOW-3235] Add list function in AzureDataLakeHook (#4070)
+- [AIRFLOW-5442] implementing get_pandas_df method for druid broker hook (#6057)
+- [AIRFLOW-5883] Improve count() queries in a few places (#6532)
+- [AIRFLOW-5811] Add metric for externally killed task count (#6466)
+- [AIRFLOW-5758] Support the custom cursor classes for the PostgreSQL hook (#6432)
+- [AIRFLOW-5766] Use httpbin.org in http_default (#6438)
+- [AIRFLOW-5798] Set default ExternalTaskSensor.external_task_id (#6431)
+- [AIRFLOW-5643] Reduce duplicated logic in S3Hook (#6313)
+- [AIRFLOW-5562] Skip grant single DAG permissions for Admin role. (#6199)
+- [AIRFLOW-6192] Stop creating Hook from SFTPSensor.__init__ (#6748)
+- [AIRFLOW-5749][AIRFLOW-4162] Support the "blocks" component for the Slack operators (#6418)
+- [AIRFLOW-5693] Support the "blocks" component for the Slack messages (#6364)
+- [AIRFLOW-5714] Collect SLA miss emails only from tasks missed SLA (#6384)
+- [AIRFLOW-5049] Add validation for src_fmt_configs in bigquery hook (#5671)
+- [AIRFLOW-6177] Log DAG processors timeout event at error level, not info (#6731)
+- [AIRFLOW-6180] Improve kerberos init in pytest conftest (#6735)
+- [AIRFLOW-6159] Change logging level of the heartbeat message to DEBUG (#6716)
+- [AIRFLOW-6144] Improve the log message of Airflow scheduler (#6710)
+- [AIRFLOW-6045] Error on failed execution of compile_assets (#6640)
+- [AIRFLOW-5144] Add confirmation on delete button click (#6745)
+- [AIRFLOW-6099] Add host name to task runner log (#6688)
+- [AIRFLOW-5915] Add support for the new documentation theme (#6563)
+- [AIRFLOW-5897] Allow setting -1 as pool slots value in webserver (#6550)
+- [AIRFLOW-5888] Use psycopg2-binary for postgres operations (#6533)
+- [AIRFLOW-5870] Allow -1 for pool size and optimise pool query (#6520)
+
+Bug Fixes
+"""""""""
+- [AIRFLOW-XXX] Bump Jira version to fix issue with async
+- [AIRFLOW-XXX] Add encoding to fix Cyrillic output when reading back task logs (#6631)
+- [AIRFLOW-5304] Fix extra links in BigQueryOperator with multiple queries (#5906)
+- [AIRFLOW-6268] Prevent (expensive) ajax calls on home page when no dags visible (#6839)
+- [AIRFLOW-6259] Reset page to 1 with each new search for dags (#6828)
+- [AIRFLOW-6185] SQLAlchemy Connection model schema not aligned with Alembic schema (#6754)
+- [AIRFLOW-3632] Only replace microseconds if execution_date is None in trigger_dag REST API (#6380)
+- [AIRFLOW-5458] Bump Flask-AppBuilder to 2.2.0 (for Python >= 3.6) (#6607)
+- [AIRFLOW-5072] gcs_hook should download files once (#5685)
+- [AIRFLOW-5744] Environment variables not correctly set in Spark submit operator (#6796)
+- [AIRFLOW-3189] Remove schema from DbHook.get_uri response if None (#6833)
+- [AIRFLOW-6195] Fixed TaskInstance attrs not correct on  UI (#6758)
+- [AIRFLOW-5889] Make polling for AWS Batch job status more resilient (#6765)
+- [AIRFLOW-6043] Fix bug in UI when "filtering by root" to display section of dag  (#6638)
+- [AIRFLOW-6033] Fix UI Crash at "Landing Times" when task_id is changed (#6635)
+- [AIRFLOW-3745] Fix viewer not able to view dag details (#4569)
+- [AIRFLOW-6175] Fixes bug when tasks get stuck in "scheduled" state (#6732)
+- [AIRFLOW-5463] Make Variable.set when replacing an atomic operation (#6807)
+- [AIRFLOW-5582] Add get_autocommit to JdbcHook (#6232)
+- [AIRFLOW-5867] Fix webserver unit_test_mode data type (#6517)
+- [AIRFLOW-5819] Update AWSBatchOperator default value (#6473)
+- [AIRFLOW-5709] Fix regression in setting custom operator resources. (#6331)
+- [AIRFLOW-5658] Fix broken navigation links (#6374)
+- [AIRFLOW-5727] SqoopHook: Build --connect parameter only if port/schema are defined (#6397)
+- [AIRFLOW-5695] use RUNNING_DEPS to check run from UI (#6367)
+- [AIRFLOW-6254] obscure conn extra in logs (#6817)
+- [AIRFLOW-4824] Add charset handling for SqlAlchemy engine for MySqlHook (#6816)
+- [AIRFLOW-6091] Add flushing in execute method for BigQueryCursor (#6683)
+- [AIRFLOW-6256] Ensure Jobs table is cleared when resetting DB (#6818)
+- [AIRFLOW-5224] Add encoding parameter to GoogleCloudStorageToBigQuery (#6297)
+- [AIRFLOW-5179] Remove top level __init__.py (#5818)
+- [AIRFLOW-5660] Attempt to find the task in DB from Kubernetes pod labels (#6340)
+- [AIRFLOW-6241] Fix typo in airflow/gcp/operator/dataflow.py (#6806)
+- [AIRFLOW-6171] Apply .airflowignore to correct subdirectories (#6784)
+- [AIRFLOW-6018] Display task instance in table during backfilling (#6612)
+- [AIRFLOW-6189] Reduce the maximum test duration to 8 minutes (#6744)
+- [AIRFLOW-6141] Remove ReadyToRescheduleDep if sensor mode == poke (#6704)
+- [AIRFLOW-6054] Add a command that starts the database consoles (#6653)
+- [AIRFLOW-6047] Simplify the logging configuration template (#6644)
+- [AIRFLOW-6017] Exclude PULL_REQUEST_TEMPLATE.md from RAT check (#6611)
+- [AIRFLOW-4560] Fix Tez queue parameter name in mapred_queue (#5315)
+- [AIRFLOW-2143] Fix TaskTries graph counts off-by-1 (#6526)
+- [AIRFLOW-5873] KubernetesPodOperator fixes and test (#6523)
+- [AIRFLOW-5869] BugFix: Some Deserialized tasks have no start_date (#6519)
+- [AIRFLOW-4020] Remove DAG edit permissions from Viewer role (#4845)
+- [AIRFLOW-6263] Fix broken WinRM integration (#6832)
+- [AIRFLOW-5836] Pin azure-storage-blob version to <12 (#6486)
+- [AIRFLOW-4488] Fix typo for non-RBAC UI in max_active_runs_per_dag (#6778)
+- [AIRFLOW-5942] Pin PyMSSQL to <3.0 (#6592)
+- [AIRFLOW-5451] SparkSubmitHook don't set default namespace (#6072)
+- [AIRFLOW-6271] Printing log files read during load_test_config (#6842)
+- [AIRFLOW-6308] Unpin Kombu for Python 3
+
+Misc/Internal
+"""""""""""""
+- [AIRFLOW-6009] Switch off travis_wait for regular tests (#6600)
+- [AIRFLOW-6226] Always reset warnings in tests
+- [AIRFLOW-XXX] Remove cyclic imports and pylint hacks in Serialization (#6601)
+- [AIRFLOW-XXX] Bump npm from 6.4.1 to 6.13.4 in /airflow/www (#6815)
+- [AIRFLOW-XXX] Remove executable permission from file
+- [AIRFLOW-XXX] Group AWS & Azure dependencies (old ``[emr]`` etc. extra still work)
+- [AIRFLOW-5487] Fix unused warning var (#6111)
+- [AIRFLOW-5925] Relax ``funcsigs`` and psutil version requirements (#6580)
+- [AIRFLOW-5740] Fix Transient failure in Slack test (#6407)
+- [AIRFLOW-6058] Running tests with pytest (#6472)
+- [AIRFLOW-6066] Added pre-commit checks for accidental debug stmts (#6662)
+- [AIRFLOW-6060] Improve conf_vars context manager (#6658)
+- [AIRFLOW-6044] Standardize the Code Structure in kube_pod_operator.py (#6639)
+- [AIRFLOW-4940] Simplify tests of DynamoDBToS3Operator (#6836)
+- [AIRFLOW-XXX] Update airflow-jira release management script (#6772)
+- [AIRFLOW-XXX] Add simple guidelines to unit test writing (#6846)
+- [AIRFLOW-6309] Fix stable build on Travis
+
+Doc only changes
+""""""""""""""""
+- [AIRFLOW-6211] Doc how to use conda for local virtualenv (#6766)
+- [AIRFLOW-5855] Fix broken reference in custom operator doc (#6508)
+- [AIRFLOW-5875] Fix typo in example_qubole_operator.py (#6525)
+- [AIRFLOW-5702] Fix common docstring issues (#6372)
+- [AIRFLOW-5640] Document and test ``email`` parameters of BaseOperator (#6315)
+- [AIRFLOW-XXX] Improve description OpenFaaS Hook (#6187)
+- [AIRFLOW-XXX] GSoD: How to make DAGs production ready (#6515)
+- [AIRFLOW-XXX] Use full command in examples (#5973)
+- [AIRFLOW-XXX] Update docs to accurately describe the precedence of remote and local logs (#5607)
+- [AIRFLOW-XXX] Fix example "extras" field in mysql connect doc (#5285)
+- [AIRFLOW-XXX] Fix wrong inline code highlighting in docs (#5309)
+- [AIRFLOW-XXX] Group executors in one section (#5834)
+- [AIRFLOW-XXX] Add task lifecycle diagram to documentation (#6762)
+- [AIRFLOW-XXX] Highlight code blocks (#6243)
+- [AIRFLOW-XXX] Documents about task_concurrency and pool (#5262)
+- [AIRFLOW-XXX] Fix incorrect docstring parameter (#6649)
+- [AIRFLOW-XXX] Add link to XCom section in concepts.rst (#6791)
+- [AIRFLOW-XXX] Update kubernetes doc with correct path (#6774)
+- [AIRFLOW-XXX] Add information how to configure pytest runner (#6736)
+- [AIRFLOW-XXX] More GSOD improvements (#6585)
+- [AIRFLOW-XXX] Clarified a grammatically incorrect sentence (#6667)
+- [AIRFLOW-XXX] Add notice for Mesos Executor deprecation in docs (#6712)
+- [AIRFLOW-XXX] Update list of pre-commits (#6603)
+- [AIRFLOW-XXX] Updates to Breeze documentation from GSOD (#6285)
+- [AIRFLOW-XXX] Clarify daylight savings time behavior (#6324)
+- [AIRFLOW-XXX] GSoD: Adding 'Create a custom operator' doc (#6348)
+- [AIRFLOW-XXX] Add resources & links to CONTRIBUTING.rst (#6405)
+- [AIRFLOW-XXX] Update chat channel details from gitter to slack (#4149)
+- [AIRFLOW-XXX] Add logo info to readme (#6349)
+- [AIRFLOW-XXX] Fixed case problem with CONTRIBUTING.rst (#6329)
+- [AIRFLOW-XXX] Google Season of Docs updates to CONTRIBUTING doc (#6283)
+
+
 Airflow 1.10.6, 2019-10-28
 --------------------------
 
@@ -24,7 +2140,7 @@ Improvements
 - [AIRFLOW-5126] Read ``aws_session_token`` in extra_config of the aws hook (#6303)
 - [AIRFLOW-5636] Allow adding or overriding existing Operator Links (#6302)
 - [AIRFLOW-4965] Handle quote exceptions in GCP AI operators (v1.10) (#6304)
-- [AIRFLOW-3783] Speed up Redshift to S3 UNload with HEADERs (#6309)
+- [AIRFLOW-3783] Speed up Redshift to S3 unload with HEADERs (#6309)
 - [AIRFLOW-3388] Add support to Array Jobs for AWS Batch Operator (#6153)
 - [AIRFLOW-4574] add option to provide private_key in SSHHook (#6104) (#6163)
 - [AIRFLOW-5530] Fix typo in AWS SQS sensors (#6012)
@@ -100,7 +2216,7 @@ Doc-only changes
 - [AIRFLOW-XXX] Fix typo - AWS DynamoDB Hook (#6319)
 - [AIRFLOW-XXX] Fix Documentation for adding extra Operator Links (#6301)
 - [AIRFLOW-XXX] Add section on task lifecycle & correct casing in docs (#4681)
-- [AIRFLOW-XXX] Make it clear that 1.10.5 wasn't accidentally omitted from UPDATING.md (#6240)
+- [AIRFLOW-XXX] Make it clear that 1.10.5 was not accidentally omitted from UPDATING.md (#6240)
 - [AIRFLOW-XXX] Improve format in code-block directives (#6242)
 - [AIRFLOW-XXX] Format Sendgrid docs (#6245)
 - [AIRFLOW-XXX] Update to new logo (#6066)
@@ -175,14 +2291,14 @@ Bug fixes
 - [AIRFLOW-5100] Airflow scheduler does not respect safe mode setting (#5757)
 - [AIRFLOW-4763] Allow list in DockerOperator.command (#5408)
 - [AIRFLOW-5260] Allow empty uri arguments in connection strings (#5855)
-- [AIRFLOW-5257] Fix ElasticSearch log handler errors when attemping to close logs (#5863)
-- [AIRFLOW-1772] Google Updated Sensor doesnt work with CRON expressions (#5730)
+- [AIRFLOW-5257] Fix ElasticSearch log handler errors when attempting to close logs (#5863)
+- [AIRFLOW-1772] Google Updated Sensor doesn't work with CRON expressions (#5730)
 - [AIRFLOW-5085] When you run kubernetes git-sync test from TAG, it fails (#5699)
 - [AIRFLOW-5258] ElasticSearch log handler, has 2 times of hours (%H and %I) in _clean_execution_dat (#5864)
 - [AIRFLOW-5348] Escape Label in deprecated chart view when set via JS (#5952)
 - [AIRFLOW-5357] Fix Content-Type for exported variables.json file (#5963)
 - [AIRFLOW-5109] Fix process races when killing processes (#5721)
-- [AIRFLOW-5240] Latest version of Kombu is breaking airflow for py2
+- [AIRFLOW-5240] Latest version of Kombu is breaking Airflow for py2
 
 Misc/Internal
 """""""""""""
@@ -191,7 +2307,7 @@ Misc/Internal
 - [AIRFLOW-5083] Check licence image building can be faster and moved to before-install (#5695)
 - [AIRFLOW-5119] Cron job should always rebuild everything from scratch (#5733)
 - [AIRFLOW-5108] In the CI local environment long-running kerberos might fail sometimes (#5719)
-- [AIRFLOW-5092] Latest python image should be pulled locally in force_pull_and_build (#5705)
+- [AIRFLOW-5092] Latest Python image should be pulled locally in force_pull_and_build (#5705)
 - [AIRFLOW-5225] Consistent licences can be added automatically for all JS files (#5827)
 - [AIRFLOW-5229] Add licence to all other file types (#5831)
 - [AIRFLOW-5227] Consistent licences for all .sql files (#5829)
@@ -209,7 +2325,6 @@ Misc/Internal
 - [AIRFLOW-5301] Some not-yet-available files from breeze are committed to master (#5901)
 - [AIRFLOW-5285] Pre-commit pylint runs over todo files (#5884)
 - [AIRFLOW-5288] Temporary container for static checks should be auto-removed (#5887)
-- [AIRFLOW-5326] Fix teething proglems for Airflow breeze (#5933)
 - [AIRFLOW-5206] All .md files should have all common licence, TOC (where applicable) (#5809)
 - [AIRFLOW-5329] Easy way to add local files to docker (#5933)
 - [AIRFLOW-4027] Make experimental api tests more stateless (#4854)
@@ -240,11 +2355,11 @@ New Features
 - [AIRFLOW-4306] Global operator extra links (#5094)
 - [AIRFLOW-4812] Add batch images annotation (#5433)
 - [AIRFLOW-4135] Add Google Cloud Build operator and hook (#5251)
-- [AIRFLOW-4781] Add the ability to specify ports in kubernetesOperator (#5410)
+- [AIRFLOW-4781] Add the ability to specify ports in KubernetesPodOperator (#5410)
 - [AIRFLOW-4521] Pause dag also pause its subdags (#5283)
 - [AIRFLOW-4738] Enforce exampleinclude for example DAGs (#5375)
 - [AIRFLOW-4326] Airflow AWS SQS Operator (#5110)
-- [AIRFLOW-3729] Support "DownwardAPI" in env variables for KubernetesPodOperator (#4554)
+- [AIRFLOW-3729] Support `DownwardAPI` in env variables for KubernetesPodOperator (#4554)
 - [AIRFLOW-4585] Implement Kubernetes Pod Mutation Hook (#5359)
 - [AIRFLOW-161] New redirect route and extra links (#5059)
 - [AIRFLOW-4420] Backfill respects task_concurrency (#5221)
@@ -289,7 +2404,7 @@ Improvement
 - [AIRFLOW-3495] Validate one of query and query_uri passed to DataProcSparkSqlOperator (#5510)
 - [AIRFLOW-4925] Improve css style for Variables Import file field (#5552)
 - [AIRFLOW-4906] Improve debugging for the SparkSubmitHook (#5542)
-- [AIRFLOW-4904] unittest.cfg name and path can be overriden by setting $AIRFLOW_TEST_CONFIG (#5540)
+- [AIRFLOW-4904] unittest.cfg name and path can be overridden by setting $AIRFLOW_TEST_CONFIG (#5540)
 - [AIRFLOW-4920] Use html.escape instead of cgi.escape to fix DeprecationWarning (#5551)
 - [AIRFLOW-4919] DataProcJobBaseOperator dataproc_*_properties templated (#5555)
 - [AIRFLOW-4478] Lazily instantiate default resources objects. (#5259)
@@ -297,7 +2412,7 @@ Improvement
 - [AIRFLOW-4237] Including Try Number of Task in Gantt Chart (#5037)
 - [AIRFLOW-4862] Allow directly using IP address as hostname for webserver logs (#5501)
 - [AIRFLOW-4857] Add templated fields to SlackWebhookOperator (#5490)
-- [AIRFLOW-3502] Add celery config option for setting "pool" (#4308)
+- [AIRFLOW-3502] Add Celery config option for setting "pool" (#4308)
 - [AIRFLOW-3217] Button to toggle line wrapping in log and code views  (#4277)
 - [AIRFLOW-4491] Add a "Jump to end" button for logs (#5266)
 - [AIRFLOW-4422] Pool utilization stats (#5453)
@@ -307,7 +2422,7 @@ Improvement
 - [AIRFLOW-4829] More descriptive exceptions for EMR sensors (#5452)
 - [AIRFLOW-4414] AWSAthenaOperator: Push QueryExecutionID to XCom (#5276)
 - [AIRFLOW-4791] add "schema" keyword arg to SnowflakeOperator (#5415)
-- [AIRFLOW-4759] Don't error when marking sucessful run as failed (#5435)
+- [AIRFLOW-4759] Don't error when marking successful run as failed (#5435)
 - [AIRFLOW-4716] Instrument dag loading time duration (#5350)
 - [AIRFLOW-3958] Support list tasks as upstream in chain (#4779)
 - [AIRFLOW-4409] Prevent task duration break by null value (#5178)
@@ -324,7 +2439,7 @@ Improvement
 - [AIRFLOW-3870] STFPOperator: Update log level and return value (#4355)
 - [AIRFLOW-4759] Batch queries in set_state API. (#5403)
 - [AIRFLOW-2737] Restore original license header to airflow.api.auth.backend.kerberos_auth
-- [AIRFLOW-3635] Fix incorrect logic in detele_dag (introduced in PR#4406) (#4445)
+- [AIRFLOW-3635] Fix incorrect logic in delete_dag (introduced in PR#4406) (#4445)
 - [AIRFLOW-3599] Removed Dagbag from delete dag (#4406)
 - [AIRFLOW-4737] Increase and document celery queue name limit (#5383)
 - [AIRFLOW-4505] Correct Tag ALL for PY3 (#5275)
@@ -334,11 +2449,11 @@ Improvement
 - [AIRFLOW-4396] Provide a link to external Elasticsearch logs in UI. (#5164)
 - [AIRFLOW-1381] Allow setting host temporary directory in DockerOperator (#5369)
 - [AIRFLOW-4598] Task retries are not exhausted for K8s executor (#5347)
-- [AIRFLOW-4218] Support to Provide http args to K8executor while calling k8 python client lib apis (#5060)
+- [AIRFLOW-4218] Support to Provide http args to K8executor while calling k8 Python client lib apis (#5060)
 - [AIRFLOW-4159] Add support for additional static pod labels for K8sExecutor (#5134)
 - [AIRFLOW-4720] Allow comments in .airflowignore files. (#5355)
-- [AIRFLOW-4486] Add AWS IAM authenication in MySqlHook (#5334)
-- [AIRFLOW-4417] Add AWS IAM authenication for PostgresHook (#5223)
+- [AIRFLOW-4486] Add AWS IAM authentication in MySqlHook (#5334)
+- [AIRFLOW-4417] Add AWS IAM authentication for PostgresHook (#5223)
 - [AIRFLOW-3990] Compile regular expressions. (#4813)
 - [AIRFLOW-4572] Rename prepare_classpath() to prepare_syspath() (#5328)
 - [AIRFLOW-3869] Raise consistent exception in AirflowConfigParser.getboolean (#4692)
@@ -383,7 +2498,7 @@ Improvement
 
 Bug fixes
 """""""""
-- [AIRFLOW-5089] Change version requirement on google-cloudp-spanner to work around version incompatibility (#5703)
+- [AIRFLOW-5089] Change version requirement on google-cloud-spanner to work around version incompatibility (#5703)
 - [AIRFLOW-4289] fix spark_binary argument being ignored in SparkSubmitHook (#5564)
 - [AIRFLOW-5075] Let HttpHook handle connections with empty host fields (#5686)
 - [AIRFLOW-4822] Fix bug where parent-dag task instances are wrongly cleared when using subdags (#5444)
@@ -391,7 +2506,7 @@ Bug fixes
 - [AIRFLOW-5030] fix env var expansion for config key contains __ (#5650)
 - [AIRFLOW-4590] changing log level to be proper library to suppress warning in WinRM (#5337)
 - [AIRFLOW-4451] Allow named tuples to be templated (#5673)
-- [AIRFLOW-XXX] Fix bug where Kube pod limts were not applied (requests were, but not limits) (#5657)
+- [AIRFLOW-XXX] Fix bug where Kube pod limits were not applied (requests were, but not limits) (#5657)
 - [AIRFLOW-4775] Fix incorrect parameter order in GceHook (#5613)
 - [AIRFLOW-4995] Fix DB initialisation on MySQL >=8.0.16 (#5614)
 - [AIRFLOW-4934] Fix ProxyFix due to Werkzeug upgrade (#5563) (#5571)
@@ -426,13 +2541,13 @@ Bug fixes
 - [AIRFLOW-4455] dag_details broken for subdags in RBAC UI (#5234)
 - [AIRFLOW-2955] Fix kubernetes pod operator to set requests and limits on task pods (#4551)
 - [AIRFLOW-4459] Fix wrong DAG count in /home page when DAG count is zero (#5235)
-- [AIRFLOW-3876] AttributeError: module 'distutils' has no attribute 'util'
+- [AIRFLOW-3876] AttributeError: module `distutils` has no attribute 'util'
 - [AIRFLOW-4146] Fix CgroupTaskRunner errors (#5224)
 - [AIRFLOW-4524] Fix bug with "Ignore \*" toggles in RBAC mode (#5378)
 - [AIRFLOW-4765] Fix DataProcPigOperator execute method (#5426)
-- [AIRFLOW-4798] obviate interdependencies for dagbag and TI tests (#5422)
-- [AIRFLOW-4800] fix GKEClusterHook ctor calls (#5424)
-- [AIRFLOW-4799] don't mutate self.env in BashOperator execute method (#5421)
+- [AIRFLOW-4798] Obviate interdependencies for dagbag and TI tests (#5422)
+- [AIRFLOW-4800] Fix GKEClusterHook ctor calls (#5424)
+- [AIRFLOW-4799] Don't mutate self.env in BashOperator execute method (#5421)
 - [AIRFLOW-4393] Add retry logic when fetching pod status and/or logs in KubernetesPodOperator (#5284)
 - [AIRFLOW-4174] Fix HttpHook run with backoff (#5213)
 - [AIRFLOW-4463] Handle divide-by-zero errors in short retry intervals (#5243)
@@ -455,9 +2570,9 @@ Bug fixes
 - [AIRFLOW-4300] Fix graph modal call when DAG has not yet run (#5185)
 - [AIRFLOW-4401] Use managers for Queue synchronization (#5200)
 - [AIRFLOW-3626] Fixed triggering DAGs contained within zip files (#4439)
-- [AIRFLOW-3720] Fix missmatch while comparing GCS and S3 files (#4766)
+- [AIRFLOW-3720] Fix mismatch while comparing GCS and S3 files (#4766)
 - [AIRFLOW-4403] search by ``dag_id`` or ``owners`` in UI (#5184)
-- [AIRFLOW-4308] Fix TZ-loop around DST on python 3.6+  (#5095)
+- [AIRFLOW-4308] Fix TZ-loop around DST on Python 3.6+  (#5095)
 - [AIRFLOW-4324] fix DAG fuzzy search in RBAC UI (#5131)
 - [AIRFLOW-4297] Temporary hot fix on manage_slas() for 1.10.4 release (#5150)
 - [AIRFLOW-4299] Upgrade to Celery 4.3.0 to fix crashing workers (#5116)
@@ -472,7 +2587,7 @@ Bug fixes
 - [AIRFLOW-4163] IntervalCheckOperator supports relative diff and not ignore 0 (#4983)
 - [AIRFLOW-3938] QuboleOperator Fixes and Support for SqlCommand (#4832)
 - [AIRFLOW-2903] Change default owner to ``airflow`` (#4151)
-- [aIRFLOW-4136] Fix overwrite of key_file by constructor (#5155)
+- [AIRFLOW-4136] Fix overwrite of key_file by constructor (#5155)
 - [AIRFLOW-3241] Remove Invalid template ext in GCS Sensors (#4076)
 
 Misc/Internal
@@ -482,7 +2597,7 @@ Misc/Internal
 - [AIRFLOW-5021] move gitpython into setup_requires (#5640)
 - [AIRFLOW-4583] Fixes type error in GKEPodOperator (#5612)
 - [AIRFLOW-4116] Dockerfile now supports CI image build on DockerHub (#4937)
-- [AIRFLOW-4115] Multi-staging Aiflow Docker image (#4936)
+- [AIRFLOW-4115] Multi-staging Airflow Docker image (#4936)
 - [AIRFLOW-4963] Avoid recreating task context (#5596)
 - [AIRFLOW-4865] Add context manager to set temporary config values in tests. (#5569)
 - [AIRFLOW-4937] Fix lodash security issue with version below 4.17.13 (#5572) (used only in build-pipeline, not runtime)
@@ -536,11 +2651,11 @@ Doc-only changes
 - [AIRFLOW-XXX] Reduce log spam in tests (#5174)
 - [AIRFLOW-XXX] Speed up tests for PythonSensor (#5158)
 - [AIRFLOW-XXX] Add Bas Harenslak to committer list (#5157)
-- [AIRFLOW-XXX] Add Jarek Potiuk to commiter list (#5132)
+- [AIRFLOW-XXX] Add Jarek Potiuk to committer list (#5132)
 - [AIRFLOW-XXX] Update docstring for SchedulerJob (#5105)
 - [AIRFLOW-XXX] Fix docstrings for CassandraToGoogleCloudStorageOperator (#5103)
 - [AIRFLOW-XXX] update SlackWebhookHook and SlackWebhookOperator docstring (#5074)
-- [AIRFLOW-XXX] Ignore python files under node_modules in docs (#5063)
+- [AIRFLOW-XXX] Ignore Python files under node_modules in docs (#5063)
 - [AIRFLOW-XXX] Build a universal wheel with LICNESE files (#5052)
 - [AIRFLOW-XXX] Fix docstrings of SQSHook (#5099)
 - [AIRFLOW-XXX] Use Py3.7 on readthedocs
@@ -561,7 +2676,7 @@ New Feature
 - [AIRFLOW-3552] Add ImapAttachmentToS3Operator (#4476)
 - [AIRFLOW-1526] Add dingding hook and operator (#4895)
 - [AIRFLOW-3490] Add BigQueryHook's Ability to Patch Table/View (#4299)
-- [AIRFLOW-3918] Add ssh private-key support to git-sync for KubernetesExecutor (#4777)
+- [AIRFLOW-3918] Add SSH private-key support to git-sync for KubernetesExecutor (#4777)
 - [AIRFLOW-3659] Create Google Cloud Transfer Service Operators (#4792)
 - [AIRFLOW-3939] Add Google Cloud Translate operator (#4755)
 - [AIRFLOW-3541] Add Avro logical type conversion to bigquery hook (#4553)
@@ -589,7 +2704,7 @@ Improvement
 - [AIRFLOW-3823] Exclude branch's downstream tasks from the tasks to skip (#4666)
 - [AIRFLOW-3274] Add run_as_user and fs_group options for Kubernetes (#4648)
 - [AIRFLOW-4247] Template Region on the DataprocOperators (#5046)
-- [AIRFLOW-4008] add envFrom for Kubernetes Executor (#4952)
+- [AIRFLOW-4008] Add envFrom for Kubernetes Executor (#4952)
 - [AIRFLOW-3947] Flash msg for no DAG-level access error (#4767)
 - [AIRFLOW-3287] Moving database clean-up code into the CoreTest.tearDown() (#4122)
 - [AIRFLOW-4058] Name models test file to get automatically picked up (#4901)
@@ -632,7 +2747,7 @@ Improvement
 - [AIRFLOW-4076] Correct port type of beeline_default in init_db (#4908)
 - [AIRFLOW-4046] Add validations for poke_interval & timeout for Sensor (#4878)
 - [AIRFLOW-3744] Abandon the use of obsolete aliases of methods (#4568)
-- [AIRFLOW-3865] Add API endpoint to get python code of dag by id (#4687)
+- [AIRFLOW-3865] Add API endpoint to get Python code of dag by id (#4687)
 - [AIRFLOW-3516] Support to create k8 worker pods in batches (#4434)
 - [AIRFLOW-2843] Add flag in ExternalTaskSensor to check if external DAG/task exists (#4547)
 - [AIRFLOW-2224] Add support CSV files in MySqlToGoogleCloudStorageOperator (#4738)
@@ -677,8 +2792,7 @@ Improvement
 - [AIRFLOW-3591] Fix start date, end date, duration for rescheduled tasks (#4502)
 - [AIRFLOW-3709] Validate `allowed_states` for ExternalTaskSensor (#4536)
 - [AIRFLOW-3522] Add support for sending Slack attachments (#4332)
-- [AIRFLOW-3569] Add "Trigger DAG" button in DAG page (/www only) (#4373)
-- [AIRFLOW-3569] Add "Trigger DAG" button in DAG page (/www_rbac only) (#4373)
+- [AIRFLOW-3569] Add "Trigger DAG" button in DAG page (#4373)
 - [AIRFLOW-3044] Dataflow operators accept templated job_name param (#3887)
 - [AIRFLOW-3023] Fix docstring datatypes
 - [AIRFLOW-2928] Use uuid4 instead of uuid1 (#3779)
@@ -698,7 +2812,7 @@ Improvement
 Bug fixes
 """""""""
 
-- [AIRFLOW-4248] Fix 'FileExistsError' makedirs race in file_processor_handler (#5047)
+- [AIRFLOW-4248] Fix `FileExistsError` makedirs race in file_processor_handler (#5047)
 - [AIRFLOW-4240] State-changing actions should be POST requests (#5039)
 - [AIRFLOW-4246] Flask-Oauthlib needs downstream dependencies pinning due to breaking changes (#5045)
 - [AIRFLOW-3887] Downgrade dagre-d3 to 0.4.18 (#4713)
@@ -720,7 +2834,7 @@ Bug fixes
 - [AIRFLOW-3945] Stop inserting row when permission views unchanged (#4764)
 - [AIRFLOW-4123] Add Exception handling for _change_state method in K8 Executor (#4941)
 - [AIRFLOW-3771] Minor refactor securityManager (#4594)
-- [AIRFLOW-987] pass kerberos cli args keytab and principal to kerberos.run() (#4238)
+- [AIRFLOW-987] Pass kerberos cli args keytab and principal to kerberos.run() (#4238)
 - [AIRFLOW-3736] Allow int value in SqoopOperator.extra_import_options(#4906)
 - [AIRFLOW-4063] Fix exception string in BigQueryHook [2/2] (#4902)
 - [AIRFLOW-4063] Fix exception string in BigQueryHook (#4899)
@@ -771,7 +2885,7 @@ Bug fixes
 - [AIRFLOW-2641] Fix MySqlToHiveTransfer to handle MySQL DECIMAL correctly
 - [AIRFLOW-3751] Option to allow malformed schemas for LDAP authentication (#4574)
 - [AIRFLOW-2888] Add deprecation path for task_runner config change (#4851)
-- [AIRFLOW-2930] Fix celery excecutor scheduler crash (#3784)
+- [AIRFLOW-2930] Fix celery executor scheduler crash (#3784)
 - [AIRFLOW-2888] Remove shell=True and bash from task launch (#3740)
 - [AIRFLOW-3885] ~2.5x speed-up for backfill tests (#4731)
 - [AIRFLOW-3885] ~20x speed-up of slowest unit test (#4726)
@@ -791,7 +2905,6 @@ Bug fixes
 - [AIRFLOW-3923] Update flask-admin dependency to 1.5.3 to resolve security vulnerabilities from safety (#4739)
 - [AIRFLOW-3683] Fix formatting of error message for invalid TriggerRule (#4490)
 - [AIRFLOW-2787] Allow is_backfill to handle NULL DagRun.run_id (#3629)
-- [AIRFLOW-3780] Fix some incorrect when base_url is used (#4643)
 - [AIRFLOW-3639] Fix request creation in Jenkins Operator (#4450)
 - [AIRFLOW-3779] Don't install enum34 backport when not needed (#4620)
 - [AIRFLOW-3079] Improve migration scripts to support MSSQL Server (#3964)
@@ -799,7 +2912,7 @@ Bug fixes
 - [AIRFLOW-2706] AWS Batch Operator should use top-level job state to determine status
 - [AIRFLOW-XXX] Fix typo in http_operator.py
 - [AIRFLOW-XXX] Solve lodash security warning (#4820)
-- [AIRFLOW-XXX] Pin version of tornado pulled in by Celery. (#4815)
+- [AIRFLOW-XXX] Pin version of tornado pulled in by celery. (#4815)
 - [AIRFLOW-XXX] Upgrade FAB to 1.12.3 (#4694)
 - [AIRFLOW-XXX] Pin pinodb dependency (#4704)
 - [AIRFLOW-XXX] Pin version of Pip in tests to work around pypa/pip#6163 (#4576)
@@ -811,7 +2924,7 @@ Bug fixes
 Misc/Internal
 """""""""""""
 
-- [AIRFLOW-4144] add description of is_delete_operator_pod (#4943)
+- [AIRFLOW-4144] Add description of is_delete_operator_pod (#4943)
 - [AIRFLOW-3476][AIRFLOW-3477] Move Kube classes out of models.py (#4443)
 - [AIRFLOW-3464] Move SkipMixin out of models.py (#4386)
 - [AIRFLOW-3463] Move Log out of models.py (#4639)
@@ -831,7 +2944,7 @@ Doc-only changes
 """"""""""""""""
 
 - [AIRFLOW-3996] Add view source link to included fragments
-- [AIRFLOW-3811] automatic generation of API Reference in docs (#4788)
+- [AIRFLOW-3811] Automatic generation of API Reference in docs (#4788)
 - [AIRFLOW-3810] Remove duplicate autoclass directive (#4656)
 - [AIRFLOW-XXX] Mention that statsd must be installed to gather metrics (#5038)
 - [AIRFLOW-XXX] Add contents to cli (#4825)
@@ -868,7 +2981,6 @@ Doc-only changes
 - [AIRFLOW-XXX] Fix typo (#4564)
 - [AIRFLOW-XXX] Add a doc about fab security (#4595)
 - [AIRFLOW-XXX] Speed up DagBagTest cases (#3974)
-- [AIRFLOW-XXX] Reduction of the number of warnings in the documentation (#4585)
 
 
 Airflow 1.10.2, 2019-01-19
@@ -886,7 +2998,7 @@ New features
 - [AIRFLOW-3371] BigQueryHook's Ability to Create View (#4213)
 - [AIRFLOW-3332] Add method to allow inserting rows into BQ table (#4179)
 - [AIRFLOW-3055] add get_dataset and get_datasets_list to bigquery_hook (#3894)
-- [AIRFLOW-2887] Added BigQueryCreateEmptyDatasetOperator and create_emty_dataset to bigquery_hook (#3876)
+- [AIRFLOW-2887] Added BigQueryCreateEmptyDatasetOperator and create_empty_dataset to bigquery_hook (#3876)
 - [AIRFLOW-2758] Add a sensor for MongoDB
 - [AIRFLOW-2640] Add Cassandra table sensor
 - [AIRFLOW-3398] Google Cloud Spanner instance database query operator (#4314)
@@ -914,7 +3026,7 @@ Improvements
 """"""""""""
 
 - [AIRFLOW-3680] Consistency update in tests for All GCP-related operators (#4493)
-- [AIRFLOW-3675] Use googlapiclient for google apis (#4484)
+- [AIRFLOW-3675] Use googleapiclient for google apis (#4484)
 - [AIRFLOW-3205] Support multipart uploads to GCS (#4084)
 - [AIRFLOW-2826] Add GoogleCloudKMSHook (#3677)
 - [AIRFLOW-3676] Add required permission to CloudSQL export/import example (#4489)
@@ -923,7 +3035,7 @@ Improvements
 - [AIRFLOW-3197] Remove invalid parameter KeepJobFlowAliveWhenNoSteps in example DAG (#4404)
 - [AIRFLOW-3504] Refine the functionality of "/health" endpoint (#4309)
 - [AIRFLOW-3103][AIRFLOW-3147] Update flask-appbuilder (#3937)
-- [AIRFLOW-3168] More resillient database use in CI (#4014)
+- [AIRFLOW-3168] More resilient database use in CI (#4014)
 - [AIRFLOW-3076] Remove preloading of MySQL testdata (#3911)
 - [AIRFLOW-3035] Allow custom 'job_error_states' in dataproc ops (#3884)
 - [AIRFLOW-3246] Make hmsclient optional in airflow.hooks.hive_hooks (#4080)
@@ -938,10 +3050,10 @@ Improvements
 - [AIRFLOW-3610] Add region param for EMR jobflow creation (#4418)
 - [AIRFLOW-3531] Fix test for GCS to GCS Transfer Hook (#4452)
 - [AIRFLOW-3531] Add gcs to gcs transfer operator. (#4331)
-- [AIRFLOW-3034]: Readme updates : Add Slack & Twitter, remove Gitter
+- [AIRFLOW-3034] Readme updates : Add Slack & Twitter, remove Gitter
 - [AIRFLOW-3028] Update Text & Images in Readme.md
 - [AIRFLOW-208] Add badge to show supported Python versions (#3839)
-- [AIRFLOW-2238] Update PR tool to push directly to Github
+- [AIRFLOW-2238] Update PR tool to push directly to GitHub
 - [AIRFLOW-2238] Flake8 fixes on dev/airflow-pr
 - [AIRFLOW-2238] Update PR tool to remove outdated info (#3978)
 - [AIRFLOW-3005] Replace 'Airbnb Airflow' with 'Apache Airflow' (#3845)
@@ -954,7 +3066,7 @@ Improvements
 - [AIRFLOW-3022] Add volume mount to KubernetesExecutorConfig (#3855)
 - [AIRFLOW-2917] Set AIRFLOW__CORE__SQL_ALCHEMY_CONN only when needed (#3766)
 - [AIRFLOW-2712] Pass annotations to KubernetesExecutorConfig
-- [AIRFLOW-461]  Support autodetected schemas in BigQuery run_load (#3880)
+- [AIRFLOW-461] Support autodetected schemas in BigQuery run_load (#3880)
 - [AIRFLOW-2997] Support cluster fields in bigquery (#3838)
 - [AIRFLOW-2916] Arg `verify` for AwsHook() & S3 sensors/operators (#3764)
 - [AIRFLOW-491] Add feature to pass extra api configs to BQ Hook (#3733)
@@ -1037,7 +3149,7 @@ Bug fixes
 - [AIRFLOW-2771] Add except type to broad S3Hook try catch clauses
 - [AIRFLOW-2918] Fix Flake8 violations (#3772)
 - [AIRFLOW-2099] Handle getsource() calls gracefully
-- [AIRFLOW-3397] Fix integrety error in rbac AirflowSecurityManager (#4305)
+- [AIRFLOW-3397] Fix integrity error in rbac AirflowSecurityManager (#4305)
 - [AIRFLOW-3281] Fix Kubernetes operator with git-sync (#3770)
 - [AIRFLOW-2615] Limit DAGs parsing to once only
 - [AIRFLOW-2952] Fix Kubernetes CI (#3922)
@@ -1112,7 +3224,7 @@ Doc-only changes
 - [AIRFLOW-XXX] Revise template variables documentation (#4172)
 - [AIRFLOW-XXX] Fix typo in docstring of gcs_to_bq (#3833)
 - [AIRFLOW-XXX] Fix display of SageMaker operators/hook docs (#4263)
-- [AIRFLOW-XXX] Better instructions for airflow flower (#4214)
+- [AIRFLOW-XXX] Better instructions for Airflow flower (#4214)
 - [AIRFLOW-XXX] Make pip install commands consistent (#3752)
 - [AIRFLOW-XXX] Add `BigQueryGetDataOperator` to Integration Docs (#4063)
 - [AIRFLOW-XXX] Don't spam test logs with "bad cron expression" messages (#3973)
@@ -1191,7 +3303,7 @@ Improvements
 - [AIRFLOW-3069] Decode output of S3 file transform operator
 - [AIRFLOW-3072] Assign permission get_logs_with_metadata to viewer role
 - [AIRFLOW-3090] INFO logs are too verbose
-- [AIRFLOW-3103] Update Flask-Login
+- [AIRFLOW-3103] Update flask-login
 - [AIRFLOW-3112] Align SFTP hook with SSH hook
 - [AIRFLOW-3119] Enable loglevel on celery worker and inherit from airflow.cfg
 - [AIRFLOW-3137] Make ProxyFix middleware optional
@@ -1211,7 +3323,7 @@ Doc-only changes
 - [AIRFLOW-2682] Add how-to guide(s) for how to use basic operators like BashOperator and PythonOperator
 - [AIRFLOW-3104] .airflowignore feature is not mentioned at all in documentation
 - [AIRFLOW-3237] Refactor example DAGs
-- [AIRFLOW-3187] Update airflow.gif file with a slower version
+- [AIRFLOW-3187] Update Airflow.gif file with a slower version
 - [AIRFLOW-3159] Update Airflow documentation on GCP Logging
 - [AIRFLOW-3030] Command Line docs incorrect subdir
 - [AIRFLOW-2990] Docstrings for Hooks/Operators are in incorrect format
@@ -1230,7 +3342,7 @@ Bug fixes
 - [AIRFLOW-1762] Use key_file in SSHHook.create_tunnel()
 - [AIRFLOW-1837] Differing start_dates on tasks not respected by scheduler.
 - [AIRFLOW-1874] Support standard SQL in Check, ValueCheck and IntervalCheck BigQuery operators
-- [AIRFLOW-1917] print() from python operators end up with extra new line
+- [AIRFLOW-1917] print() from Python operators end up with extra new line
 - [AIRFLOW-1970] Database cannot be initialized if an invalid fernet key is provided
 - [AIRFLOW-2145] Deadlock after clearing a running task
 - [AIRFLOW-2216] Cannot specify a profile for AWS Hook to load with s3 config file
@@ -1264,7 +3376,7 @@ Bug fixes
 - [AIRFLOW-3072] Only admin can view logs in RBAC UI
 - [AIRFLOW-3079] Improve initdb to support MSSQL Server
 - [AIRFLOW-3089] Google auth doesn't work under http
-- [AIRFLOW-3099] Errors raised when some blocs are missing in airflow.cfg
+- [AIRFLOW-3099] Errors raised when some blocks are missing in airflow.cfg
 - [AIRFLOW-3109] Default user permission should contain 'can_clear'
 - [AIRFLOW-3111] Confusing comments and instructions for log templates in UPDATING.md and default_airflow.cfg
 - [AIRFLOW-3124] Broken webserver debug mode (RBAC)
@@ -1297,7 +3409,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-2650] Mark SchedulerJob as succeed when hitting Ctrl-c
 - [AIRFLOW-2678] Fix db schema unit test to remove checking fab models
 - [AIRFLOW-2624] Fix webserver login as anonymous
-- [AIRFLOW-2654] Fix incorret URL on refresh in Graph View of FAB UI
+- [AIRFLOW-2654] Fix incorrect URL on refresh in Graph View of FAB UI
 - [AIRFLOW-2668] Handle missing optional cryptography dependency
 - [AIRFLOW-2681] Include last dag run of externally triggered DAGs in UI.
 - [AIRFLOW-1840] Support back-compat on old celery config
@@ -1355,7 +3467,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-2545] Eliminate DeprecationWarning
 - [AIRFLOW-2500] Fix MySqlToHiveTransfer to transfer unsigned type properly
 - [AIRFLOW-2462] Change PasswordUser setter to correct syntax
-- [AIRFLOW-2525] Fix a bug introduced by commit dabf1b9
+- [AIRFLOW-2525] Fix a bug introduced by commit ``dabf1b9``
 - [AIRFLOW-2553] Add webserver.pid to .gitignore
 - [AIRFLOW-1863][AIRFLOW-2529] Add dag run selection widgets to gantt view
 - [AIRFLOW-2504] Log username correctly and add extra to search columns
@@ -1365,7 +3477,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-2544][AIRFLOW-1967] Guard against next major release of Celery, Flower
 - [AIRFLOW-XXX] Add Yieldr to who is using airflow
 - [AIRFLOW-2547] Describe how to run tests using Docker
-- [AIRFLOW-2538] Update faq doc on how to reduce airflow scheduler latency
+- [AIRFLOW-2538] Update faq doc on how to reduce Airflow scheduler latency
 - [AIRFLOW-2529] Improve graph view performance and usability
 - [AIRFLOW-2517] backfill support passing key values through CLI
 - [AIRFLOW-2532] Support logs_volume_subpath for KubernetesExecutor
@@ -1373,10 +3485,10 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-2519] Fix CeleryExecutor with SQLAlchemy
 - [AIRFLOW-2402] Fix RBAC task log
 - [AIRFLOW-XXX] Add M4U to user list
-- [AIRFLOW-2536] docs about how to deal with airflow initdb failure
+- [AIRFLOW-2536] docs about how to deal with Airflow initdb failure
 - [AIRFLOW-2530] KubernetesOperator supports multiple clusters
 - [AIRFLOW-1499] Eliminate duplicate and unneeded code
-- [AIRFLOW-2521] backfill - make variable name and logging messages more acurate
+- [AIRFLOW-2521] backfill - make variable name and logging messages more accurate
 - [AIRFLOW-2429] Fix hook, macros folder flake8 error
 - [Airflow-XXX] add Prime to company list
 - [AIRFLOW-2525] Fix PostgresHook.copy_expert to work with "COPY FROM"
@@ -1389,7 +3501,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-2520] CLI - make backfill less verbose
 - [AIRFLOW-2107] add time_partitioning to run_query on BigQueryBaseCursor
 - [AIRFLOW-1057][AIRFLOW-1380][AIRFLOW-2362][2362] AIRFLOW Update DockerOperator to new API
-- [AIRFLOW-2415] Make airflow DAG templating render numbers
+- [AIRFLOW-2415] Make Airflow DAG templating render numbers
 - [AIRFLOW-2473] Fix wrong skip condition for TransferTests
 - [AIRFLOW-2472] Implement MySqlHook.bulk_dump
 - [AIRFLOW-2419] Use default view for subdag operator
@@ -1425,7 +3537,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-XXX] Fix order of companies
 - [AIRFLOW-2452] Document field_dict must be OrderedDict
 - [AIRFLOW-2420] Azure Data Lake Hook
-- [AIRFLOW-2213] Add Quoble check operator
+- [AIRFLOW-2213] Add Qubole check operator
 - [AIRFLOW-2465] Fix wrong module names in the doc
 - [AIRFLOW-1929] Modifying TriggerDagRunOperator to accept execution_date
 - [AIRFLOW-2460] Users can now use volume mounts and volumes
@@ -1457,7 +3569,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-2447] Fix TestHiveMetastoreHook to run all cases
 - [AIRFLOW-2445] Allow templating in kubernetes operator
 - [AIRFLOW-2086][AIRFLOW-2393] Customize default dagrun number in tree view
-- [AIRFLOW-2437] Add PubNub to list of current airflow users
+- [AIRFLOW-2437] Add PubNub to list of current Airflow users
 - [AIRFLOW-XXX] Add Quantopian to list of Airflow users
 - [AIRFLOW-1978] Add WinRM windows operator and hook
 - [AIRFLOW-2427] Add tests to named hive sensor
@@ -1488,7 +3600,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-2401] Document the use of variables in Jinja template
 - [AIRFLOW-2403] Fix License Headers
 - [AIRFLOW-1313] Fix license header
-- [AIRFLOW-2398] Add BounceX to list of current airflow users
+- [AIRFLOW-2398] Add BounceX to list of current Airflow users
 - [AIRFLOW-2363] Fix return type bug in TaskHandler
 - [AIRFLOW-2389] Create a pinot db api hook
 - [AIRFLOW-2390] Resolve FlaskWTFDeprecationWarning
@@ -1511,7 +3623,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-2042] Fix browser menu appearing over the autocomplete menu
 - [AIRFLOW-XXX] Remove wheelhouse files from travis not owned by travis
 - [AIRFLOW-2336] Use hmsclient in hive_hook
-- [AIRFLOW-2041] Correct Syntax in python examples
+- [AIRFLOW-2041] Correct Syntax in Python examples
 - [AIRFLOW-74] SubdagOperators can consume all celeryd worker processes
 - [AIRFLOW-2369] Fix gcs tests
 - [AIRFLOW-2365] Fix autocommit attribute check
@@ -1528,7 +3640,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-1433] Set default rbac to initdb
 - [AIRFLOW-2270] Handle removed tasks in backfill
 - [AIRFLOW-2344] Fix `connections -l` to work with pipe/redirect
-- [AIRFLOW-2300] Add S3 Select functionarity to S3ToHiveTransfer
+- [AIRFLOW-2300] Add S3 Select functionality to S3ToHiveTransfer
 - [AIRFLOW-1314] Cleanup the config
 - [AIRFLOW-1314] Polish some of the Kubernetes docs/config
 - [AIRFLOW-1314] Improve error handling
@@ -1554,7 +3666,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-2309] Fix duration calculation on TaskFail
 - [AIRFLOW-2335] fix issue with jdk8 download for ci
 - [AIRFLOW-2184] Add druid_checker_operator
-- [AIRFLOW-2299] Add S3 Select functionarity to S3FileTransformOperator
+- [AIRFLOW-2299] Add S3 Select functionality to S3FileTransformOperator
 - [AIRFLOW-2254] Put header as first row in unload
 - [AIRFLOW-610] Respect _cmd option in config before defaults
 - [AIRFLOW-2287] Fix incorrect ASF headers
@@ -1584,7 +3696,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-2284] GCS to S3 operator
 - [AIRFLOW-2287] Update license notices
 - [AIRFLOW-2296] Add Cinimex DataLab to Readme
-- [AIRFLOW-2298] Add Kalibrr to who uses airflow
+- [AIRFLOW-2298] Add Kalibrr to who uses Airflow
 - [AIRFLOW-2292] Fix docstring for S3Hook.get_wildcard_key
 - [AIRFLOW-XXX] Update PR template
 - [AIRFLOW-XXX] Remove outdated migrations.sql
@@ -1595,16 +3707,16 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-2200] Add snowflake operator with tests
 - [AIRFLOW-2178] Add handling on SLA miss errors
 - [AIRFLOW-2169] Fix type 'bytes' is not JSON serializable in python3
-- [AIRFLOW-2215] Pass environment to subproces.Popen in base_task_runner
+- [AIRFLOW-2215] Pass environment to subprocess.Popen in base_task_runner
 - [AIRFLOW-2253] Add Airflow CLI instrumentation
 - [AIRFLOW-2274] Fix Dataflow tests
 - [AIRFLOW-2269] Add Custom Ink as an Airflow user
 - [AIRFLOW-2259] Dataflow Hook Index out of range
 - [AIRFLOW-2233] Update updating.md to include the info of hdfs_sensors renaming
 - [AIRFLOW-2217] Add Slack webhook operator
-- [AIRFLOW-1729] improve dagBag time
+- [AIRFLOW-1729] improve DagBag time
 - [AIRFLOW-2264] Improve create_user cli help message
-- [AIRFLOW-2260] [AIRFLOW-2260] SSHOperator add command template .sh files
+- [AIRFLOW-2260][AIRFLOW-2260] SSHOperator add command template .sh files
 - [AIRFLOW-2261] Check config/env for remote base log folder
 - [AIRFLOW-2258] Allow import of Parquet-format files into BigQuery
 - [AIRFLOW-1430] Include INSTALL instructions to avoid GPL
@@ -1621,7 +3733,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-1433][AIRFLOW-85] New Airflow Webserver UI with RBAC support
 - [AIRFLOW-1235] Fix webserver's odd behaviour
 - [AIRFLOW-1460] Allow restoration of REMOVED TI's
-- [airflow-2235] Fix wrong docstrings in two operators
+- [AIRFLOW-2235] Fix wrong docstrings in two operators
 - [AIRFLOW-XXX] Fix chronological order for companies using Airflow
 - [AIRFLOW-2124] Upload Python file to a bucket for Dataproc
 - [AIRFLOW-2212] Fix ungenerated sensor API reference
@@ -1670,7 +3782,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-2174] Fix typos and wrongly rendered documents
 - [AIRFLOW-2171] Store delegated credentials
 - [AIRFLOW-2166] Restore BQ run_query dialect param
-- [AIRFLOW-2163] Add HBC Digital to users of airflow
+- [AIRFLOW-2163] Add HBC Digital to users of Airflow
 - [AIRFLOW-2065] Fix race-conditions when creating loggers
 - [AIRFLOW-2147] Plugin manager: added 'sensors' attribute
 - [AIRFLOW-2059] taskinstance query is awful, un-indexed, and does not scale
@@ -1683,13 +3795,13 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-2097] tz referenced before assignment
 - [AIRFLOW-2152] Add Multiply to list of companies using Airflow
 - [AIRFLOW-1551] Add operator to trigger Jenkins job
-- [AIRFLOW-2034] Fix mixup between %s and {} when using str.format Convention is to use .format for string formating oustide logging, else use lazy format See comment in related issue https://github.com/apache/airflow/pull/2823/files Identified problematic case using following command line .git/COMMIT_EDITMSG:`grep -r '%s'./* | grep '\.format('`
+- [AIRFLOW-2034] Fix mixup between %s and {} when using str.format Convention is to use .format for string formatting outside logging, else use lazy format See comment in related issue https://github.com/apache/airflow/pull/2823/files Identified problematic case using following command line .git/COMMIT_EDITMSG:`grep -r '%s'./* | grep '\.format('`
 - [AIRFLOW-2102] Add custom_args to Sendgrid personalizations
 - [AIRFLOW-1035][AIRFLOW-1053] import unicode_literals to parse Unicode in HQL
 - [AIRFLOW-2127] Keep loggers during DB migrations
 - [AIRFLOW-2146] Resolve issues with BQ using DbApiHook methods
 - [AIRFLOW-2087] Scheduler Report shows incorrect Total task number
-- [AIRFLOW-2139] Remove unncecessary boilerplate to get DataFrame using pandas_gbq
+- [AIRFLOW-2139] Remove unnecessary boilerplate to get DataFrame using pandas_gbq
 - [AIRFLOW-2125] Using binary package psycopg2-binary
 - [AIRFLOW-2142] Include message on mkdir failure
 - [AIRFLOW-1615] SSHHook: use port specified by Connection
@@ -1708,7 +3820,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-XXX] Add contributor from Easy company
 - [AIRFLOW-1882] Add ignoreUnknownValues option to gcs_to_bq operator
 - [AIRFLOW-2089] Add on kill for SparkSubmit in Standalone Cluster
-- [AIRFLOW-2113] Address missing DagRun callbacks Given that the handle_callback method belongs to the DAG object, we are able to get the list of task directly with get_task and reduce the communication with the database, making airflow more lightweight.
+- [AIRFLOW-2113] Address missing DagRun callbacks Given that the handle_callback method belongs to the DAG object, we are able to get the list of task directly with get_task and reduce the communication with the database, making Airflow more lightweight.
 - [AIRFLOW-2112] Fix svg width for Recent Tasks on UI.
 - [AIRFLOW-2116] Set CI Cloudant version to <2.0
 - [AIRFLOW-XXX] Add PMC to list of companies using Airflow
@@ -1747,7 +3859,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-2040] Escape special chars in task instance logs URL
 - [AIRFLOW-1968][AIRFLOW-1520] Add role_arn and aws_account_id/aws_iam_role support back to aws hook
 - [AIRFLOW-2048] Fix task instance failure string formatting
-- [AIRFLOW-2046] Fix kerberos error to work with python 3.x
+- [AIRFLOW-2046] Fix kerberos error to work with Python 3.x
 - [AIRFLOW-2063] Add missing docs for GCP
 - [AIRFLOW-XXX] Fix typo in docs
 - [AIRFLOW-1793] Use docker_url instead of invalid base_url
@@ -1761,7 +3873,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-2050] Fix Travis permission problem
 - [AIRFLOW-2043] Add Intercom to list of companies
 - [AIRFLOW-2023] Add debug logging around number of queued files
-- [AIRFLOW-XXX] Add Pernod-ricard as a airflow user
+- [AIRFLOW-XXX] Add Pernod-ricard as an Airflow user
 - [AIRFLOW-1453] Add 'steps' into template_fields in EmrAddSteps
 - [AIRFLOW-2015] Add flag for interactive runs
 - [AIRFLOW-1895] Fix primary key integrity for mysql
@@ -1784,21 +3896,21 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-1755] Allow mount below root
 - [AIRFLOW-511][Airflow 511] add success/failure callbacks on dag level
 - [AIRFLOW-192] Add weight_rule param to BaseOperator
-- [AIRFLOW-2008] Use callable for python column defaults
+- [AIRFLOW-2008] Use callable for Python column defaults
 - [AIRFLOW-1984] Fix to AWS Batch operator
 - [AIRFLOW-2000] Support non-main dataflow job class
 - [AIRFLOW-2003] Use flask-caching instead of flask-cache
 - [AIRFLOW-2002] Do not swallow exception on logging import
 - [AIRFLOW-2004] Import flash from flask not flask.login
 - [AIRFLOW-1997] Fix GCP operator doc strings
-- [AIRFLOW-1996] Update DataflowHook waitfordone for Streaming type job[]
+- [AIRFLOW-1996] Update DataflowHook wait_for_done for Streaming type job
 - [AIRFLOW-1995][Airflow 1995] add on_kill method to SqoopOperator
 - [AIRFLOW-1770] Allow HiveOperator to take in a file
 - [AIRFLOW-1994] Change background color of Scheduled state Task Instances
 - [AIRFLOW-1436][AIRFLOW-1475] EmrJobFlowSensor considers Cancelled step as Successful
 - [AIRFLOW-1517] Kubernetes operator PR fixes
-- [AIRFLOW-1517] addressed PR comments
-- [AIRFLOW-1517] started documentation of k8s operator
+- [AIRFLOW-1517] Addressed PR comments
+- [AIRFLOW-1517] Started documentation of k8s operator
 - [AIRFLOW-1517] Restore authorship of resources
 - [AIRFLOW-1517] Remove authorship of resources
 - [AIRFLOW-1517] Add minikube for kubernetes integration tests
@@ -1823,7 +3935,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-1963] Add config for HiveOperator mapred_queue
 - [AIRFLOW-1946][AIRFLOW-1855] Create a BigQuery Get Data Operator
 - [AIRFLOW-1953] Add labels to dataflow operators
-- [AIRFLOW-1967] Update Celery to 4.0.2
+- [AIRFLOW-1967] Update celery to 4.0.2
 - [AIRFLOW-1964] Add Upsight to list of Airflow users
 - [AIRFLOW-XXX] Changelog for 1.9.0
 - [AIRFLOW-1470] Implement BashSensor operator
@@ -1852,7 +3964,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-1938] Remove tag version check in setup.py
 - [AIRFLOW-1916] Don't upload logs to remote from `run --raw`
 - [AIRFLOW-XXX] Fix failing PubSub tests on Python3
-- [AIRFLOW-XXX] Upgrade to python 3.5 and disable dask tests
+- [AIRFLOW-XXX] Upgrade to Python 3.5 and disable dask tests
 - [AIRFLOW-1913] Add new GCP PubSub operators
 - [AIRFLOW-1525] Fix minor LICENSE and NOTICE issues
 - [AIRFLOW-1687] fix fernet error without encryption
@@ -1934,9 +4046,9 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-1563] Catch OSError while symlinking the latest log directory
 - [AIRFLOW-1794] Remove uses of Exception.message for Python 3
 - [AIRFLOW-1799] Fix logging line which raises errors
-- [AIRFLOW-1102] Upgrade Gunicorn >=19.4.0
+- [AIRFLOW-1102] Upgrade gunicorn >=19.4.0
 - [AIRFLOW-1756] Fix S3TaskHandler to work with Boto3-based S3Hook
-- [AIRFLOW-1797] S3Hook.load_string didn't work on Python3
+- [AIRFLOW-1797] S3Hook.load_string did not work on Python3
 - [AIRFLOW-646] Add docutils to setup_requires
 - [AIRFLOW-1792] Missing intervals DruidOperator
 - [AIRFLOW-1789][AIRFLOW-1712] Log SSHOperator stderr to log.warning
@@ -1944,7 +4056,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-1780] Fix long output lines with unicode from hanging parent
 - [AIRFLOW-387] Close SQLAlchemy sessions properly
 - [AIRFLOW-1779] Add keepalive packets to ssh hook
-- [AIRFLOW-1669] Fix Docker and pin Moto to 1.1.19
+- [AIRFLOW-1669] Fix Docker and pin moto to 1.1.19
 - [AIRFLOW-71] Add support for private Docker images
 - [AIRFLOW-XXX] Give a clue what the 'ds' variable is
 - [AIRFLOW-XXX] Correct typos in the faq docs page
@@ -1996,7 +4108,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-1631] Fix local executor unbound parallelism
 - [AIRFLOW-1724] Add Fundera to Who uses Airflow?
 - [AIRFLOW-1683] Cancel BigQuery job on timeout.
-- [AIRFLOW-1714] Fix misspelling: s/seperate/separate/
+- [AIRFLOW-1714] Fix misspelling: s/separate/separate/
 - [AIRFLOW-1681] Add batch clear in task instance view
 - [AIRFLOW-1696] Fix dataproc version label error
 - [AIRFLOW-1613] Handle binary field in MySqlToGoogleCloudStorageOperator
@@ -2038,7 +4150,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-1627] Only query pool in SubDAG init when necessary
 - [AIRFLOW-1629] Make extra a textarea in edit connections form
 - [AIRFLOW-1368] Automatically remove Docker container on exit
-- [AIRFLOW-289] Make airflow timezone independent
+- [AIRFLOW-289] Make Airflow timezone independent
 - [AIRFLOW-1356] Add `--celery_hostname` to `airflow worker`
 - [AIRFLOW-1247] Fix ignore_all_dependencies argument ignored
 - [AIRFLOW-1621] Add tests for server side paging
@@ -2056,7 +4168,7 @@ Airflow 1.10.0, 2018-08-03
 - [AIRFLOW-1614] Replace inspect.stack() with sys._getframe()
 - [AIRFLOW-1519] Add server side paging in DAGs list
 - [AIRFLOW-1309] Allow hive_to_druid to take tblproperties
-- [AIRFLOW-1613] Make MySqlToGoogleCloudStorageOperator compaitible with python3
+- [AIRFLOW-1613] Make MySqlToGoogleCloudStorageOperator compatible with python3
 - [AIRFLOW-1603] add PAYMILL to companies list
 - [AIRFLOW-1609] Fix gitignore to ignore all venvs
 - [AIRFLOW-1601] Add configurable task cleanup time
@@ -2079,9 +4191,9 @@ Airflow 1.9.0, 2018-01-02
 - [AIRFLOW-1813] Bug SSH Operator empty buffer
 - [AIRFLOW-1794] Remove uses of Exception.message for Python 3
 - [AIRFLOW-1799] Fix logging line which raises errors
-- [AIRFLOW-1102] Upgrade Gunicorn >=19.4.0
+- [AIRFLOW-1102] Upgrade gunicorn >=19.4.0
 - [AIRFLOW-1756] Fix S3TaskHandler to work with Boto3-based S3Hook
-- [AIRFLOW-1797] S3Hook.load_string didn't work on Python3
+- [AIRFLOW-1797] S3Hook.load_string did not work on Python3
 - [AIRFLOW-1792] Missing intervals DruidOperator
 - [AIRFLOW-1789][AIRFLOW-1712] Log SSHOperator stderr to log.warning
 - [AIRFLOW-1669] Fix Docker and pin Moto to 1.1.19
@@ -2118,7 +4230,7 @@ Airflow 1.9.0, 2018-01-02
 - [AIRFLOW-1694] Stop using itertools.izip
 - [AIRFLOW-1692] Change test_views filename to support Windows
 - [AIRFLOW-1722] Fix typo in scheduler autorestart output filename
-- [AIRFLOW-1691] Add better Google cloud logging documentation
+- [AIRFLOW-1691] Add better Google Cloud logging documentation
 - [AIRFLOW-1690] Add detail to gcs error messages
 - [AIRFLOW-1682] Make S3TaskHandler write to S3 on close
 - [AIRFLOW-1676] Make GCSTaskHandler write to GCS on close
@@ -2147,7 +4259,7 @@ Airflow 1.9.0, 2018-01-02
 - [AIRFLOW-1629] Make extra a textarea in edit connections form
 - [AIRFLOW-1621] Add tests for server side paging
 - [AIRFLOW-1519] Add server side paging in DAGs list
-- [AIRFLOW-289] Make airflow timezone independent
+- [AIRFLOW-289] Make Airflow timezone independent
 - [AIRFLOW-1356] Add `--celery_hostname` to `airflow worker`
 - [AIRFLOW-1591] Avoid attribute error when rendering logging filename
 - [AIRFLOW-1031] Replace hard-code to DagRun.ID_PREFIX
@@ -2158,17 +4270,17 @@ Airflow 1.9.0, 2018-01-02
 - [AIRFLOW-1177] Fix Variable.setdefault w/existing JSON
 - [AIRFLOW-1600] Fix exception handling in get_fernet
 - [AIRFLOW-1614] Replace inspect.stack() with sys._getframe()
-- [AIRFLOW-1613] Make MySqlToGoogleCloudStorageOperator compaitible with python3
+- [AIRFLOW-1613] Make MySqlToGoogleCloudStorageOperator compatible with python3
 - [AIRFLOW-1609] Fix gitignore to ignore all venvs
 - [AIRFLOW-1601] Add configurable task cleanup time
-- [AIRFLOW-XXX] Bumping Airflow 1.9.0alpha0 version
+- [AIRFLOW-XXX] Bumping airflow 1.9.0alpha0 version
 - [AIRFLOW-1608] Handle pending job state in GCP Dataflow hook
 - [AIRFLOW-1606] Use non static DAG.sync_to_db
 - [AIRFLOW-1606][Airflow-1606][AIRFLOW-1605][AIRFLOW-160] DAG.sync_to_db is now a normal method
 - [AIRFLOW-1602] LoggingMixin in DAG class
 - [AIRFLOW-1593] expose load_string in WasbHook
 - [AIRFLOW-1597] Add GameWisp as Airflow user
-- [AIRFLOW-1594] Don't install test packages into python root.[]
+- [AIRFLOW-1594] Don't install test packages into Python root.[]
 - [AIRFLOW-1582] Improve logging within Airflow
 - [AIRFLOW-1476] add INSTALL instruction for source releases
 - [AIRFLOW-XXX] Save username and password in airflow-pr
@@ -2180,7 +4292,7 @@ Airflow 1.9.0, 2018-01-02
 - [AIRFLOW-1586] Add mapping for date type to mysql_to_gcs operator
 - [AIRFLOW-1579] Adds support for jagged rows in Bigquery hook for BQ load jobs
 - [AIRFLOW-1577] Add token support to DatabricksHook
-- [AIRFLOW-1580] Error in string formating
+- [AIRFLOW-1580] Error in string formatting
 - [AIRFLOW-1567] Updated docs for Google ML Engine operators/hooks
 - [AIRFLOW-1574] add 'to' attribute to templated vars of email operator
 - [AIRFLOW-1572] add carbonite to company list
@@ -2199,7 +4311,7 @@ Airflow 1.9.0, 2018-01-02
 - [AIRFLOW-1545] Add Nextdoor to companies list
 - [AIRFLOW-1544] Add DataFox to companies list
 - [AIRFLOW-1529] Add logic supporting quoted newlines in Google BigQuery load jobs
-- [AIRFLOW-1521] Fix emplate rendering for BigqueryTableDeleteOperator
+- [AIRFLOW-1521] Fix template rendering for BigqueryTableDeleteOperator
 - [AIRFLOW-1324] Generalize Druid operator and hook
 - [AIRFLOW-1516] Fix error handling getting fernet
 - [AIRFLOW-1420][AIRFLOW-1473] Fix deadlock check
@@ -2222,7 +4334,7 @@ Airflow 1.9.0, 2018-01-02
 - [AIRFLOW-1489] Fix typo in BigQueryCheckOperator
 - [AIRFLOW-1349] Fix backfill to respect limits
 - [AIRFLOW-1478] Chart owner column should be sortable
-- [AIRFLOW-1397][AIRFLOW-1] No Last Run column data displyed in Airflow UI 1.8.1
+- [AIRFLOW-1397][AIRFLOW-1] No Last Run column data displayed in airflow UI 1.8.1
 - [AIRFLOW-1474] Add dag_id regex feature for `airflow clear` command
 - [AIRFLOW-1445] Changing HivePartitionSensor UI color to lighter shade
 - [AIRFLOW-1359] Use default_args in Cloud ML eval
@@ -2305,7 +4417,7 @@ Airflow 1.9.0, 2018-01-02
 - [AIRFLOW-1266] Increase width of gantt y axis
 - [AIRFLOW-1244] Forbid creation of a pool with empty name
 - [AIRFLOW-1274][HTTPSENSOR] Rename parameter params to data
-- [AIRFLOW-654] Add SSL Config Option for CeleryExecutor w/ RabbitMQ - Add BROKER_USE_SSL config to give option to send AMQP messages over SSL - Can be set using usual airflow options (e.g. airflow.cfg, env vars, etc.)
+- [AIRFLOW-654] Add SSL Config Option for CeleryExecutor w/ RabbitMQ - Add BROKER_USE_SSL config to give option to send AMQP messages over SSL - Can be set using usual Airflow options (e.g. airflow.cfg, env vars, etc.)
 - [AIRFLOW-1256] Add United Airlines to readme
 - [AIRFLOW-1251] Add eRevalue to Airflow users
 - [AIRFLOW-908] Print hostname at the start of cli run
@@ -2368,13 +4480,13 @@ Airflow 1.9.0, 2018-01-02
 - [AIRFLOW-1125] Document encrypted connections
 - [AIRFLOW-1122] Increase stroke width in UI
 - [AIRFLOW-1138] Add missing licenses to files in scripts directory
-- (AIRFLOW-11-38) [AIRFLOW-1136] Capture invalid arguments for Sqoop
+- [AIRFLOW-11-38][AIRFLOW-1136] Capture invalid arguments for Sqoop
 - [AIRFLOW-1127] Move license notices to LICENSE
 - [AIRFLOW-1118] Add evo.company to Airflow users
 - [AIRFLOW-1121][AIRFLOW-1004] Fix `airflow webserver --pid` to write out pid file
 - [AIRFLOW-1124] Do not set all tasks to scheduled in backfill
 - [AIRFLOW-1120] Update version view to include Apache prefix
-- [AIRFLOW-1091] Add script that can compare jira target against merges
+- [AIRFLOW-1091] Add script that can compare Jira target against merges
 - [AIRFLOW-1107] Add support for ftps non-default port
 - [AIRFLOW-1000] Rebrand distribution to Apache Airflow
 - [AIRFLOW-1094] Run unit tests under contrib in Travis
@@ -2416,7 +4528,7 @@ Airflow 1.9.0, 2018-01-02
 - [AIRFLOW-1045] Make log level configurable via airflow.cfg
 - [AIRFLOW-1047] Sanitize strings passed to Markup
 - [AIRFLOW-1040] Fix some small typos in comments and docstrings
-- [AIRFLOW-1017] get_task_instance shouldn't throw exception when no TI
+- [AIRFLOW-1017] get_task_instance should not throw exception when no TI
 - [AIRFLOW-1006] Add config_templates to MANIFEST
 - [AIRFLOW-999] Add support for Redis database
 - [AIRFLOW-1009] Remove SQLOperator from Concepts page
@@ -2431,7 +4543,7 @@ Airflow 1.9.0, 2018-01-02
 - [AIRFLOW-969] Catch bad python_callable argument
 - [AIRFLOW-984] Enable subclassing of SubDagOperator
 - [AIRFLOW-997] Update setup.cfg to point to Apache
-- [AIRFLOW-994] Add MiNODES to the official airflow user list
+- [AIRFLOW-994] Add MiNODES to the official Airflow user list
 - [AIRFLOW-995][AIRFLOW-1] Update GitHub PR Template
 - [AIRFLOW-989] Do not mark dag run successful if unfinished tasks
 - [AIRFLOW-903] New configuration setting for the default dag view
@@ -2442,7 +4554,7 @@ Airflow 1.9.0, 2018-01-02
 - [AIRFLOW-770] Refactor BaseHook so env vars are always read
 - [AIRFLOW-900] Double trigger should not kill original task instance
 - [AIRFLOW-900] Fixes bugs in LocalTaskJob for double run protection
-- [AIRFLOW-932][AIRFLOW-932][AIRFLOW-921][AIRFLOW-910] Do not mark tasks removed when backfilling[
+- [AIRFLOW-932][AIRFLOW-932][AIRFLOW-921][AIRFLOW-910] Do not mark tasks removed when backfilling
 - [AIRFLOW-961] run onkill when SIGTERMed
 - [AIRFLOW-910] Use parallel task execution for backfills
 - [AIRFLOW-967] Wrap strings in native for py2 ldap compatibility
@@ -2455,13 +4567,13 @@ Airflow 1.9.0, 2018-01-02
 - [AIRFLOW-941] Use defined parameters for psycopg2
 - [AIRFLOW-943] Update Digital First Media in users list
 - [AIRFLOW-942] Add mytaxi to Airflow users
-- [AIRFLOW-939] add .swp to gitginore
+- [AIRFLOW-939] add .swp to gitignore
 - [AIRFLOW-719] Prevent DAGs from ending prematurely
 - [AIRFLOW-938] Use test for True in task_stats queries
 - [AIRFLOW-937] Improve performance of task_stats
 - [AIRFLOW-933] use ast.literal_eval rather eval because ast.literal_eval does not execute input.
 - [AIRFLOW-925] Revert airflow.hooks change that cherry-pick picked
-- [AIRFLOW-919] Running tasks with no start date shouldn't break a DAGs UI
+- [AIRFLOW-919] Running tasks with no start date should not break a DAGs UI
 - [AIRFLOW-802][AIRFLOW-1] Add spark-submit operator/hook
 - [AIRFLOW-725] Use keyring to store credentials for JIRA
 - [AIRFLOW-916] Remove deprecated readfp function
@@ -2485,17 +4597,17 @@ Airflow 1.9.0, 2018-01-02
 - [AIRFLOW-886] Pass result to post_execute() hook
 - [AIRFLOW-871] change logging.warn() into warning()
 - [AIRFLOW-882] Remove unnecessary dag>>op assignment in docs
-- [AIRFLOW-861] make pickle_info endpoint be login_required
+- [AIRFLOW-861] Make pickle_info endpoint be login_required
 - [AIRFLOW-869] Refactor mark success functionality
 - [AIRFLOW-877] Remove .sql template extension from GCS download operator
 - [AIRFLOW-826] Add Zendesk hook
-- [AIRFLOW-842] do not query the DB with an empty IN clause
-- [AIRFLOW-834] change raise StopIteration into return
+- [AIRFLOW-842] Do not query the DB with an empty IN clause
+- [AIRFLOW-834] Change raise StopIteration into return
 - [AIRFLOW-832] Let debug server run without SSL
 - [AIRFLOW-862] Add DaskExecutor
 - [AIRFLOW-858] Configurable database name for DB operators
 - [AIRFLOW-863] Example DAGs should have recent start dates
-- [AIRFLOW-853] use utf8 encoding for stdout line decode
+- [AIRFLOW-853] Use utf8 encoding for stdout line decode
 - [AIRFLOW-857] Use library assert statements instead of conditionals
 - [AIRFLOW-856] Make sure execution date is set for local client
 - [AIRFLOW-854] Add OKI as Airflow user
@@ -2532,7 +4644,7 @@ Airflow 1.8.2, 2017-09-04
 - [AIRFLOW-1036] Randomize exponential backoff
 - [AIRFLOW-993] Update date inference logic
 - [AIRFLOW-1167] Support microseconds in FTPHook modification time
-- [AIRFLOW-1179] Fix Pandas 0.2x breaking Google BigQuery change
+- [AIRFLOW-1179] Fix pandas 0.2x breaking Google BigQuery change
 - [AIRFLOW-1263] Dynamic height for charts
 - [AIRFLOW-1266] Increase width of gantt y axis
 - [AIRFLOW-1290] set docs author to 'Apache Airflow'
@@ -2569,7 +4681,7 @@ Airflow 1.8.1, 2017-05-09
 - [AIRFLOW-1017] get_task_instance should return None instead of throw an exception for non-existent TIs
 - [AIRFLOW-1011] Fix bug in BackfillJob._execute() for SubDAGs
 - [AIRFLOW-1004] `airflow webserver -D` runs in foreground
-- [AIRFLOW-1001] Landing Time shows "unsupported operand type(s) for -: 'datetime.datetime' and 'NoneType'" on example_subdag_operator
+- [AIRFLOW-1001] Landing Time shows "unsupported operand type(s) for -: 'datetime.datetime' and `NoneType`" on example_subdag_operator
 - [AIRFLOW-1000] Rebrand to Apache Airflow instead of Airflow
 - [AIRFLOW-989] Clear Task Regression
 - [AIRFLOW-974] airflow.util.file mkdir has a race condition
@@ -2585,9 +4697,9 @@ Airflow 1.8.1, 2017-05-09
 - [AIRFLOW-806] UI should properly ignore DAG doc when it is None
 - [AIRFLOW-794] Consistent access to DAGS_FOLDER and SQL_ALCHEMY_CONN
 - [AIRFLOW-785] ImportError if cgroupspy is not installed
-- [AIRFLOW-784] Cannot install with funcsigs > 1.0.0
+- [AIRFLOW-784] Cannot install with ``funcsigs`` > 1.0.0
 - [AIRFLOW-780] The UI no longer shows broken DAGs
-- [AIRFLOW-777] dag_is_running is initlialized to True instead of False
+- [AIRFLOW-777] dag_is_running is initialized to True instead of False
 - [AIRFLOW-719] Skipped operations make DAG finish prematurely
 - [AIRFLOW-694] Empty env vars do not overwrite non-empty config values
 - [AIRFLOW-492] Insert into dag_stats table results into failed task while task itself succeeded
@@ -2610,7 +4722,7 @@ Airflow 1.8.0, 2017-03-12
 - [AIRFLOW-937] Improve performance of task_stats
 - [AIRFLOW-933] use ast.literal_eval rather eval because ast.literal_eval does not execute input.
 - [AIRFLOW-925] Revert airflow.hooks change that cherry-pick picked
-- [AIRFLOW-919] Running tasks with no start date shouldn't break a DAGs UI
+- [AIRFLOW-919] Running tasks with no start date should not break a DAGs UI
 - [AIRFLOW-802] Add spark-submit operator/hook
 - [AIRFLOW-897] Prevent dagruns from failing with unfinished tasks
 - [AIRFLOW-861] make pickle_info endpoint be login_required
@@ -2649,7 +4761,7 @@ Airflow 1.8.0, 2017-03-12
 - [AIRFLOW-776] Add missing cgroups devel dependency
 - [AIRFLOW-777] Fix expression to check if a DagRun is in running state
 - [AIRFLOW-785] Don't import CgroupTaskRunner at global scope
-- [AIRFLOW-784] Pin funcsigs to 1.0.0
+- [AIRFLOW-784] Pin ``funcsigs`` to 1.0.0
 - [AIRFLOW-624] Fix setup.py to not import airflow.version as version
 - [AIRFLOW-779] Task should fail with specific message when deleted
 - [AIRFLOW-778] Fix completely broken MetastorePartitionSensor
@@ -2657,7 +4769,7 @@ Airflow 1.8.0, 2017-03-12
 - [AIRFLOW-771] Make S3 logs append instead of clobber
 - [AIRFLOW-773] Fix flaky datetime addition in api test
 - [AIRFLOW-219][AIRFLOW-398] Cgroups + impersonation
-- [AIRFLOW-683] Add jira hook, operator and sensor
+- [AIRFLOW-683] Add Jira hook, operator and sensor
 - [AIRFLOW-762] Add Google DataProc delete operator
 - [AIRFLOW-760] Update systemd config
 - [AIRFLOW-759] Use previous dag_run to verify depend_on_past
@@ -2743,8 +4855,8 @@ Airflow 1.8.0, 2017-03-12
 - [AIRFLOW-504] Store fractional seconds in MySQL tables
 - [AIRFLOW-623] LDAP attributes not always a list
 - [AIRFLOW-611] source_format in BigQueryBaseCursor
-- [AIRFLOW-619] Fix exception in Gannt chart
-- [AIRFLOW-618] Cast DateTimes to avoid sqllite errors
+- [AIRFLOW-619] Fix exception in Gantt chart
+- [AIRFLOW-618] Cast DateTimes to avoid sqlite errors
 - [AIRFLOW-422] Add JSON endpoint for task info
 - [AIRFLOW-616][AIRFLOW-617] Minor fixes to PR tool UX
 - [AIRFLOW-179] Fix DbApiHook with non-ASCII chars
@@ -2797,7 +4909,7 @@ Airflow 1.8.0, 2017-03-12
 - [AIRFLOW-505] Support unicode characters in authors' names
 - [AIRFLOW-494] Add per-operator success/failure metrics
 - [AIRFLOW-488] Fix test_simple fail
-- [AIRFLOW-468] Update Panda requirement to 0.17.1
+- [AIRFLOW-468] Update panda requirement to 0.17.1
 - [AIRFLOW-159] Add cloud integration section + GCP documentation
 - [AIRFLOW-477][AIRFLOW-478] Restructure security section for clarity
 - [AIRFLOW-467] Allow defining of project_id in BigQueryHook
@@ -2838,7 +4950,7 @@ Airflow 1.7.2
 - [AIRFLOW-399] Remove dags/testdruid.py
 - [AIRFLOW-400] models.py/DAG.set_dag_runs_state() does not correctly set state
 - [AIRFLOW-395] Fix colon/equal signs typo for resources in default config
-- [AIRFLOW-397] Documentation: Fix typo "instatiating" to "instantiating"
+- [AIRFLOW-397] Documentation: Fix typo in the word "instantiating"
 - [AIRFLOW-395] Remove trailing commas from resources in config
 - [AIRFLOW-388] Add a new chart for Task_Tries for each DAG
 - [AIRFLOW-322] Fix typo in FAQ section
@@ -2870,15 +4982,15 @@ Airflow 1.7.2
 - [AIRFLOW-264] Adding workload management for Hive
 - [AIRFLOW-297] support exponential backoff option for retry delay
 - [AIRFLOW-31][AIRFLOW-200] Add note to updating.md
-- [AIRFLOW-307] There is no __neq__ python magic method.
+- [AIRFLOW-307] There is no __neq__ Python magic method.
 - [AIRFLOW-309] Add requirements of develop dependencies to docs
-- [AIRFLOW-307] Rename __neq__ to __ne__ python magic method.
+- [AIRFLOW-307] Rename __neq__ to __ne__ Python magic method.
 - [AIRFLOW-313] Fix code style for sqoop_hook.py
 - [AIRFLOW-311] Fix wrong path in CONTRIBUTING.md
 - [AIRFLOW-24] DataFlow Java Operator
 - [AIRFLOW-308] Add link to refresh DAG within DAG view header
 - [AIRFLOW-314] Fix BigQuery cursor run_table_upsert method
-- [AIRFLOW-298] fix incubator diclaimer in docs
+- [AIRFLOW-298] fix incubator disclaimer in docs
 - [AIRFLOW-284] HiveServer2Hook fix for cursor scope for get_results
 - [AIRFLOW-260] More graceful exit when issues can't be closed
 - [AIRFLOW-260] Handle case when no version is found
@@ -2905,10 +5017,10 @@ Airflow 1.7.2
 - [AIRFLOW-277] Multiple deletions does not work in Task Instances view if using SQLite backend
 - [AIRFLOW-200] Make hook/operator imports lazy, and print proper exceptions
 - [AIRFLOW-283] Make store_to_xcom_key a templated field in GoogleCloudStorageDownloadOperator
-- [AIRFLOW-278] Support utf-8 ecoding for SQL
+- [AIRFLOW-278] Support utf-8 encoding for SQL
 - [AIRFLOW-280] clean up tmp druid table no matter if an ingestion job succeeds or not
 - [AIRFLOW-274] Add XCom functionality to GoogleCloudStorageDownloadOperator
-- [AIRFLOW-273] Create an svg version of the airflow logo.
+- [AIRFLOW-273] Create an svg version of the Airflow logo.
 - [AIRFLOW-275] Update contributing guidelines
 - [AIRFLOW-244] Modify hive operator to inject analysis data
 - [AIRFLOW-162] Allow variable to be accessible into templates
@@ -2919,7 +5031,7 @@ Airflow 1.7.2
 - [AIRFLOW-262] Simplify commands in MANIFEST.in
 - [AIRFLOW-31] Add zope dependency
 - [AIRFLOW-6] Remove dependency on Highcharts
-- [AIRFLOW-234] make task that aren't `running` self-terminate
+- [AIRFLOW-234] make task that are not `running` self-terminate
 - [AIRFLOW-256] Fix test_scheduler_reschedule heartrate
 - Add Python 3 compatibility fix
 - [AIRFLOW-31] Use standard imports for hooks/operators
@@ -2933,9 +5045,9 @@ Airflow 1.7.2
 - [AIRFLOW-216] Add Sqoop Hook and Operator
 - [AIRFLOW-171] Add upgrade notes on email and S3 to 1.7.1.2
 - [AIRFLOW-238] Make compatible with flask-admin 1.4.1
-- [AIRFLOW-230] [HiveServer2Hook] adding multi statements support
+- [AIRFLOW-230][HiveServer2Hook] adding multi statements support
 - [AIRFLOW-142] setup_env.sh doesn't download hive tarball if hdp is specified as distro
-- [AIRFLOW-223] Make parametrable the IP on which Flower binds to
+- [AIRFLOW-223] Make parametable the IP on which Flower binds to
 - [AIRFLOW-218] Added option to enable webserver gunicorn access/err logs
 - [AIRFLOW-213] Add "Closes #X" phrase to commit messages
 - [AIRFLOW-68] Align start_date with the schedule_interval
@@ -2984,7 +5096,7 @@ Airflow 1.7.1, 2016-05-19
 - [AIRFLOW-52] Fix bottlenecks when working with many tasks
 - Add columns to toggle extra detail in the connection list view.
 - Log the number of errors when importing DAGs
-- Log dagbag metrics dupplicate messages in queue into Statsd (#1406)
+- Log dagbag metrics duplicate messages in queue into Statsd (#1406)
 - Clean up issue template (#1419)
 - correct missed arg.foreground to arg.daemon in cli
 - Reinstate imports for github enterprise auth
@@ -3006,7 +5118,7 @@ Airflow 1.7.1, 2016-05-19
 - Add a missing word to docs
 - Document the parameters of `DbApiHook`
 - added oracle operator with existing oracle hook
-- Add PyOpenSSL to Google cloud gcp_api.
+- Add PyOpenSSL to Google Cloud gcp_api.
 - Remove executor error unit test
 - Add DAG inference, deferral, and context manager
 - Don't return error when writing files to Google cloud storage.
@@ -3017,7 +5129,7 @@ Airflow 1.7.1, 2016-05-19
 - Update plugins.rst for clarity on the example (#1309)
 - Fix s3 logging issue
 - Add twitter feed example dag
-- Github ISSUE_TEMPLATE & PR_TEMPLATE cleanup
+- GitHub ISSUE_TEMPLATE & PR_TEMPLATE cleanup
 - Reduce logger verbosity
 - Adding a PR Template
 - Add Lucid to list of users
@@ -3049,7 +5161,7 @@ Airflow 1.7.1, 2016-05-19
 - Fix reading strings from conf
 - CHORE - Remove Trailing Spaces
 - Fix SSHExecuteOperator crash when using a custom ssh port
-- Add note about airflow components to template
+- Add note about Airflow components to template
 - Rewrite BackfillJob logic for clarity
 - Add unit tests
 - Fix miscellaneous bugs and clean up code
@@ -3061,7 +5173,7 @@ Airflow 1.7.1, 2016-05-19
 - Rename user table to users to avoid conflict with postgres
 - Beware of negative pool slots.
 - Add support for calling_format from boto to S3_Hook
-- Add pypi meta data and sync version number
+- Add PyPI meta data and sync version number
 - Set dags_are_paused_at_creation's default value to True
 - Resurface S3Log class eaten by rebase/push -f
 - Add missing session.commit() at end of initdb
@@ -3099,7 +5211,7 @@ Airflow 1.7.1, 2016-05-19
 - Update Airflow docs for remote logging
 - Add unit tests for trapping Executor errors
 - Make sure Executors properly trap errors
-- Fix HttpOpSensorTest to use fake resquest session
+- Fix HttpOpSensorTest to use fake request session
 - Linting
 - Add an example on pool usage in the documentation
 - Add two methods to bigquery hook's base cursor: run_table_upsert, which adds a table or updates an existing table; and run_grant_dataset_view_access, which grants view access to a given dataset for a given table.
@@ -3118,7 +5230,7 @@ Airflow 1.7.1, 2016-05-19
 - Refactoring the CLI to be data-driven
 - Updating the Bug Reporting protocol in the Contributing.md file
 - Fixing the docs
-- clean up references to old session
+- Clean up references to old session
 - remove session reference
 - resolve conflict
 - clear xcom data when task instance starts
@@ -3143,13 +5255,13 @@ Airflow 1.7.1, 2016-05-19
 - Pointing to a reqs file
 - Some linting
 - Adding a .landscape.yml file
-- badge for pypi version
+- badge for PyPI version
 - Add license and ignore for sql and csv
 - Use correct connection id
 - Use correct table name
 - Provide data for ci tests
-- new badge for showing staleness of reqs
-- removing requirements.txt as it is uni-dimensional
+- New badge for showing staleness of reqs
+- Removing requirements.txt as it is uni-dimensional
 - Make it work on py3
 - Remove decode for logging
 - Also keep py2 compatible
@@ -3163,21 +5275,21 @@ Airflow 1.7.1, 2016-05-19
 - Make sure to write binary as string can be unicode
 - Ignore metastore
 - More impyla fixes
-- Test HivemetaStore if python 2
+- Test HivemetaStore if Python 2
 - Allow users to set hdfs_namenode_principal in HDFSHook config
 - Add tests for Hiveserver2 and fix some issues from impyla
 - Merge branch 'impyla' into minicluster
 - This patch allows for testing of hive operators and hooks. Sasl is used (NoSasl in connection string is not possible). Tests have been adjusted.
 - Treat SKIPPED and SUCCESS the same way when evaluating depends_on_past=True
 - fix bigquery hook
-- version cap for gcp_api
+- Version cap for gcp_api
 - Fix typo when returning VerticaHook
 - Adding fernet key to use it as part of stdout commands
 - Adding support for ssl parameters.  (picking up from jthomas123)
-- more detail in error message.
-- make sure paths don't conflict bc of trailing /
-- change gcs_hook to self.hook
-- refactor remote log read/write and add GCS support
+- More detail in error message.
+- Make sure paths don't conflict bc of trailing /
+- Change gcs_hook to self.hook
+- Refactor remote log read/write and add GCS support
 - Only use multipart upload in S3Hook if file is large enough
 - Merge branch 'airbnb/master'
 - Add GSSAPI SASL to HiveMetaStoreHook.
@@ -3185,4 +5297,4 @@ Airflow 1.7.1, 2016-05-19
 - Use kerberos_service_name = 'hive' as standard instead of 'impala'.
 - Use GSSAPI instead of KERBEROS and provide backwards compatibility
 - ISSUE-1123 Use impyla instead of pyhs2
-- set celery_executor to use queue name as exchange
+- Set celery_executor to use queue name as exchange

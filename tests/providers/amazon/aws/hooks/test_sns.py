@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -20,7 +19,7 @@
 
 import unittest
 
-from airflow.providers.amazon.aws.hooks.sns import AwsSnsHook
+from airflow.providers.amazon.aws.hooks.sns import SnsHook
 
 try:
     from moto import mock_sns
@@ -29,16 +28,15 @@ except ImportError:
 
 
 @unittest.skipIf(mock_sns is None, 'moto package not present')
-class TestAwsSnsHook(unittest.TestCase):
-
+class TestSnsHook(unittest.TestCase):
     @mock_sns
     def test_get_conn_returns_a_boto3_connection(self):
-        hook = AwsSnsHook(aws_conn_id='aws_default')
-        self.assertIsNotNone(hook.get_conn())
+        hook = SnsHook(aws_conn_id='aws_default')
+        assert hook.get_conn() is not None
 
     @mock_sns
-    def test_publish_to_target(self):
-        hook = AwsSnsHook(aws_conn_id='aws_default')
+    def test_publish_to_target_with_subject(self):
+        hook = SnsHook(aws_conn_id='aws_default')
 
         message = "Hello world"
         topic_name = "test-topic"
@@ -47,11 +45,32 @@ class TestAwsSnsHook(unittest.TestCase):
 
         response = hook.publish_to_target(target, message, subject)
 
-        self.assertTrue('MessageId' in response)
+        assert 'MessageId' in response
 
     @mock_sns
-    def test_publish_to_target_without_subject(self):
-        hook = AwsSnsHook(aws_conn_id='aws_default')
+    def test_publish_to_target_with_attributes(self):
+        hook = SnsHook(aws_conn_id='aws_default')
+
+        message = "Hello world"
+        topic_name = "test-topic"
+        target = hook.get_conn().create_topic(Name=topic_name).get('TopicArn')
+
+        response = hook.publish_to_target(
+            target,
+            message,
+            message_attributes={
+                'test-string': 'string-value',
+                'test-number': 123456,
+                'test-array': ['first', 'second', 'third'],
+                'test-binary': b'binary-value',
+            },
+        )
+
+        assert 'MessageId' in response
+
+    @mock_sns
+    def test_publish_to_target_plain(self):
+        hook = SnsHook(aws_conn_id='aws_default')
 
         message = "Hello world"
         topic_name = "test-topic"
@@ -59,8 +78,4 @@ class TestAwsSnsHook(unittest.TestCase):
 
         response = hook.publish_to_target(target, message)
 
-        self.assertTrue('MessageId' in response)
-
-
-if __name__ == '__main__':
-    unittest.main()
+        assert 'MessageId' in response

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -16,16 +15,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use `airflow.gcp.operators.bigquery`."""
+"""This module is deprecated. Please use :mod:`airflow.providers.google.cloud.operators.bigquery`."""
 
 import warnings
 
-# pylint: disable=unused-import
-from airflow.gcp.operators.bigquery import (  # noqa
-    BigQueryCheckOperator, BigQueryIntervalCheckOperator, BigQueryValueCheckOperator,
+from airflow.providers.google.cloud.operators.bigquery import (  # noqa
+    BigQueryCheckOperator,
+    BigQueryIntervalCheckOperator,
+    BigQueryValueCheckOperator,
 )
 
 warnings.warn(
-    "This module is deprecated. Please use `airflow.gcp.operators.bigquery`.",
-    DeprecationWarning, stacklevel=2
+    "This module is deprecated. Please use `airflow.providers.google.cloud.operators.bigquery`.",
+    DeprecationWarning,
+    stacklevel=2,
 )

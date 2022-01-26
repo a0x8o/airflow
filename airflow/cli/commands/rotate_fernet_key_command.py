@@ -16,15 +16,15 @@
 # under the License.
 """Rotate Fernet key command"""
 from airflow.models import Connection, Variable
-from airflow.utils import cli as cli_utils, db
+from airflow.utils import cli as cli_utils
+from airflow.utils.session import create_session
 
 
-@cli_utils.action_logging
+@cli_utils.action_cli
 def rotate_fernet_key(args):
     """Rotates all encrypted connection credentials and variables"""
-    with db.create_session() as session:
-        for conn in session.query(Connection).filter(
-                Connection.is_encrypted | Connection.is_extra_encrypted):
+    with create_session() as session:
+        for conn in session.query(Connection).filter(Connection.is_encrypted | Connection.is_extra_encrypted):
             conn.rotate_fernet_key()
         for var in session.query(Variable).filter(Variable.is_encrypted):
             var.rotate_fernet_key()

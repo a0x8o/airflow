@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -39,6 +38,8 @@ def conf_vars(overrides):
         else:
             original[(section, key)] = None
         if value is not None:
+            if not conf.has_section(section):
+                conf.add_section(section)
             conf.set(section, key, value)
         else:
             conf.remove_option(section, key)
@@ -54,3 +55,29 @@ def conf_vars(overrides):
         for env, value in original_env_vars.items():
             os.environ[env] = value
         settings.configure_vars()
+
+
+@contextlib.contextmanager
+def env_vars(overrides):
+    """
+    Temporarily patches env vars, restoring env as it was after context exit.
+
+    Example:
+        with env_vars({'AIRFLOW_CONN_AWS_DEFAULT': 's3://@'}):
+            # now we have an aws default connection available
+    """
+    orig_vars = {}
+    new_vars = []
+    for env, value in overrides.items():
+        if env in os.environ:
+            orig_vars[env] = os.environ.pop(env, '')
+        else:
+            new_vars.append(env)
+        os.environ[env] = value
+    try:
+        yield
+    finally:
+        for env, value in orig_vars.items():
+            os.environ[env] = value
+        for env in new_vars:
+            os.environ.pop(env)

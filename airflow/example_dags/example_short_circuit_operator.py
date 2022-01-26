@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -18,33 +17,31 @@
 # under the License.
 
 """Example DAG demonstrating the usage of the ShortCircuitOperator."""
+from datetime import datetime
 
-import airflow.utils.helpers
-from airflow.models import DAG
-from airflow.operators.dummy_operator import DummyOperator
-from airflow.operators.python_operator import ShortCircuitOperator
+from airflow import DAG
+from airflow.models.baseoperator import chain
+from airflow.operators.dummy import DummyOperator
+from airflow.operators.python import ShortCircuitOperator
 
-args = {
-    'owner': 'Airflow',
-    'start_date': airflow.utils.dates.days_ago(2),
-}
+with DAG(
+    dag_id='example_short_circuit_operator',
+    start_date=datetime(2021, 1, 1),
+    catchup=False,
+    tags=['example'],
+) as dag:
+    cond_true = ShortCircuitOperator(
+        task_id='condition_is_True',
+        python_callable=lambda: True,
+    )
 
-dag = DAG(dag_id='example_short_circuit_operator', default_args=args)
+    cond_false = ShortCircuitOperator(
+        task_id='condition_is_False',
+        python_callable=lambda: False,
+    )
 
-cond_true = ShortCircuitOperator(
-    task_id='condition_is_True',
-    python_callable=lambda: True,
-    dag=dag,
-)
+    ds_true = [DummyOperator(task_id='true_' + str(i)) for i in [1, 2]]
+    ds_false = [DummyOperator(task_id='false_' + str(i)) for i in [1, 2]]
 
-cond_false = ShortCircuitOperator(
-    task_id='condition_is_False',
-    python_callable=lambda: False,
-    dag=dag,
-)
-
-ds_true = [DummyOperator(task_id='true_' + str(i), dag=dag) for i in [1, 2]]
-ds_false = [DummyOperator(task_id='false_' + str(i), dag=dag) for i in [1, 2]]
-
-airflow.utils.helpers.chain(cond_true, *ds_true)
-airflow.utils.helpers.chain(cond_false, *ds_false)
+    chain(cond_true, *ds_true)
+    chain(cond_false, *ds_false)

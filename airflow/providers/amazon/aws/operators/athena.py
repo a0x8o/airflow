@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -17,99 +16,118 @@
 # specific language governing permissions and limitations
 # under the License.
 #
+import sys
+import warnings
+from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence
 
-from uuid import uuid4
+if sys.version_info >= (3, 8):
+    from functools import cached_property
+else:
+    from cached_property import cached_property
 
 from airflow.models import BaseOperator
-from airflow.providers.amazon.aws.hooks.athena import AWSAthenaHook
-from airflow.utils.decorators import apply_defaults
+from airflow.providers.amazon.aws.hooks.athena import AthenaHook
+
+if TYPE_CHECKING:
+    from airflow.utils.context import Context
 
 
-class AWSAthenaOperator(BaseOperator):
+class AthenaOperator(BaseOperator):
     """
-    An operator that submit presto query to athena.
+    An operator that submits a presto query to athena.
 
-    If ``do_xcom_push`` is True, the QueryExecutionID assigned to the
-    query will be pushed to an XCom when it successfuly completes.
+    .. seealso::
+        For more information on how to use this operator, take a look at the guide:
+        :ref:`howto/operator:AthenaOperator`
 
     :param query: Presto to be run on athena. (templated)
-    :type query: str
     :param database: Database to select. (templated)
-    :type database: str
     :param output_location: s3 path to write the query results into. (templated)
-    :type output_location: str
     :param aws_conn_id: aws connection to use
-    :type aws_conn_id: str
-    :param sleep_time: Time to wait between two consecutive call to check query status on athena
-    :type sleep_time: int
+    :param client_request_token: Unique token created by user to avoid multiple executions of same query
+    :param workgroup: Athena workgroup in which query will be run
+    :param query_execution_context: Context in which query need to be run
+    :param result_configuration: Dict with path to store results in and config related to encryption
+    :param sleep_time: Time (in seconds) to wait between two consecutive calls to check query status on Athena
     :param max_tries: Number of times to poll for query state before function exits
-    :type max_triex: int
     """
 
     ui_color = '#44b5e2'
-    template_fields = ('query', 'database', 'output_location')
-    template_ext = ('.sql', )
+    template_fields: Sequence[str] = ('query', 'database', 'output_location')
+    template_ext: Sequence[str] = ('.sql',)
+    template_fields_renderers = {"query": "sql"}
 
-    @apply_defaults
-    def __init__(self, query, database, output_location, aws_conn_id='aws_default', client_request_token=None,
-                 query_execution_context=None, result_configuration=None, sleep_time=30, max_tries=None,
-                 *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(
+        self,
+        *,
+        query: str,
+        database: str,
+        output_location: str,
+        aws_conn_id: str = "aws_default",
+        client_request_token: Optional[str] = None,
+        workgroup: str = "primary",
+        query_execution_context: Optional[Dict[str, str]] = None,
+        result_configuration: Optional[Dict[str, Any]] = None,
+        sleep_time: int = 30,
+        max_tries: Optional[int] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
         self.query = query
         self.database = database
         self.output_location = output_location
         self.aws_conn_id = aws_conn_id
-        self.client_request_token = client_request_token or str(uuid4())
+        self.client_request_token = client_request_token
+        self.workgroup = workgroup
         self.query_execution_context = query_execution_context or {}
         self.result_configuration = result_configuration or {}
         self.sleep_time = sleep_time
         self.max_tries = max_tries
-        self.query_execution_id = None
-        self.hook = None
+        self.query_execution_id = None  # type: Optional[str]
 
-    def get_hook(self):
-        return AWSAthenaHook(self.aws_conn_id, self.sleep_time)
+    @cached_property
+    def hook(self) -> AthenaHook:
+        """Create and return an AthenaHook."""
+        return AthenaHook(self.aws_conn_id, sleep_time=self.sleep_time)
 
-    def execute(self, context):
-        """
-        Run Presto Query on Athena
-        """
-        self.hook = self.get_hook()
-
+    def execute(self, context: 'Context') -> Optional[str]:
+        """Run Presto Query on Athena"""
         self.query_execution_context['Database'] = self.database
         self.result_configuration['OutputLocation'] = self.output_location
-        self.query_execution_id = self.hook.run_query(self.query, self.query_execution_context,
-                                                      self.result_configuration, self.client_request_token)
+        self.query_execution_id = self.hook.run_query(
+            self.query,
+            self.query_execution_context,
+            self.result_configuration,
+            self.client_request_token,
+            self.workgroup,
+        )
         query_status = self.hook.poll_query_status(self.query_execution_id, self.max_tries)
 
-        if query_status in AWSAthenaHook.FAILURE_STATES:
+        if query_status in AthenaHook.FAILURE_STATES:
             error_message = self.hook.get_state_change_reason(self.query_execution_id)
             raise Exception(
-                'Final state of Athena job is {}, query_execution_id is {}. Error: {}'
-                .format(query_status, self.query_execution_id, error_message))
-        elif not query_status or query_status in AWSAthenaHook.INTERMEDIATE_STATES:
+                f'Final state of Athena job is {query_status}, query_execution_id is '
+                f'{self.query_execution_id}. Error: {error_message}'
+            )
+        elif not query_status or query_status in AthenaHook.INTERMEDIATE_STATES:
             raise Exception(
-                'Final state of Athena job is {}. '
-                'Max tries of poll status exceeded, query_execution_id is {}.'
-                .format(query_status, self.query_execution_id))
+                f'Final state of Athena job is {query_status}. Max tries of poll status exceeded, '
+                f'query_execution_id is {self.query_execution_id}.'
+            )
 
         return self.query_execution_id
 
-    def on_kill(self):
-        """
-        Cancel the submitted athena query
-        """
+    def on_kill(self) -> None:
+        """Cancel the submitted athena query"""
         if self.query_execution_id:
-            self.log.info('⚰️⚰️⚰️ Received a kill Signal. Time to Die')
-            self.log.info(
-                'Stopping Query with executionId - %s', self.query_execution_id
-            )
+            self.log.info('Received a kill signal.')
+            self.log.info('Stopping Query with executionId - %s', self.query_execution_id)
             response = self.hook.stop_query(self.query_execution_id)
             http_status_code = None
             try:
                 http_status_code = response['ResponseMetadata']['HTTPStatusCode']
             except Exception as ex:
-                self.log.error('Exception while cancelling query', ex)
+                self.log.error('Exception while cancelling query: %s', ex)
             finally:
                 if http_status_code is None or http_status_code != 200:
                     self.log.error('Unable to request query cancel on athena. Exiting')
@@ -118,3 +136,19 @@ class AWSAthenaOperator(BaseOperator):
                         'Polling Athena for query with id %s to reach final state', self.query_execution_id
                     )
                     self.hook.poll_query_status(self.query_execution_id)
+
+
+class AWSAthenaOperator(AthenaOperator):
+    """
+    This operator is deprecated.
+    Please use :class:`airflow.providers.amazon.aws.operators.athena.AthenaOperator`.
+    """
+
+    def __init__(self, *args, **kwargs):
+        warnings.warn(
+            "This operator is deprecated. Please use "
+            "`airflow.providers.amazon.aws.operators.athena.AthenaOperator`.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(*args, **kwargs)

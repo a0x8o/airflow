@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -36,8 +35,7 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column('connection',
-                  sa.Column('is_extra_encrypted', sa.Boolean, default=False))
+    op.add_column('connection', sa.Column('is_extra_encrypted', sa.Boolean, default=False))
 
 
 def downgrade():

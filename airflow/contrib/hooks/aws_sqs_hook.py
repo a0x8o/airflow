@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -17,15 +16,29 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""This module is deprecated. Please use `airflow.providers.amazon.aws.hooks.sqs`."""
+"""This module is deprecated. Please use :mod:`airflow.providers.amazon.aws.hooks.sqs`."""
 
 import warnings
 
-# pylint: disable=unused-import
-from airflow.providers.amazon.aws.hooks.sqs import SQSHook  # noqa
+from airflow.providers.amazon.aws.hooks.sqs import SqsHook
 
 warnings.warn(
     "This module is deprecated. Please use `airflow.providers.amazon.aws.hooks.sqs`.",
     DeprecationWarning,
     stacklevel=2,
 )
+
+
+class SQSHook(SqsHook):
+    """
+    This class is deprecated.
+    Please use :class:`airflow.providers.amazon.aws.hooks.sqs.SqsHook`.
+    """
+
+    def __init__(self, *args, **kwargs):
+        warnings.warn(
+            "This class is deprecated. Please use `airflow.providers.amazon.aws.hooks.sqs.SqsHook`.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(*args, **kwargs)

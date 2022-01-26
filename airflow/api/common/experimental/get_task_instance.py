@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -19,21 +18,23 @@
 """Task Instance APIs."""
 from datetime import datetime
 
+from deprecated import deprecated
+
 from airflow.api.common.experimental import check_and_get_dag, check_and_get_dagrun
 from airflow.exceptions import TaskInstanceNotFound
 from airflow.models import TaskInstance
 
 
+@deprecated(version="2.2.3", reason="Use DagRun.get_task_instance instead")
 def get_task_instance(dag_id: str, task_id: str, execution_date: datetime) -> TaskInstance:
-    """Return the task object identified by the given dag_id and task_id."""
+    """Return the task instance identified by the given dag_id, task_id and execution_date."""
     dag = check_and_get_dag(dag_id, task_id)
 
     dagrun = check_and_get_dagrun(dag=dag, execution_date=execution_date)
     # Get task instance object and check that it exists
     task_instance = dagrun.get_task_instance(task_id)
     if not task_instance:
-        error_message = ('Task {} instance for date {} not found'
-                         .format(task_id, execution_date))
+        error_message = f'Task {task_id} instance for date {execution_date} not found'
         raise TaskInstanceNotFound(error_message)
 
     return task_instance

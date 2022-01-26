@@ -27,6 +27,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import mysql
 
+from airflow.migrations.db_types import StringID
+
 # revision identifiers, used by Alembic.
 revision = 'd38e04c12aa2'
 down_revision = '6e96a59344a4'
@@ -37,36 +39,35 @@ depends_on = None
 def upgrade():
     """Upgrade version."""
     json_type = sa.JSON
-    conn = op.get_bind()  # pylint: disable=no-member
+    conn = op.get_bind()
 
     if conn.dialect.name != "postgresql":
         # Mysql 5.7+/MariaDB 10.2.3 has JSON support. Rather than checking for
         # versions, check for the function existing.
         try:
             conn.execute("SELECT JSON_VALID(1)").fetchone()
-        except sa.exc.OperationalError:
+        except (sa.exc.OperationalError, sa.exc.ProgrammingError):
             json_type = sa.Text
 
-    op.create_table('serialized_dag',  # pylint: disable=no-member
-                    sa.Column('dag_id', sa.String(length=250), nullable=False),
-                    sa.Column('fileloc', sa.String(length=2000), nullable=False),
-                    sa.Column('fileloc_hash', sa.Integer(), nullable=False),
-                    sa.Column('data', json_type(), nullable=False),
-                    sa.Column('last_updated', sa.DateTime(), nullable=False),
-                    sa.PrimaryKeyConstraint('dag_id'))
-    op.create_index(   # pylint: disable=no-member
-        'idx_fileloc_hash', 'serialized_dag', ['fileloc_hash'])
+    op.create_table(
+        'serialized_dag',
+        sa.Column('dag_id', StringID(), nullable=False),
+        sa.Column('fileloc', sa.String(length=2000), nullable=False),
+        sa.Column('fileloc_hash', sa.Integer(), nullable=False),
+        sa.Column('data', json_type(), nullable=False),
+        sa.Column('last_updated', sa.DateTime(), nullable=False),
+        sa.PrimaryKeyConstraint('dag_id'),
+    )
+    op.create_index('idx_fileloc_hash', 'serialized_dag', ['fileloc_hash'])
 
     if conn.dialect.name == "mysql":
         conn.execute("SET time_zone = '+00:00'")
         cur = conn.execute("SELECT @@explicit_defaults_for_timestamp")
         res = cur.fetchall()
         if res[0][0] == 0:
-            raise Exception(
-                "Global variable explicit_defaults_for_timestamp needs to be on (1) for mysql"
-            )
+            raise Exception("Global variable explicit_defaults_for_timestamp needs to be on (1) for mysql")
 
-        op.alter_column(  # pylint: disable=no-member
+        op.alter_column(
             table_name="serialized_dag",
             column_name="last_updated",
             type_=mysql.TIMESTAMP(fsp=6),
@@ -82,7 +83,7 @@ def upgrade():
         if conn.dialect.name == "postgresql":
             conn.execute("set timezone=UTC")
 
-        op.alter_column(  # pylint: disable=no-member
+        op.alter_column(
             table_name="serialized_dag",
             column_name="last_updated",
             type_=sa.TIMESTAMP(timezone=True),
@@ -91,4 +92,4 @@ def upgrade():
 
 def downgrade():
     """Downgrade version."""
-    op.drop_table('serialized_dag')   # pylint: disable=no-member
+    op.drop_table('serialized_dag')

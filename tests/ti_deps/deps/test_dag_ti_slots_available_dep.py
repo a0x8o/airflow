@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -17,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+
 import unittest
 from unittest.mock import Mock
 
@@ -25,23 +25,22 @@ from airflow.ti_deps.deps.dag_ti_slots_available_dep import DagTISlotsAvailableD
 
 
 class TestDagTISlotsAvailableDep(unittest.TestCase):
-
     def test_concurrency_reached(self):
         """
-        Test concurrency reached should fail dep
+        Test max_active_tasks reached should fail dep
         """
-        dag = Mock(concurrency=1, concurrency_reached=True)
-        task = Mock(dag=dag)
+        dag = Mock(concurrency=1, get_concurrency_reached=Mock(return_value=True))
+        task = Mock(dag=dag, pool_slots=1)
         ti = TaskInstance(task, execution_date=None)
 
-        self.assertFalse(DagTISlotsAvailableDep().is_met(ti=ti))
+        assert not DagTISlotsAvailableDep().is_met(ti=ti)
 
     def test_all_conditions_met(self):
         """
         Test all conditions met should pass dep
         """
-        dag = Mock(concurrency=1, concurrency_reached=False)
-        task = Mock(dag=dag)
+        dag = Mock(concurrency=1, get_concurrency_reached=Mock(return_value=False))
+        task = Mock(dag=dag, pool_slots=1)
         ti = TaskInstance(task, execution_date=None)
 
-        self.assertTrue(DagTISlotsAvailableDep().is_met(ti=ti))
+        assert DagTISlotsAvailableDep().is_met(ti=ti)

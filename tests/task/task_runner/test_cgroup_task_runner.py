@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -19,11 +18,10 @@
 import unittest
 from unittest import mock
 
-from airflow.contrib.task_runner.cgroup_task_runner import CgroupTaskRunner
+from airflow.task.task_runner.cgroup_task_runner import CgroupTaskRunner
 
 
 class TestCgroupTaskRunner(unittest.TestCase):
-
     @mock.patch("airflow.task.task_runner.base_task_runner.BaseTaskRunner.__init__")
     @mock.patch("airflow.task.task_runner.base_task_runner.BaseTaskRunner.on_finish")
     def test_cgroup_task_runner_super_calls(self, mock_super_on_finish, mock_super_init):
@@ -39,11 +37,7 @@ class TestCgroupTaskRunner(unittest.TestCase):
         local_task_job.task_instance.command_as_list.return_value = ['sleep', '1000']
 
         runner = CgroupTaskRunner(local_task_job)
-        self.assertTrue(mock_super_init.called)
+        assert mock_super_init.called
 
         runner.on_finish()
-        self.assertTrue(mock_super_on_finish.called)
-
-
-if __name__ == '__main__':
-    unittest.main()
+        assert mock_super_on_finish.called

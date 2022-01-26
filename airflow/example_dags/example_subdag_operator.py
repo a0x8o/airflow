@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -19,50 +18,44 @@
 
 """Example DAG demonstrating the usage of the SubDagOperator."""
 
-import airflow
+# [START example_subdag_operator]
+from airflow import DAG
 from airflow.example_dags.subdags.subdag import subdag
-from airflow.models import DAG
-from airflow.operators.dummy_operator import DummyOperator
-from airflow.operators.subdag_operator import SubDagOperator
+from airflow.operators.dummy import DummyOperator
+from airflow.operators.subdag import SubDagOperator
+from airflow.utils.dates import days_ago
 
 DAG_NAME = 'example_subdag_operator'
 
-args = {
-    'owner': 'Airflow',
-    'start_date': airflow.utils.dates.days_ago(2),
-}
-
-dag = DAG(
+with DAG(
     dag_id=DAG_NAME,
-    default_args=args,
+    default_args={"retries": 2},
+    start_date=days_ago(2),
     schedule_interval="@once",
-)
+    tags=['example'],
+) as dag:
 
-start = DummyOperator(
-    task_id='start',
-    dag=dag,
-)
+    start = DummyOperator(
+        task_id='start',
+    )
 
-section_1 = SubDagOperator(
-    task_id='section-1',
-    subdag=subdag(DAG_NAME, 'section-1', args),
-    dag=dag,
-)
+    section_1 = SubDagOperator(
+        task_id='section-1',
+        subdag=subdag(DAG_NAME, 'section-1', dag.default_args),
+    )
 
-some_other_task = DummyOperator(
-    task_id='some-other-task',
-    dag=dag,
-)
+    some_other_task = DummyOperator(
+        task_id='some-other-task',
+    )
 
-section_2 = SubDagOperator(
-    task_id='section-2',
-    subdag=subdag(DAG_NAME, 'section-2', args),
-    dag=dag,
-)
+    section_2 = SubDagOperator(
+        task_id='section-2',
+        subdag=subdag(DAG_NAME, 'section-2', dag.default_args),
+    )
 
-end = DummyOperator(
-    task_id='end',
-    dag=dag,
-)
+    end = DummyOperator(
+        task_id='end',
+    )
 
-start >> section_1 >> some_other_task >> section_2 >> end
+    start >> section_1 >> some_other_task >> section_2 >> end
+# [END example_subdag_operator]

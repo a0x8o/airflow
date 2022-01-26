@@ -1,7 +1,3 @@
-'''
-Common utility functions with strings
-'''
-# -*- coding: utf-8 -*-
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -18,20 +14,25 @@ Common utility functions with strings
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Common utility functions with strings"""
 
 import string
 from random import choice
+from typing import Optional
 
 
 def get_random_string(length=8, choices=string.ascii_letters + string.digits):
-    '''
-    Generate random string
-    '''
-    return ''.join([choice(choices) for _ in range(length)])
+    """Generate random string"""
+    return ''.join(choice(choices) for _ in range(length))
 
 
-def to_boolean(astring):
-    '''
-    Convert a string to a boolean
-    '''
-    return astring.lower() in ['true', 't', 'y', 'yes', '1']
+TRUE_LIKE_VALUES = {"on", "t", "true", "y", "yes", "1"}
+
+
+def to_boolean(astring: Optional[str]) -> bool:
+    """Convert a string to a boolean."""
+    if astring is None:
+        return False
+    if astring.lower() in TRUE_LIKE_VALUES:
+        return True
+    return False

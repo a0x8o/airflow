@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -17,20 +16,18 @@
 # specific language governing permissions and limitations
 # under the License.
 """Sync permission command"""
-from airflow.models import DagBag
 from airflow.utils import cli as cli_utils
-from airflow.www.app import cached_appbuilder
+from airflow.www.app import cached_app
 
 
-@cli_utils.action_logging
+@cli_utils.action_cli
 def sync_perm(args):
     """Updates permissions for existing roles and DAGs"""
-    appbuilder = cached_appbuilder()
-    print('Updating permission, view-menu for all existing roles')
+    appbuilder = cached_app().appbuilder
+    print('Updating actions and resources for all existing roles')
+    # Add missing permissions for all the Base Views _before_ syncing/creating roles
+    appbuilder.add_permissions(update_perms=True)
     appbuilder.sm.sync_roles()
-    print('Updating permission on all DAG views')
-    dags = DagBag().dags.values()
-    for dag in dags:
-        appbuilder.sm.sync_perm_for_dag(
-            dag.dag_id,
-            dag.access_control)
+    if args.include_dags:
+        print('Updating permission on all DAG views')
+        appbuilder.sm.create_dag_specific_permissions()

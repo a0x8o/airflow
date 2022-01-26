@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -23,8 +22,10 @@ import os
 import unittest
 from contextlib import redirect_stdout
 
+import pytest
+
 from airflow import models, settings
-from airflow.bin import cli
+from airflow.cli import cli_parser
 from airflow.cli.commands import pool_command
 from airflow.models import Pool
 from airflow.settings import Session
@@ -35,7 +36,7 @@ class TestCliPools(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.dagbag = models.DagBag(include_examples=True)
-        cls.parser = cli.CLIFactory.get_parser()
+        cls.parser = cli_parser.get_parser()
 
     def setUp(self):
         super().setUp()
@@ -57,18 +58,17 @@ class TestCliPools(unittest.TestCase):
 
     def test_pool_list(self):
         pool_command.pool_set(self.parser.parse_args(['pools', 'set', 'foo', '1', 'test']))
-        stdout = io.StringIO()
-        with redirect_stdout(stdout):
+        with redirect_stdout(io.StringIO()) as stdout:
             pool_command.pool_list(self.parser.parse_args(['pools', 'list']))
 
-        self.assertIn('foo', stdout.getvalue())
+        assert 'foo' in stdout.getvalue()
 
     def test_pool_list_with_args(self):
-        pool_command.pool_list(self.parser.parse_args(['pools', 'list', '--output', 'tsv']))
+        pool_command.pool_list(self.parser.parse_args(['pools', 'list', '--output', 'json']))
 
     def test_pool_create(self):
         pool_command.pool_set(self.parser.parse_args(['pools', 'set', 'foo', '1', 'test']))
-        self.assertEqual(self.session.query(Pool).count(), 2)
+        assert self.session.query(Pool).count() == 2
 
     def test_pool_get(self):
         pool_command.pool_set(self.parser.parse_args(['pools', 'set', 'foo', '1', 'test']))
@@ -77,23 +77,33 @@ class TestCliPools(unittest.TestCase):
     def test_pool_delete(self):
         pool_command.pool_set(self.parser.parse_args(['pools', 'set', 'foo', '1', 'test']))
         pool_command.pool_delete(self.parser.parse_args(['pools', 'delete', 'foo']))
-        self.assertEqual(self.session.query(Pool).count(), 1)
+        assert self.session.query(Pool).count() == 1
+
+    def test_pool_import_nonexistent(self):
+        with pytest.raises(SystemExit):
+            pool_command.pool_import(self.parser.parse_args(['pools', 'import', 'nonexistent.json']))
+
+    def test_pool_import_invalid_json(self):
+        with open('pools_import_invalid.json', mode='w') as file:
+            file.write("not valid json")
+
+        with pytest.raises(SystemExit):
+            pool_command.pool_import(self.parser.parse_args(['pools', 'import', 'pools_import_invalid.json']))
+
+    def test_pool_import_invalid_pools(self):
+        pool_config_input = {"foo": {"description": "foo_test"}}
+        with open('pools_import_invalid.json', mode='w') as file:
+            json.dump(pool_config_input, file)
+
+        with pytest.raises(SystemExit):
+            pool_command.pool_import(self.parser.parse_args(['pools', 'import', 'pools_import_invalid.json']))
 
     def test_pool_import_export(self):
         # Create two pools first
         pool_config_input = {
-            "foo": {
-                "description": "foo_test",
-                "slots": 1
-            },
-            'default_pool': {
-                'description': 'Default pool',
-                'slots': 128
-            },
-            "baz": {
-                "description": "baz_test",
-                "slots": 2
-            }
+            "foo": {"description": "foo_test", "slots": 1},
+            'default_pool': {'description': 'Default pool', 'slots': 128},
+            "baz": {"description": "baz_test", "slots": 2},
         }
         with open('pools_import.json', mode='w') as file:
             json.dump(pool_config_input, file)
@@ -104,11 +114,8 @@ class TestCliPools(unittest.TestCase):
         # Export json
         pool_command.pool_export(self.parser.parse_args(['pools', 'export', 'pools_export.json']))
 
-        with open('pools_export.json', mode='r') as file:
+        with open('pools_export.json') as file:
             pool_config_output = json.load(file)
-            self.assertEqual(
-                pool_config_input,
-                pool_config_output,
-                "Input and output pool files are not same")
+            assert pool_config_input == pool_config_output, "Input and output pool files are not same"
         os.remove('pools_import.json')
         os.remove('pools_export.json')

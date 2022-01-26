@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -18,25 +17,25 @@
 # under the License.
 """Authentication backend that denies all requests"""
 from functools import wraps
-from typing import Optional
+from typing import Any, Callable, Optional, Tuple, TypeVar, Union, cast
 
 from flask import Response
 
-from airflow.api.auth.backend.default import ClientAuthProtocol
-
-CLIENT_AUTH = None  # type: Optional[ClientAuthProtocol]
+CLIENT_AUTH: Optional[Union[Tuple[str, str], Any]] = None
 
 
 def init_app(_):
     """Initializes authentication"""
 
 
-def requires_authentication(function):
+T = TypeVar("T", bound=Callable)
+
+
+def requires_authentication(function: T):
     """Decorator for functions that require authentication"""
 
-    # noinspection PyUnusedLocal
     @wraps(function)
-    def decorated(*args, **kwargs):  # pylint: disable=unused-argument
+    def decorated(*args, **kwargs):
         return Response("Forbidden", 403)
 
-    return decorated
+    return cast(T, decorated)

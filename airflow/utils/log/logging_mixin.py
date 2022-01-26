@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -16,10 +15,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import abc
 import logging
 import re
 import sys
+from io import IOBase
 from logging import Handler, Logger, StreamHandler
+from typing import IO, Optional
 
 # 7-bit C1 ANSI escape sequences
 ANSI_ESCAPE = re.compile(r'\x1B[@-_][0-?]*[ -/]*[@-~]')
@@ -34,34 +36,53 @@ def remove_escape_codes(text: str) -> str:
 
 
 class LoggingMixin:
-    """
-    Convenience super-class to have a logger configured with the class name
-    """
+    """Convenience super-class to have a logger configured with the class name"""
+
+    _log: Optional[logging.Logger] = None
+
     def __init__(self, context=None):
         self._set_context(context)
 
     @property
     def log(self) -> Logger:
-        try:
-            # FIXME: LoggingMixin should have a default _log field.
-            return self._log  # type: ignore
-        except AttributeError:
-            self._log = logging.root.getChild(
-                self.__class__.__module__ + '.' + self.__class__.__name__
-            )
-            return self._log
+        """Returns a logger."""
+        if self._log is None:
+            self._log = logging.getLogger(self.__class__.__module__ + '.' + self.__class__.__name__)
+        return self._log
 
     def _set_context(self, context):
         if context is not None:
             set_context(self.log, context)
 
 
-# TODO: Formally inherit from io.IOBase
-class StreamLogWriter:
-    """
-    Allows to redirect stdout and stderr to logger
-    """
-    encoding = False
+class ExternalLoggingMixin:
+    """Define a log handler based on an external service (e.g. ELK, StackDriver)."""
+
+    @property
+    @abc.abstractmethod
+    def log_name(self) -> str:
+        """Return log name"""
+
+    @abc.abstractmethod
+    def get_external_log_url(self, task_instance, try_number) -> str:
+        """Return the URL for log visualization in the external service."""
+
+    @property
+    @abc.abstractmethod
+    def supports_external_link(self) -> bool:
+        """Return whether handler is able to support external links."""
+
+
+# We have to ignore typing errors here because Python I/O classes are a mess, and they do not
+# have the same type hierarchy defined as the `typing.IO` - they violate Liskov Substitution Principle
+# While it is ok to make your class derive from IOBase (and its good thing to do as they provide
+# base implementation for IO-implementing classes, it's impossible to make them work with
+# IO generics (and apparently it has not even been intended)
+# See more: https://giters.com/python/typeshed/issues/6077
+class StreamLogWriter(IOBase, IO[str]):  # type: ignore[misc]
+    """Allows to redirect stdout and stderr to logger"""
+
+    encoding: None = None
 
     def __init__(self, logger, level):
         """
@@ -70,22 +91,27 @@ class StreamLogWriter:
         """
         self.logger = logger
         self.level = level
-        self._buffer = str()
+        self._buffer = ''
+
+    def close(self):
+        """
+        Provide close method, for compatibility with the io.IOBase interface.
+
+        This is a no-op method.
+        """
 
     @property
     def closed(self):
         """
-        Returns False to indicate that the stream is not closed (as it will be
-        open for the duration of Airflow's lifecycle).
+        Returns False to indicate that the stream is not closed, as it will be
+        open for the duration of Airflow's lifecycle.
 
         For compatibility with the io.IOBase interface.
         """
         return False
 
     def _propagate_log(self, message):
-        """
-        Propagate message removing escape codes.
-        """
+        """Propagate message removing escape codes."""
         self.logger.log(self.level, remove_escape_codes(message))
 
     def write(self, message):
@@ -97,17 +123,15 @@ class StreamLogWriter:
         if not message.endswith("\n"):
             self._buffer += message
         else:
-            self._buffer += message
-            self._propagate_log(self._buffer.rstrip())
-            self._buffer = str()
+            self._buffer += message.rstrip()
+            self.flush()
 
     def flush(self):
-        """
-        Ensure all logging output has been flushed
-        """
-        if len(self._buffer) > 0:
-            self._propagate_log(self._buffer)
-            self._buffer = str()
+        """Ensure all logging output has been flushed"""
+        buf = self._buffer
+        if len(buf) > 0:
+            self._buffer = ''
+            self._propagate_log(buf)
 
     def isatty(self):
         """
@@ -123,10 +147,12 @@ class RedirectStdHandler(StreamHandler):
     whatever sys.stderr/stderr is currently set to rather than the value of
     sys.stderr/stdout at handler construction time.
     """
+
     def __init__(self, stream):
         if not isinstance(stream, str):
-            raise Exception("Cannot use file like objects. Use 'stdout' or 'stderr'"
-                            " as a str and without 'ext://'.")
+            raise Exception(
+                "Cannot use file like objects. Use 'stdout' or 'stderr' as a str and without 'ext://'."
+            )
 
         self._use_stderr = True
         if 'stdout' in stream:
@@ -137,6 +163,7 @@ class RedirectStdHandler(StreamHandler):
 
     @property
     def stream(self):
+        """Returns current stream."""
         if self._use_stderr:
             return sys.stderr
 
