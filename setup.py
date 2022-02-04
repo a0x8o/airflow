@@ -191,7 +191,7 @@ alibaba = [
     'oss2>=2.14.0',
 ]
 amazon = [
-    'boto3>=1.15.0,<1.19.0',
+    'boto3>=1.15.0,<2.0.0',
     'watchtower~=2.0.1',
     'jsonpath_ng>=1.5.3',
     'redshift_connector~=2.0.888',
@@ -288,6 +288,9 @@ facebook = [
 flask_appbuilder_authlib = [
     'authlib',
 ]
+github = [
+    'pygithub',
+]
 google = [
     'PyOpenSSL',
     # The Google Ads 14.0.1 breaks PIP and eager upgrade as it requires
@@ -304,7 +307,6 @@ google = [
     # https://github.com/googleapis/google-cloud-python/issues/10566
     'google-auth>=1.0.0,<3.0.0',
     'google-auth-httplib2>=0.0.1',
-    'google-cloud-aiplatform>=1.7.1,<2.0.0',
     'google-cloud-automl>=2.1.0,<3.0.0',
     'google-cloud-bigquery-datatransfer>=3.0.0,<4.0.0',
     'google-cloud-bigtable>=1.0.0,<2.0.0',
@@ -448,7 +450,7 @@ presto = [
     pandas_requirement,
 ]
 psrp = [
-    'pypsrp~=0.5',
+    'pypsrp~=0.8',
 ]
 qubole = [
     'qds-sdk>=1.10.4',
@@ -634,6 +636,7 @@ PROVIDERS_REQUIREMENTS: Dict[str, List[str]] = {
     'exasol': exasol,
     'facebook': facebook,
     'ftp': [],
+    'github': github,
     'google': google,
     'grpc': grpc,
     'hashicorp': hashicorp,

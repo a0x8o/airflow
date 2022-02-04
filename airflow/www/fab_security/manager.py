@@ -107,7 +107,7 @@ class BaseSecurityManager:
     """ Flask-OAuth """
     oauth_remotes: Dict[str, Any]
     """ OAuth email whitelists """
-    oauth_whitelists: Dict[str, List]
+    oauth_whitelists: Dict[str, List] = {}
     """ Initialized (remote_app) providers dict {'provider_name', OBJ } """
 
     @staticmethod
@@ -1383,7 +1383,7 @@ class BaseSecurityManager:
         """
         Adds an action on a resource to the backend
 
-        :param base_permissions:
+        :param base_action_names:
             list of permissions from view (all exposed methods):
              'can_add','can_edit' etc...
         :param resource_name:
