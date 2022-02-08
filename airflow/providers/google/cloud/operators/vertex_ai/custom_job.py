@@ -27,7 +27,7 @@ from google.cloud.aiplatform_v1.types.dataset import Dataset
 from google.cloud.aiplatform_v1.types.training_pipeline import TrainingPipeline
 
 from airflow.models import BaseOperator, BaseOperatorLink
-from airflow.models.taskinstance import TaskInstance
+from airflow.models.xcom import XCom
 from airflow.providers.google.cloud.hooks.vertex_ai.custom_job import CustomJobHook
 
 if TYPE_CHECKING:
@@ -46,8 +46,9 @@ class VertexAIModelLink(BaseOperatorLink):
     name = "Vertex AI Model"
 
     def get_link(self, operator, dttm):
-        ti = TaskInstance(task=operator, execution_date=dttm)
-        model_conf = ti.xcom_pull(task_ids=operator.task_id, key="model_conf")
+        model_conf = XCom.get_one(
+            key='model_conf', dag_id=operator.dag.dag_id, task_id=operator.task_id, execution_date=dttm
+        )
         return (
             VERTEX_AI_MODEL_LINK.format(
                 region=model_conf["region"],
@@ -65,8 +66,9 @@ class VertexAITrainingPipelinesLink(BaseOperatorLink):
     name = "Vertex AI Training Pipelines"
 
     def get_link(self, operator, dttm):
-        ti = TaskInstance(task=operator, execution_date=dttm)
-        project_id = ti.xcom_pull(task_ids=operator.task_id, key="project_id")
+        project_id = XCom.get_one(
+            key='project_id', dag_id=operator.dag.dag_id, task_id=operator.task_id, execution_date=dttm
+        )
         return (
             VERTEX_AI_TRAINING_PIPELINES_LINK.format(
                 project_id=project_id,
@@ -186,22 +188,6 @@ class CustomTrainingJobBaseOperator(BaseOperator):
         self.gcp_conn_id = gcp_conn_id
         self.delegate_to = delegate_to
         self.impersonation_chain = impersonation_chain
-        self.hook: Optional[CustomJobHook] = None
-
-    def execute(self, context: 'Context'):
-        self.hook = CustomJobHook(
-            gcp_conn_id=self.gcp_conn_id,
-            delegate_to=self.delegate_to,
-            impersonation_chain=self.impersonation_chain,
-        )
-
-    def on_kill(self) -> None:
-        """
-        Callback called when the operator is killed.
-        Cancel any running job.
-        """
-        if self.hook:
-            self.hook.cancel_job()
 
 
 class CreateCustomContainerTrainingJobOperator(CustomTrainingJobBaseOperator):
@@ -480,7 +466,11 @@ class CreateCustomContainerTrainingJobOperator(CustomTrainingJobBaseOperator):
         self.command = command
 
     def execute(self, context: 'Context'):
-        super().execute(context)
+        self.hook = CustomJobHook(
+            gcp_conn_id=self.gcp_conn_id,
+            delegate_to=self.delegate_to,
+            impersonation_chain=self.impersonation_chain,
+        )
         model = self.hook.create_custom_container_training_job(
             project_id=self.project_id,
             region=self.region,
@@ -543,6 +533,14 @@ class CreateCustomContainerTrainingJobOperator(CustomTrainingJobBaseOperator):
             },
         )
         return result
+
+    def on_kill(self) -> None:
+        """
+        Callback called when the operator is killed.
+        Cancel any running job.
+        """
+        if self.hook:
+            self.hook.cancel_job()
 
 
 class CreateCustomPythonPackageTrainingJobOperator(CustomTrainingJobBaseOperator):
@@ -822,7 +820,11 @@ class CreateCustomPythonPackageTrainingJobOperator(CustomTrainingJobBaseOperator
         self.python_module_name = python_module_name
 
     def execute(self, context: 'Context'):
-        super().execute(context)
+        self.hook = CustomJobHook(
+            gcp_conn_id=self.gcp_conn_id,
+            delegate_to=self.delegate_to,
+            impersonation_chain=self.impersonation_chain,
+        )
         model = self.hook.create_custom_python_package_training_job(
             project_id=self.project_id,
             region=self.region,
@@ -886,6 +888,14 @@ class CreateCustomPythonPackageTrainingJobOperator(CustomTrainingJobBaseOperator
             },
         )
         return result
+
+    def on_kill(self) -> None:
+        """
+        Callback called when the operator is killed.
+        Cancel any running job.
+        """
+        if self.hook:
+            self.hook.cancel_job()
 
 
 class CreateCustomTrainingJobOperator(CustomTrainingJobBaseOperator):
@@ -1167,7 +1177,11 @@ class CreateCustomTrainingJobOperator(CustomTrainingJobBaseOperator):
         self.script_path = script_path
 
     def execute(self, context: 'Context'):
-        super().execute(context)
+        self.hook = CustomJobHook(
+            gcp_conn_id=self.gcp_conn_id,
+            delegate_to=self.delegate_to,
+            impersonation_chain=self.impersonation_chain,
+        )
         model = self.hook.create_custom_training_job(
             project_id=self.project_id,
             region=self.region,
@@ -1232,6 +1246,14 @@ class CreateCustomTrainingJobOperator(CustomTrainingJobBaseOperator):
         )
         return result
 
+    def on_kill(self) -> None:
+        """
+        Callback called when the operator is killed.
+        Cancel any running job.
+        """
+        if self.hook:
+            self.hook.cancel_job()
+
 
 class DeleteCustomTrainingJobOperator(BaseOperator):
     """Deletes a CustomTrainingJob, CustomPythonTrainingJob, or CustomContainerTrainingJob.
@@ -1268,7 +1290,7 @@ class DeleteCustomTrainingJobOperator(BaseOperator):
         project_id: str,
         retry: Optional[Retry] = None,
         timeout: Optional[float] = None,
-        metadata: Optional[Sequence[Tuple[str, str]]] = "",
+        metadata: Sequence[Tuple[str, str]] = (),
         gcp_conn_id: str = "google_cloud_default",
         delegate_to: Optional[str] = None,
         impersonation_chain: Optional[Union[str, Sequence[str]]] = None,
@@ -1386,7 +1408,7 @@ class ListCustomTrainingJobOperator(BaseOperator):
         read_mask: Optional[str] = None,
         retry: Optional[Retry] = None,
         timeout: Optional[float] = None,
-        metadata: Optional[Sequence[Tuple[str, str]]] = "",
+        metadata: Sequence[Tuple[str, str]] = (),
         gcp_conn_id: str = "google_cloud_default",
         delegate_to: Optional[str] = None,
         impersonation_chain: Optional[Union[str, Sequence[str]]] = None,

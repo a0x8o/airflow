@@ -18,7 +18,7 @@
 #
 """This module contains Google Vertex AI operators."""
 
-from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Tuple, Union
 
 from google.api_core.exceptions import NotFound
 from google.api_core.retry import Retry
@@ -26,7 +26,7 @@ from google.cloud.aiplatform_v1.types import Dataset, ExportDataConfig, ImportDa
 from google.protobuf.field_mask_pb2 import FieldMask
 
 from airflow.models import BaseOperator, BaseOperatorLink
-from airflow.models.taskinstance import TaskInstance
+from airflow.models.xcom import XCom
 from airflow.providers.google.cloud.hooks.vertex_ai.dataset import DatasetHook
 
 if TYPE_CHECKING:
@@ -45,8 +45,9 @@ class VertexAIDatasetLink(BaseOperatorLink):
     name = "Dataset"
 
     def get_link(self, operator, dttm):
-        ti = TaskInstance(task=operator, execution_date=dttm)
-        dataset_conf = ti.xcom_pull(task_ids=operator.task_id, key="dataset_conf")
+        dataset_conf = XCom.get_one(
+            key='dataset_conf', dag_id=operator.dag.dag_id, task_id=operator.task_id, execution_date=dttm
+        )
         return (
             VERTEX_AI_DATASET_LINK.format(
                 region=dataset_conf["region"],
@@ -64,8 +65,9 @@ class VertexAIDatasetListLink(BaseOperatorLink):
     name = "Dataset List"
 
     def get_link(self, operator, dttm):
-        ti = TaskInstance(task=operator, execution_date=dttm)
-        project_id = ti.xcom_pull(task_ids=operator.task_id, key="project_id")
+        project_id = XCom.get_one(
+            key='project_id', dag_id=operator.dag.dag_id, task_id=operator.task_id, execution_date=dttm
+        )
         return (
             VERTEX_AI_DATASET_LIST_LINK.format(
                 project_id=project_id,
@@ -108,10 +110,10 @@ class CreateDatasetOperator(BaseOperator):
         *,
         region: str,
         project_id: str,
-        dataset: Dataset,
+        dataset: Union[Dataset, Dict],
         retry: Optional[Retry] = None,
         timeout: Optional[float] = None,
-        metadata: Optional[Sequence[Tuple[str, str]]] = "",
+        metadata: Sequence[Tuple[str, str]] = (),
         gcp_conn_id: str = "google_cloud_default",
         delegate_to: Optional[str] = None,
         impersonation_chain: Optional[Union[str, Sequence[str]]] = None,
@@ -144,7 +146,7 @@ class CreateDatasetOperator(BaseOperator):
             timeout=self.timeout,
             metadata=self.metadata,
         )
-        result = hook.wait_for_operation(self.timeout, operation)
+        result = hook.wait_for_operation(timeout=self.timeout, operation=operation)
 
         dataset = Dataset.to_dict(result)
         dataset_id = hook.extract_dataset_id(dataset)
@@ -199,12 +201,12 @@ class GetDatasetOperator(BaseOperator):
         read_mask: Optional[str] = None,
         retry: Optional[Retry] = None,
         timeout: Optional[float] = None,
-        metadata: Optional[Sequence[Tuple[str, str]]] = "",
+        metadata: Sequence[Tuple[str, str]] = (),
         gcp_conn_id: str = "google_cloud_default",
         delegate_to: Optional[str] = None,
         impersonation_chain: Optional[Union[str, Sequence[str]]] = None,
         **kwargs,
-    ) -> Dataset:
+    ) -> None:
         super().__init__(**kwargs)
         self.region = region
         self.project_id = project_id
@@ -284,7 +286,7 @@ class DeleteDatasetOperator(BaseOperator):
         dataset_id: str,
         retry: Optional[Retry] = None,
         timeout: Optional[float] = None,
-        metadata: Optional[Sequence[Tuple[str, str]]] = "",
+        metadata: Sequence[Tuple[str, str]] = (),
         gcp_conn_id: str = "google_cloud_default",
         delegate_to: Optional[str] = None,
         impersonation_chain: Optional[Union[str, Sequence[str]]] = None,
@@ -357,10 +359,10 @@ class ExportDataOperator(BaseOperator):
         region: str,
         project_id: str,
         dataset_id: str,
-        export_config: ExportDataConfig,
+        export_config: Union[ExportDataConfig, Dict],
         retry: Optional[Retry] = None,
         timeout: Optional[float] = None,
-        metadata: Optional[Sequence[Tuple[str, str]]] = "",
+        metadata: Sequence[Tuple[str, str]] = (),
         gcp_conn_id: str = "google_cloud_default",
         delegate_to: Optional[str] = None,
         impersonation_chain: Optional[Union[str, Sequence[str]]] = None,
@@ -433,10 +435,10 @@ class ImportDataOperator(BaseOperator):
         region: str,
         project_id: str,
         dataset_id: str,
-        import_configs: Sequence[ImportDataConfig],
+        import_configs: Union[Sequence[ImportDataConfig], List],
         retry: Optional[Retry] = None,
         timeout: Optional[float] = None,
-        metadata: Optional[Sequence[Tuple[str, str]]] = "",
+        metadata: Sequence[Tuple[str, str]] = (),
         gcp_conn_id: str = "google_cloud_default",
         delegate_to: Optional[str] = None,
         impersonation_chain: Optional[Union[str, Sequence[str]]] = None,
@@ -519,7 +521,7 @@ class ListDatasetsOperator(BaseOperator):
         order_by: Optional[str] = None,
         retry: Optional[Retry] = None,
         timeout: Optional[float] = None,
-        metadata: Optional[Sequence[Tuple[str, str]]] = "",
+        metadata: Sequence[Tuple[str, str]] = (),
         gcp_conn_id: str = "google_cloud_default",
         delegate_to: Optional[str] = None,
         impersonation_chain: Optional[Union[str, Sequence[str]]] = None,
@@ -600,11 +602,11 @@ class UpdateDatasetOperator(BaseOperator):
         project_id: str,
         region: str,
         dataset_id: str,
-        dataset: Dataset,
-        update_mask: FieldMask,
+        dataset: Union[Dataset, Dict],
+        update_mask: Union[FieldMask, Dict],
         retry: Optional[Retry] = None,
         timeout: Optional[float] = None,
-        metadata: Optional[Sequence[Tuple[str, str]]] = "",
+        metadata: Sequence[Tuple[str, str]] = (),
         gcp_conn_id: str = "google_cloud_default",
         delegate_to: Optional[str] = None,
         impersonation_chain: Optional[Union[str, Sequence[str]]] = None,
