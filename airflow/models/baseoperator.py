@@ -261,7 +261,7 @@ def partial(
     partial_kwargs.setdefault("outlets", outlets)
     partial_kwargs.setdefault("resources", resources)
 
-    # Post-process arguments. Should be kept in sync with _TaskDecorator.map().
+    # Post-process arguments. Should be kept in sync with _TaskDecorator.apply().
     if "task_concurrency" in kwargs:  # Reject deprecated option.
         raise TypeError("unexpected argument: task_concurrency")
     if partial_kwargs["wait_for_downstream"]:
@@ -671,7 +671,7 @@ class BaseOperator(AbstractOperator, metaclass=BaseOperatorMeta):
         task_group = task_group or TaskGroupContext.get_current_task_group(dag)
 
         if not _airflow_map_validation and isinstance(task_group, MappedTaskGroup):
-            return cls.partial(dag=dag, task_group=task_group, **kwargs).map()
+            return cls.partial(dag=dag, task_group=task_group, **kwargs).apply()
         return super().__new__(cls)
 
     def __init__(
@@ -1208,18 +1208,18 @@ class BaseOperator(AbstractOperator, metaclass=BaseOperatorMeta):
         end_date: Optional[datetime] = None,
         session: Session = NEW_SESSION,
     ) -> List[TaskInstance]:
-        """
-        Get a set of task instance related to this task for a specific date
-        range.
-        """
+        """Get task instances related to this task for a specific date range."""
+        from airflow.models import DagRun
+
         end_date = end_date or timezone.utcnow()
         return (
             session.query(TaskInstance)
+            .join(TaskInstance.dag_run)
             .filter(TaskInstance.dag_id == self.dag_id)
             .filter(TaskInstance.task_id == self.task_id)
-            .filter(TaskInstance.execution_date >= start_date)
-            .filter(TaskInstance.execution_date <= end_date)
-            .order_by(TaskInstance.execution_date)
+            .filter(DagRun.execution_date >= start_date)
+            .filter(DagRun.execution_date <= end_date)
+            .order_by(DagRun.execution_date)
             .all()
         )
 
