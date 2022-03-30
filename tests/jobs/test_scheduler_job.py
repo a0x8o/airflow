@@ -37,6 +37,8 @@ import airflow.example_dags
 import airflow.smart_sensor_dags
 from airflow import settings
 from airflow.callbacks.callback_requests import DagCallbackRequest, SlaCallbackRequest, TaskCallbackRequest
+from airflow.callbacks.database_callback_sink import DatabaseCallbackSink
+from airflow.callbacks.pipe_callback_sink import PipeCallbackSink
 from airflow.dag_processing.manager import DagFileProcessorAgent
 from airflow.exceptions import AirflowException
 from airflow.executors.base_executor import BaseExecutor
@@ -419,6 +421,22 @@ class TestSchedulerJob:
         assert State.SCHEDULED == ti1.state
         session.rollback()
 
+    @conf_vars({('scheduler', 'standalone_dag_processor'): 'False'})
+    def test_setup_callback_sink_not_standalone_dag_processor(self):
+        self.scheduler_job = SchedulerJob(subdir=os.devnull, num_runs=1)
+
+        self.scheduler_job._execute()
+
+        assert isinstance(self.scheduler_job.executor.callback_sink, PipeCallbackSink)
+
+    @conf_vars({('scheduler', 'standalone_dag_processor'): 'True'})
+    def test_setup_callback_sink_standalone_dag_processor(self):
+        self.scheduler_job = SchedulerJob(subdir=os.devnull, num_runs=1)
+
+        self.scheduler_job._execute()
+
+        assert isinstance(self.scheduler_job.executor.callback_sink, DatabaseCallbackSink)
+
     def test_find_executable_task_instances_backfill(self, dag_maker):
         dag_id = 'SchedulerJobTest.test_find_executable_task_instances_backfill'
         task_id_1 = 'dummy'
@@ -468,6 +486,7 @@ class TestSchedulerJob:
             dr2.get_task_instance(task_id_1, session=session),
             dr2.get_task_instance(task_id_2, session=session),
         ]
+        tis = sorted(tis, key=lambda ti: ti.key)
         for ti in tis:
             ti.state = State.SCHEDULED
             session.merge(ti)
@@ -484,7 +503,7 @@ class TestSchedulerJob:
         for ti in res:
             res_keys.append(ti.key)
         assert tis[0].key in res_keys
-        assert tis[1].key in res_keys
+        assert tis[2].key in res_keys
         assert tis[3].key in res_keys
         session.rollback()
 
@@ -975,6 +994,97 @@ class TestSchedulerJob:
 
         res = self.scheduler_job._executable_task_instances_to_queued(max_tis=100, session=session)
         assert 0 == len(res)
+
+        session.rollback()
+
+    def test_find_executable_task_instances_not_enough_pool_slots_for_first(self, dag_maker):
+        set_default_pool_slots(1)
+
+        self.scheduler_job = SchedulerJob(subdir=os.devnull)
+        session = settings.Session()
+
+        dag_id = 'SchedulerJobTest.test_find_executable_task_instances_not_enough_pool_slots_for_first'
+        with dag_maker(dag_id=dag_id):
+            op1 = DummyOperator(task_id='dummy1', priority_weight=2, pool_slots=2)
+            op2 = DummyOperator(task_id='dummy2', priority_weight=1, pool_slots=1)
+
+        dr1 = dag_maker.create_dagrun(run_type=DagRunType.SCHEDULED)
+
+        ti1 = dr1.get_task_instance(op1.task_id, session)
+        ti2 = dr1.get_task_instance(op2.task_id, session)
+        ti1.state = State.SCHEDULED
+        ti2.state = State.SCHEDULED
+        session.flush()
+
+        # Schedule ti with lower priority,
+        # because the one with higher priority is limited by a concurrency limit
+        res = self.scheduler_job._executable_task_instances_to_queued(max_tis=32, session=session)
+        assert 1 == len(res)
+        assert res[0].key == ti2.key
+
+        session.rollback()
+
+    def test_find_executable_task_instances_not_enough_dag_concurrency_for_first(self, dag_maker):
+        self.scheduler_job = SchedulerJob(subdir=os.devnull)
+        session = settings.Session()
+
+        dag_id_1 = (
+            'SchedulerJobTest.test_find_executable_task_instances_not_enough_dag_concurrency_for_first-a'
+        )
+        dag_id_2 = (
+            'SchedulerJobTest.test_find_executable_task_instances_not_enough_dag_concurrency_for_first-b'
+        )
+
+        with dag_maker(dag_id=dag_id_1, max_active_tasks=1):
+            op1a = DummyOperator(task_id='dummy1-a', priority_weight=2)
+            op1b = DummyOperator(task_id='dummy1-b', priority_weight=2)
+        dr1 = dag_maker.create_dagrun(run_type=DagRunType.SCHEDULED)
+
+        with dag_maker(dag_id=dag_id_2):
+            op2 = DummyOperator(task_id='dummy2', priority_weight=1)
+        dr2 = dag_maker.create_dagrun(run_type=DagRunType.SCHEDULED)
+
+        ti1a = dr1.get_task_instance(op1a.task_id, session)
+        ti1b = dr1.get_task_instance(op1b.task_id, session)
+        ti2 = dr2.get_task_instance(op2.task_id, session)
+        ti1a.state = State.RUNNING
+        ti1b.state = State.SCHEDULED
+        ti2.state = State.SCHEDULED
+        session.flush()
+
+        # Schedule ti with lower priority,
+        # because the one with higher priority is limited by a concurrency limit
+        res = self.scheduler_job._executable_task_instances_to_queued(max_tis=1, session=session)
+        assert 1 == len(res)
+        assert res[0].key == ti2.key
+
+        session.rollback()
+
+    def test_find_executable_task_instances_not_enough_task_concurrency_for_first(self, dag_maker):
+        self.scheduler_job = SchedulerJob(subdir=os.devnull)
+        session = settings.Session()
+
+        dag_id = 'SchedulerJobTest.test_find_executable_task_instances_not_enough_task_concurrency_for_first'
+
+        with dag_maker(dag_id=dag_id):
+            op1a = DummyOperator(task_id='dummy1-a', priority_weight=2, max_active_tis_per_dag=1)
+            op1b = DummyOperator(task_id='dummy1-b', priority_weight=1)
+        dr1 = dag_maker.create_dagrun(run_type=DagRunType.SCHEDULED)
+        dr2 = dag_maker.create_dagrun_after(dr1, run_type=DagRunType.SCHEDULED)
+
+        ti1a = dr1.get_task_instance(op1a.task_id, session)
+        ti1b = dr1.get_task_instance(op1b.task_id, session)
+        ti2a = dr2.get_task_instance(op1a.task_id, session)
+        ti1a.state = State.RUNNING
+        ti1b.state = State.SCHEDULED
+        ti2a.state = State.SCHEDULED
+        session.flush()
+
+        # Schedule ti with lower priority,
+        # because the one with higher priority is limited by a concurrency limit
+        res = self.scheduler_job._executable_task_instances_to_queued(max_tis=1, session=session)
+        assert 1 == len(res)
+        assert res[0].key == ti1b.key
 
         session.rollback()
 
@@ -1500,15 +1610,15 @@ class TestSchedulerJob:
 
         with mock.patch.object(settings, "USE_JOB_SCHEDULE", False), mock.patch(
             "airflow.jobs.scheduler_job.prohibit_commit"
-        ) as mock_gaurd:
-            mock_gaurd.return_value.__enter__.return_value.commit.side_effect = session.commit
+        ) as mock_guard:
+            mock_guard.return_value.__enter__.return_value.commit.side_effect = session.commit
 
             def mock_schedule_dag_run(*args, **kwargs):
-                mock_gaurd.reset_mock()
+                mock_guard.reset_mock()
                 return None
 
             def mock_send_dag_callbacks_to_processor(*args, **kwargs):
-                mock_gaurd.return_value.__enter__.return_value.commit.assert_called_once()
+                mock_guard.return_value.__enter__.return_value.commit.assert_called()
 
             self.scheduler_job._send_dag_callbacks_to_processor.side_effect = (
                 mock_send_dag_callbacks_to_processor
@@ -3597,7 +3707,7 @@ class TestSchedulerJob:
             expected_failure_callback_requests = [
                 TaskCallbackRequest(
                     full_filepath=dag.fileloc,
-                    simple_task_instance=SimpleTaskInstance(ti),
+                    simple_task_instance=SimpleTaskInstance.from_ti(ti),
                     msg="Message",
                 )
             ]
@@ -3825,7 +3935,7 @@ class TestSchedulerJobQueriesCount:
             self.scheduler_job.heartbeat = mock.MagicMock()
             self.scheduler_job.processor_agent = mock_agent
 
-            with assert_queries_count(expected_query_count):
+            with assert_queries_count(expected_query_count, margin=15):
                 with mock.patch.object(DagRun, 'next_dagruns_to_examine') as mock_dagruns:
                     mock_dagruns.return_value = dagruns
 
@@ -3905,7 +4015,7 @@ class TestSchedulerJobQueriesCount:
             for expected_query_count in expected_query_counts:
                 with create_session() as session:
                     try:
-                        with assert_queries_count(expected_query_count, message):
+                        with assert_queries_count(expected_query_count, message_fmt=message, margin=15):
                             self.scheduler_job._do_scheduling(session)
                     except AssertionError as e:
                         failures.append(str(e))

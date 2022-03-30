@@ -515,6 +515,7 @@ EOF
         fi
         cat <<EOF
                                Python version:         ${PYTHON_MAJOR_MINOR_VERSION}
+                               Debian version:         ${DEBIAN_VERSION}
                                Backend:                ${BACKEND} ${backend_version}
 EOF
         if [[ -n ${USE_AIRFLOW_VERSION=} ]]; then
@@ -629,6 +630,7 @@ export HOST_USER_ID=${HOST_USER_ID}
 export HOST_GROUP_ID=${HOST_GROUP_ID}
 export COMPOSE_FILE="${compose_file}"
 export PYTHON_MAJOR_MINOR_VERSION="${PYTHON_MAJOR_MINOR_VERSION}"
+export DEBIAN_VERSION="${DEBIAN_VERSION}"
 export BACKEND="${BACKEND}"
 export AIRFLOW_VERSION="${AIRFLOW_VERSION}"
 export INSTALL_AIRFLOW_VERSION="${INSTALL_AIRFLOW_VERSION}"
@@ -679,13 +681,19 @@ EOF
 #######################################################################################################
 function breeze::prepare_command_files() {
     local main_ci_docker_compose_file=${SCRIPTS_CI_DIR}/docker-compose/base.yml
-    local backend_docker_compose_file=${SCRIPTS_CI_DIR}/docker-compose/backend-${BACKEND}.yml
+    if [[ ${BACKEND} == "mssql" ]]; then
+        local backend_docker_compose_file=${SCRIPTS_CI_DIR}/docker-compose/backend-${BACKEND}-${DEBIAN_VERSION}.yml
+    else
+        local backend_docker_compose_file=${SCRIPTS_CI_DIR}/docker-compose/backend-${BACKEND}.yml
+    fi
+
     local backend_port_docker_compose_file=${SCRIPTS_CI_DIR}/docker-compose/backend-${BACKEND}-port.yml
     local local_docker_compose_file=${SCRIPTS_CI_DIR}/docker-compose/local.yml
     local local_all_sources_docker_compose_file=${SCRIPTS_CI_DIR}/docker-compose/local-all-sources.yml
     local files_docker_compose_file=${SCRIPTS_CI_DIR}/docker-compose/files.yml
     local remove_sources_docker_compose_file=${SCRIPTS_CI_DIR}/docker-compose/remove-sources.yml
     local forward_credentials_docker_compose_file=${SCRIPTS_CI_DIR}/docker-compose/forward-credentials.yml
+
 
     if [[ ${BACKEND} == "mssql" ]]; then
         local docker_filesystem
@@ -816,13 +824,19 @@ function breeze::parse_arguments() {
             echo
             shift 2
             ;;
+        -d | --debian-version)
+            export DEBIAN_VERSION="${2}"
+            echo "Debian version: ${DEBIAN_VERSION}"
+            echo
+            shift 2
+            ;;
         -b | --backend)
             export BACKEND="${2}"
             echo "Backend: ${BACKEND}"
             echo
             shift 2
             ;;
-        ---platform)
+        --platform)
             export PLATFORM="${2}"
             echo "Backend: ${PLATFORM}"
             echo
@@ -940,7 +954,7 @@ function breeze::parse_arguments() {
             echo
             shift 2
             ;;
-        -d | --db-reset)
+        --db-reset)
             echo "Resetting the DB!"
             echo
             export DB_RESET="true"
@@ -1543,6 +1557,10 @@ function breeze::prepare_formatted_versions() {
     FORMATTED_PYTHON_MAJOR_MINOR_VERSIONS=$(echo "${_breeze_allowed_python_major_minor_versions=""}" | tr '\n' ' ' |
         fold -w "${indented_screen_width}" -s | sed "s/^/${list_prefix}/")
     readonly FORMATTED_PYTHON_MAJOR_MINOR_VERSIONS
+
+    FORMATTED_DEBIAN_VERSIONS=$(echo "${_breeze_allowed_debian_versions=""}" | tr '\n' ' ' |
+        fold -w "${indented_screen_width}" -s | sed "s/^/${list_prefix}/")
+    readonly FORMATTED_DEBIAN_VERSIONS
 
     FORMATTED_BACKENDS=$(echo "${_breeze_allowed_backends=""}" | tr '\n' ' ' |
         fold -w "${indented_screen_width}" -s | sed "s/^/${list_prefix}/")
@@ -2259,6 +2277,14 @@ ${FORMATTED_PYTHON_MAJOR_MINOR_VERSIONS}
         One of:
 
 ${FORMATTED_PLATFORMS}
+
+
+-d, --debian DEBIAN_VERSION
+        Debian version used for the image. This is always name of the debian distribution version.
+
+        One of:
+
+${FORMATTED_DEBIAN_VERSIONS}
 
 "
 }
@@ -3363,7 +3389,6 @@ function breeze::run_build_command() {
             build_images::prepare_prod_build
             build_images::build_prod_images
         else
-
             build_images::prepare_ci_build
             build_images::rebuild_ci_image_if_needed
         fi
@@ -3474,9 +3499,19 @@ function breeze::run_breeze_command() {
     case "${command_to_run}" in
     enter_breeze)
         docker_engine_resources::check_all_resources
+        if [[ $(uname -m) == "arm64" || $(uname -m) == "aarch64" ]]; then
+            if [[ ${BACKEND} == "mysql" || ${BACKEND} == "mssql" ]]; then
+                echo "${COLOR_RED}MacOS with ARM processor is not supported for ${BACKEND} backend. Exiting.${COLOR_RESET}"
+                exit 1
+            fi
+        fi
         if [[ ${PRODUCTION_IMAGE} == "true" ]]; then
-            ${run_command} "${dc_run_file}" run --service-ports --rm airflow "${@}"
-            ${run_command} "${SCRIPTS_CI_DIR}/tools/fix_ownership.sh"  || true
+            echo "${COLOR_RED}ERROR: Entering production image via breeze is not supported${COLOR_RESET}"
+            echo
+            echo "Please run ${COLOR_BLUE}docker run -it apache/airflow:latest bash${COLOR_RESET} instead"
+            echo
+            echo "See https://airflow.apache.org/docs/docker-stack/entrypoint.html#executing-commands for details"
+            exit 1
         else
             ${run_command} "${dc_run_file}" run --service-ports --rm airflow "${@}"
         fi
@@ -3491,7 +3526,7 @@ function breeze::run_breeze_command() {
         : "${airflow_testing_container:?"ERROR! Breeze must be running in order to exec into running container"}"
         set -e
         docker exec -it "${airflow_testing_container}" \
-            "/opt/airflow/scripts/in_container/entrypoint_exec.sh" "${@}"
+            "/opt/airflow/scripts/docker/entrypoint_exec.sh" "${@}"
         ;;
     run_tests)
         docker_engine_resources::check_all_resources
@@ -3585,7 +3620,7 @@ function breeze::run_breeze_command() {
 # We have different versions of images depending on the python version used. We keep up with the
 # Latest patch-level changes in Python (this is done automatically during CI test runs) so we have
 # To only take into account MAJOR and MINOR version of python. This variable keeps the major/minor
-# version of python in X.Y format (3.6, 3.7, 3.8, 3.9).
+# version of python in X.Y format (3.7, 3.8, 3.9, 3.10).
 #
 # In Breeze the precedence of setting the version is as follows:
 #      1. --python flag (if set, it will explicitly override it in the next step)

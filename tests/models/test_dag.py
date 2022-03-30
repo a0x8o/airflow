@@ -51,7 +51,7 @@ from airflow.operators.bash import BashOperator
 from airflow.operators.dummy import DummyOperator
 from airflow.operators.subdag import SubDagOperator
 from airflow.security import permissions
-from airflow.timetables.base import DagRunInfo, DataInterval, Timetable
+from airflow.timetables.base import DagRunInfo, DataInterval, TimeRestriction, Timetable
 from airflow.timetables.simple import NullTimetable, OnceTimetable
 from airflow.utils import timezone
 from airflow.utils.file import list_py_file_paths
@@ -782,6 +782,20 @@ class TestDag(unittest.TestCase):
                 ('dag-bulk-sync-2', 'test-dag2'),
                 ('dag-bulk-sync-3', 'test-dag2'),
             } == set(session.query(DagTag.dag_id, DagTag.name).all())
+
+            for row in session.query(DagModel.last_parsed_time).all():
+                assert row[0] is not None
+
+        # Removing all tags
+        for dag in dags:
+            dag.tags = None
+        with assert_queries_count(5):
+            DAG.bulk_write_to_db(dags)
+        with create_session() as session:
+            assert {'dag-bulk-sync-0', 'dag-bulk-sync-1', 'dag-bulk-sync-2', 'dag-bulk-sync-3'} == {
+                row[0] for row in session.query(DagModel.dag_id).all()
+            }
+            assert not set(session.query(DagTag.dag_id, DagTag.name).all())
 
             for row in session.query(DagModel.last_parsed_time).all():
                 assert row[0] is not None
@@ -1887,6 +1901,19 @@ class TestDag(unittest.TestCase):
             conf={"param1": "hello"},
         )
 
+    def test_return_date_range_with_num_method(self):
+        start_date = TEST_DATE
+        delta = timedelta(days=1)
+
+        dag = models.DAG('dummy-dag', schedule_interval=delta)
+        dag_dates = dag.date_range(start_date=start_date, num=3)
+
+        assert dag_dates == [
+            start_date,
+            start_date + delta,
+            start_date + 2 * delta,
+        ]
+
 
 class TestDagModel:
     def test_dags_needing_dagruns_not_too_early(self):
@@ -2233,7 +2260,7 @@ def test_set_task_instance_state(run_id, execution_date, session, dag_maker):
 
     altered = dag.set_task_instance_state(
         task_id=task_1.task_id,
-        dag_run_id=run_id,
+        run_id=run_id,
         execution_date=execution_date,
         state=State.SUCCESS,
         session=session,
@@ -2369,3 +2396,29 @@ def test_get_next_data_interval(
     )
 
     assert dag.get_next_data_interval(dag_model) == expected_data_interval
+
+
+@pytest.mark.parametrize(
+    ('dag_date', 'tasks_date', 'restrict'),
+    [
+        [
+            (DEFAULT_DATE, None),
+            [
+                (DEFAULT_DATE + timedelta(days=1), DEFAULT_DATE + timedelta(days=2)),
+                (DEFAULT_DATE + timedelta(days=3), DEFAULT_DATE + timedelta(days=4)),
+            ],
+            TimeRestriction(DEFAULT_DATE, DEFAULT_DATE + timedelta(days=4), True),
+        ],
+        [
+            (DEFAULT_DATE, None),
+            [(DEFAULT_DATE, DEFAULT_DATE + timedelta(days=1)), (DEFAULT_DATE, None)],
+            TimeRestriction(DEFAULT_DATE, None, True),
+        ],
+    ],
+)
+def test__time_restriction(dag_maker, dag_date, tasks_date, restrict):
+    with dag_maker("test__time_restriction", start_date=dag_date[0], end_date=dag_date[1]) as dag:
+        DummyOperator(task_id="do1", start_date=tasks_date[0][0], end_date=tasks_date[0][1])
+        DummyOperator(task_id="do2", start_date=tasks_date[1][0], end_date=tasks_date[1][1])
+
+    assert dag._time_restriction == restrict

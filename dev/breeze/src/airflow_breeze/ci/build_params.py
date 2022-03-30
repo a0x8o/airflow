@@ -14,20 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+import os
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
 from typing import List, Optional
 
 from airflow_breeze.branch_defaults import AIRFLOW_BRANCH, DEFAULT_AIRFLOW_CONSTRAINTS_BRANCH
-from airflow_breeze.utils.path_utils import get_airflow_sources_root
+from airflow_breeze.global_constants import get_airflow_version
 from airflow_breeze.utils.run_utils import run_command
 
 
 @dataclass
 class BuildParams:
     # To construct ci_image_name
+    upgrade_newer_dependencies: bool = False
     python_version: str = "3.7"
     airflow_branch: str = AIRFLOW_BRANCH
     build_id: int = 0
@@ -57,7 +57,8 @@ class BuildParams:
     additional_runtime_apt_command: str = ""
     additional_runtime_apt_deps: str = ""
     additional_runtime_apt_env: str = ""
-    upgrade_to_newer_dependencies: str = "true"
+    platform: str = f"linux/{os.uname().machine}"
+    debian_version: str = "bullseye"
 
     @property
     def airflow_image_name(self):
@@ -66,6 +67,12 @@ class BuildParams:
 
     @property
     def airflow_ci_image_name(self):
+        """Construct CI image link"""
+        image = f'{self.airflow_image_name}/{self.airflow_branch}/ci/python{self.python_version}'
+        return image
+
+    @property
+    def airflow_ci_image_name_with_tag(self):
         """Construct CI image link"""
         image = f'{self.airflow_image_name}/{self.airflow_branch}/ci/python{self.python_version}'
         return image if not self.tag else image + f":{self.tag}"
@@ -77,8 +84,7 @@ class BuildParams:
     @property
     def python_base_image(self):
         """Construct Python Base Image"""
-        #  ghcr.io/apache/airflow/main/python:3.8-slim-buster
-        return f'{self.airflow_image_name}/{self.airflow_branch}/python:{self.python_version}-slim-buster'
+        return f'python:{self.python_version}-slim-{self.debian_version}'
 
     @property
     def airflow_ci_local_manifest_image(self):
@@ -92,8 +98,6 @@ class BuildParams:
 
     @property
     def airflow_image_date_created(self):
-        # 2021-12-18T15:19:25Z '%Y-%m-%dT%H:%M:%SZ'
-        # Set date in above format and return
         now = datetime.now()
         return now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -116,8 +120,11 @@ class BuildParams:
 
     @property
     def airflow_version(self):
-        airflow_setup_file = Path(get_airflow_sources_root()) / 'setup.py'
-        with open(airflow_setup_file) as setup_file:
-            for line in setup_file.readlines():
-                if "version =" in line:
-                    return line.split()[2][1:-1]
+        return get_airflow_version()
+
+    @property
+    def upgrade_to_newer_dependencies(self) -> str:
+        upgrade_to_newer_dependencies = 'false'
+        if self.upgrade_newer_dependencies:
+            upgrade_to_newer_dependencies = 'true'
+        return upgrade_to_newer_dependencies
