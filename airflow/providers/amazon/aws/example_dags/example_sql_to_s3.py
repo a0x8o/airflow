@@ -17,26 +17,28 @@
 
 
 import os
+from datetime import datetime
 
 from airflow import models
-from airflow.providers.amazon.aws.transfers.local_to_s3 import LocalFilesystemToS3Operator
-from airflow.utils.dates import datetime
+from airflow.providers.amazon.aws.transfers.sql_to_s3 import SqlToS3Operator
 
 S3_BUCKET = os.environ.get("S3_BUCKET", "test-bucket")
 S3_KEY = os.environ.get("S3_KEY", "key")
+SQL_QUERY = os.environ.get("SQL_QUERY", "SHOW tables")
 
 with models.DAG(
-    "example_local_to_s3",
+    "example_sql_to_s3",
     schedule_interval=None,
-    start_date=datetime(2021, 1, 1),  # Override to match your needs
+    start_date=datetime(2021, 1, 1),
     catchup=False,
 ) as dag:
-    # [START howto_transfer_local_to_s3]
-    create_local_to_s3_job = LocalFilesystemToS3Operator(
-        task_id="create_local_to_s3_job",
-        filename="relative/path/to/file.csv",
-        dest_key=S3_KEY,
-        dest_bucket=S3_BUCKET,
+    # [START howto_transfer_sql_to_s3]
+    sql_to_s3_task = SqlToS3Operator(
+        task_id="sql_to_s3_task",
+        sql_conn_id="mysql_default",
+        query=SQL_QUERY,
+        s3_bucket=S3_BUCKET,
+        s3_key=S3_KEY,
         replace=True,
     )
-    # [END howto_transfer_local_to_s3]
+    # [END howto_transfer_sql_to_s3]
