@@ -65,6 +65,7 @@ from airflow.models.abstractoperator import (
     DEFAULT_QUEUE,
     DEFAULT_RETRIES,
     DEFAULT_RETRY_DELAY,
+    DEFAULT_TASK_EXECUTION_TIMEOUT,
     DEFAULT_TRIGGER_RULE,
     DEFAULT_WEIGHT_RULE,
     AbstractOperator,
@@ -201,7 +202,7 @@ def partial(
     queue: str = DEFAULT_QUEUE,
     pool: Optional[str] = None,
     pool_slots: int = DEFAULT_POOL_SLOTS,
-    execution_timeout: Optional[timedelta] = None,
+    execution_timeout: Optional[timedelta] = DEFAULT_TASK_EXECUTION_TIMEOUT,
     retry_delay: Union[timedelta, float] = DEFAULT_RETRY_DELAY,
     retry_exponential_backoff: bool = False,
     priority_weight: int = DEFAULT_PRIORITY_WEIGHT,
@@ -596,8 +597,8 @@ class BaseOperator(AbstractOperator, metaclass=BaseOperatorMeta):
     """
 
     # Implementing Operator.
-    template_fields: Collection[str] = ()
-    template_ext: Collection[str] = ()
+    template_fields: Sequence[str] = ()
+    template_ext: Sequence[str] = ()
 
     template_fields_renderers: Dict[str, str] = {}
 
@@ -706,7 +707,7 @@ class BaseOperator(AbstractOperator, metaclass=BaseOperatorMeta):
         pool: Optional[str] = None,
         pool_slots: int = DEFAULT_POOL_SLOTS,
         sla: Optional[timedelta] = None,
-        execution_timeout: Optional[timedelta] = None,
+        execution_timeout: Optional[timedelta] = DEFAULT_TASK_EXECUTION_TIMEOUT,
         on_execute_callback: Optional[TaskStateChangeCallback] = None,
         on_failure_callback: Optional[TaskStateChangeCallback] = None,
         on_success_callback: Optional[TaskStateChangeCallback] = None,
@@ -1458,12 +1459,12 @@ class BaseOperator(AbstractOperator, metaclass=BaseOperatorMeta):
     is_mapped: ClassVar[bool] = False
 
     @property
-    def inherits_from_dummy_operator(self):
-        """Used to determine if an Operator is inherited from DummyOperator"""
-        # This looks like `isinstance(self, DummyOperator) would work, but this also
-        # needs to cope when `self` is a Serialized instance of a DummyOperator or one
+    def inherits_from_empty_operator(self):
+        """Used to determine if an Operator is inherited from EmptyOperator"""
+        # This looks like `isinstance(self, EmptyOperator) would work, but this also
+        # needs to cope when `self` is a Serialized instance of a EmptyOperator or one
         # of its sub-classes (which don't inherit from anything but BaseOperator).
-        return getattr(self, '_is_dummy', False)
+        return getattr(self, '_is_empty', False)
 
     def defer(
         self,

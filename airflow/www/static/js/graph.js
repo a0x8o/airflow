@@ -102,7 +102,12 @@ const updateNodeLabels = (node, instances) => {
     haveLabelsChanged = true;
   }
 
-  if (node.children) return node.children.some((n) => updateNodeLabels(n, instances));
+  if (node.children) {
+    // Iterate through children and return true if at least one has been changed
+    const updatedNodes = node.children.map((n) => updateNodeLabels(n, instances));
+    return updatedNodes.some((changed) => changed);
+  }
+
   return haveLabelsChanged;
 };
 
@@ -445,8 +450,9 @@ function handleRefresh() {
         setTimeout(() => { $('#loading-dots').hide(); }, 500);
         $('#error').hide();
       },
-    ).fail((_, textStatus, err) => {
-      $('#error_msg').text(`${textStatus}: ${err}`);
+    ).fail((response, textStatus, err) => {
+      const description = (response.responseJSON && response.responseJSON.error) || 'Something went wrong.';
+      $('#error_msg').text(`${textStatus}: ${err} ${description}`);
       $('#error').show();
       setTimeout(() => { $('#loading-dots').hide(); }, 500);
       $('#chart_section').hide(1000);
