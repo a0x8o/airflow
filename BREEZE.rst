@@ -454,7 +454,7 @@ Regular development tasks:
 * Enter interactive shell in CI container when ``shell`` (or no command) is specified
 * Start containerised, development-friendly airflow installation with ``breeze start-airflow`` command
 * Build documentation with ``breeze build-docs`` command
-* Initialize local virtualenv with ``./breeze-legacy initialize-local-virtualenv`` command
+* Initialize local virtualenv with ``./scripts/tools/initialize_virtualenv.py`` command
 * Build CI docker image with ``breeze build-image`` command
 * Cleanup breeze with ``breeze cleanup`` command
 * Run static checks with autocomplete support ``breeze static-check`` command
@@ -592,6 +592,7 @@ Currently available scripts:
   for iTerm2 (Mac OS only)
 * ``install_java.sh`` - installs `the OpenJDK 8u41 <https://openjdk.java.net/>`__
 * ``install_kubectl.sh`` - installs `the Kubernetes command-line tool, kubectl <https://kubernetes.io/docs/reference/kubectl/kubectl/>`__
+* ``install_snowsql.sh`` - installs `SnowSQL <https://docs.snowflake.com/en/user-guide/snowsql.html>`__
 * ``install_terraform.sh`` - installs `Terraform <https://www.terraform.io/docs/index.html>`__
 
 Launching Breeze integrations
@@ -968,7 +969,7 @@ To use your host IDE with Breeze:
 
 .. code-block:: bash
 
-  ./breeze-legacy initialize-local-virtualenv --python 3.8
+   ./scripts/tools/initialize_virtualenv.py
 
 .. warning::
    Make sure that you use the right Python version in this command - matching the Python version you have
