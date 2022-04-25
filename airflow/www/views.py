@@ -99,7 +99,7 @@ from airflow.api.common.mark_tasks import (
 )
 from airflow.compat.functools import cached_property
 from airflow.configuration import AIRFLOW_CONFIG, conf
-from airflow.exceptions import AirflowException
+from airflow.exceptions import AirflowException, ParamValidationError
 from airflow.executors.executor_loader import ExecutorLoader
 from airflow.jobs.base_job import BaseJob
 from airflow.jobs.scheduler_job import SchedulerJob
@@ -1945,7 +1945,7 @@ class Airflow(AirflowBaseView):
                 dag_hash=current_app.dag_bag.dags_hash.get(dag_id),
                 run_id=run_id,
             )
-        except ValueError as ve:
+        except (ValueError, ParamValidationError) as ve:
             flash(f"{ve}", "error")
             form = DateTimeForm(data={'execution_date': execution_date})
             return self.render_template(
@@ -2041,18 +2041,24 @@ class Airflow(AirflowBaseView):
         recursive = request.form.get('recursive') == "true"
         only_failed = request.form.get('only_failed') == "true"
 
+        task_ids: List[Union[str, Tuple[str, int]]]
+        if map_indexes is None:
+            task_ids = [task_id]
+        else:
+            task_ids = [(task_id, map_index) for map_index in map_indexes]
+
         dag = dag.partial_subset(
-            task_ids_or_regex=fr"^{task_id}$",
+            task_ids_or_regex=[task_id],
             include_downstream=downstream,
             include_upstream=upstream,
         )
+
+        if len(dag.task_dict) > 1:
+            # If we had upstream/downstream etc then also include those!
+            task_ids.extend(tid for tid in dag.task_dict if tid != task_id)
+
         end_date = execution_date if not future else None
         start_date = execution_date if not past else None
-
-        if map_indexes is None:
-            task_ids: Union[List[str], List[Tuple[str, int]]] = [task_id]
-        else:
-            task_ids = [(task_id, map_index) for map_index in map_indexes]
 
         return self._clear_dag_tis(
             dag,
