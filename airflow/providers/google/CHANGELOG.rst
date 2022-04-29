@@ -34,6 +34,18 @@ Breaking changes
    For more information, see `Deprecation and sunset <https://developers.google.com/google-ads/api/docs/sunset-dates>`_
    and `Upgrading to the newest version <https://developers.google.com/google-ads/api/docs/version-migration>`_
 
+* ``DataprocJobBaseOperator``: order of parameters has changed
+
+* ``region`` parameter has no default value
+  affected functions/classes:
+  ``DataprocHook.cancel_job``
+  ``DataprocCreateClusterOperator``
+  ``DataprocJobBaseOperator``
+
+* ``DatastoreHook``: Remove ``datastore_conn_id``. Please use ``gcp_conn_id``
+
+* ``CloudBuildCreateBuildOperator``: Remove ``body``. Please use ``build``
+
 * ``BigtableCreateInstanceOperator`` Remove ``replica_cluster_id``, ``replica_cluster_zone``. Please use ``replica_clusters``.
 
 * ``BigtableHook.create_instance``: Remove ``replica_cluster_id``, ``replica_cluster_zone``. Please use ``replica_clusters``.
@@ -45,6 +57,18 @@ Breaking changes
 * ``GoogleDriveToGCSOperator``: Remove ``destination_bucket`` and ``destination_object``. Please use ``bucket_name`` and ``object_name``.
 
 * ``GCSObjectsWtihPrefixExistenceSensor`` removed. Please use ``GCSObjectsWithPrefixExistenceSensor``.
+
+* ``PubSubCreateTopicOperator``: Remove ``project``. Please use ``project_id``
+
+* ``PubSubCreateSubscriptionOperator``: Remove ``topic_project``. Please use ``project_id``
+
+* ``PubSubCreateSubscriptionOperator``: Remove ``subscription_project``. Please use ``subscription_project_id``
+
+* ``PubSubDeleteTopicOperator``: Remove ``project``. Please use ``project_id``
+
+* ``PubSubDeleteSubscriptionOperator``: Remove ``project``. Please use ``project_id``
+
+* ``PubSubPublishMessageOperator``: Remove ``project``. Please use ``project_id``
 
 * ``PubSubPullSensor``: Remove ``project``. Please use ``project_id``
 
@@ -72,6 +96,43 @@ Breaking changes
 * ``CloudDatastoreImportEntitiesOperator`` : Remove ``xcom_push``. Please use ``BaseOperator.do_xcom_push``
 
 * ``CloudDatastoreExportEntitiesOperator`` : Remove ``xcom_push``. Please use ``BaseOperator.do_xcom_push``
+
+* ``bigquery_conn_id`` is removed. Please use ``gcp_conn_id``.
+  affected classes:
+  ``BigQueryCheckOperator``
+  ``BigQueryCreateEmptyDatasetOperator``
+  ``BigQueryDeleteDatasetOperator``
+  ``BigQueryDeleteTableOperator``
+  ``BigQueryExecuteQueryOperator``
+  ``BigQueryGetDataOperator``
+  ``BigQueryHook``
+  ``BigQueryIntervalCheckOperator``
+  ``BigQueryTableExistenceSensor``
+  ``BigQueryTablePartitionExistenceSensor``
+  ``BigQueryToBigQueryOperator``
+  ``BigQueryToGCSOperator``
+  ``BigQueryUpdateTableSchemaOperator``
+  ``BigQueryUpsertTableOperator``
+  ``BigQueryValueCheckOperator``
+  ``GCSToBigQueryOperator``
+
+* ``google_cloud_storage_conn_id`` is removed. Please use ``gcp_conn_id``.
+  affected classes:
+  ``ADLSToGCSOperator``
+  ``BaseSQLToGCSOperator``
+  ``CassandraToGCSOperator``
+  ``GCSBucketCreateAclEntryOperator``
+  ``GCSCreateBucketOperator``
+  ``GCSDeleteObjectsOperator``
+  ``GCSHook``
+  ``GCSListObjectsOperator``
+  ``GCSObjectCreateAclEntryOperator``
+  ``GCSToBigQueryOperator``
+  ``GCSToGCSOperator``
+  ``GCSToLocalFilesystemOperator``
+  ``LocalFilesystemToGCSOperator``
+
+* ``S3ToGCSOperator``: Remove ``dest_gcs_conn_id``. Please use ``gcp_conn_id``
 
 * ``BigQueryHook.create_empty_table`` Remove ``num_retries``. Please use ``retry``.
 
