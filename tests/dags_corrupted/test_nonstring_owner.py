@@ -15,15 +15,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""This module is deprecated. Please use :mod:`kubernetes.client.models.V1Volume`."""
-import warnings
 
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore", DeprecationWarning)
-    from airflow.providers.cncf.kubernetes.backcompat.volume import Volume  # noqa: autoflake
+from datetime import datetime, timedelta
 
-warnings.warn(
-    "This module is deprecated. Please use `kubernetes.client.models.V1Volume`.",
-    DeprecationWarning,
-    stacklevel=2,
-)
+from airflow import DAG
+from airflow.operators.empty import EmptyOperator
+
+with DAG(
+    dag_id="test_nonstring_owner",
+    schedule_interval="0 0 * * *",
+    start_date=datetime(2022, 1, 1),
+    dagrun_timeout=timedelta(minutes=60),
+    tags=["example"],
+    default_args={'owner': ['a']},
+) as dag:
+    run_this_last = EmptyOperator(
+        task_id="test_task",
+    )

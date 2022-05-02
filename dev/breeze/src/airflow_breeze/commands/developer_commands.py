@@ -27,6 +27,7 @@ from airflow_breeze.commands.common_options import (
     option_answer,
     option_backend,
     option_db_reset,
+    option_debian_version,
     option_dry_run,
     option_force_build,
     option_forward_credentials,
@@ -59,6 +60,7 @@ from airflow_breeze.utils.docker_command_utils import (
     get_extra_docker_flags,
 )
 from airflow_breeze.utils.path_utils import AIRFLOW_SOURCES_ROOT
+from airflow_breeze.utils.rebuild_image_if_needed import rebuild_ci_image_if_needed
 from airflow_breeze.utils.run_utils import assert_pre_commit_installed, run_command
 
 DEVELOPER_COMMANDS = {
@@ -84,6 +86,7 @@ DEVELOPER_PARAMETERS = {
                 "--postgres-version",
                 "--mysql-version",
                 "--mssql-version",
+                "--debian-version",
                 "--forward-credentials",
                 "--db-reset",
             ],
@@ -107,6 +110,7 @@ DEVELOPER_PARAMETERS = {
                 "--postgres-version",
                 "--mysql-version",
                 "--mssql-version",
+                "--debian-version",
                 "--forward-credentials",
                 "--db-reset",
             ],
@@ -162,6 +166,7 @@ DEVELOPER_PARAMETERS = {
             "options": [
                 "--docs-only",
                 "--spellcheck-only",
+                "--for-production",
                 "--package-filter",
             ],
         },
@@ -192,6 +197,7 @@ DEVELOPER_PARAMETERS = {
 @option_dry_run
 @option_python
 @option_backend
+@option_debian_version
 @option_github_repository
 @option_postgres_version
 @option_mysql_version
@@ -214,6 +220,7 @@ def shell(
     postgres_version: str,
     mysql_version: str,
     mssql_version: str,
+    debian_version: str,
     forward_credentials: bool,
     mount_sources: str,
     use_airflow_version: str,
@@ -244,6 +251,7 @@ def shell(
         db_reset=db_reset,
         extra_args=extra_args,
         answer=answer,
+        debian_version=debian_version,
     )
 
 
@@ -319,6 +327,12 @@ def start_airflow(
 @click.option('-s', '--spellcheck-only', help="Only run spell checking.", is_flag=True)
 @click.option(
     '-p',
+    '--for-production',
+    help="Builds documentation for official release i.e. all links point to stable version.",
+    is_flag=True,
+)
+@click.option(
+    '-p',
     '--package-filter',
     help="List of packages to consider.",
     type=BetterChoice(get_available_packages()),
@@ -330,15 +344,18 @@ def build_docs(
     github_repository: str,
     docs_only: bool,
     spellcheck_only: bool,
+    for_production: bool,
     package_filter: Tuple[str],
 ):
     """Build documentation in the container."""
     params = BuildCiParams(github_repository=github_repository, python=DEFAULT_PYTHON_MAJOR_MINOR_VERSION)
+    rebuild_ci_image_if_needed(build_params=params, dry_run=dry_run, verbose=verbose)
     ci_image_name = params.airflow_image_name
     doc_builder = DocBuildParams(
         package_filter=package_filter,
         docs_only=docs_only,
         spellcheck_only=spellcheck_only,
+        for_production=for_production,
     )
     extra_docker_flags = get_extra_docker_flags(MOUNT_SELECTED)
     env = construct_env_variables_docker_compose_command(params)
@@ -470,6 +487,7 @@ class DocBuildParams:
     package_filter: Tuple[str]
     docs_only: bool
     spellcheck_only: bool
+    for_production: bool
 
     @property
     def args_doc_builder(self) -> List[str]:
@@ -478,6 +496,8 @@ class DocBuildParams:
             doc_args.append("--docs-only")
         if self.spellcheck_only:
             doc_args.append("--spellcheck-only")
+        if self.for_production:
+            doc_args.append("--for-production")
         if self.package_filter and len(self.package_filter) > 0:
             for single_filter in self.package_filter:
                 doc_args.extend(["--package-filter", single_filter])
