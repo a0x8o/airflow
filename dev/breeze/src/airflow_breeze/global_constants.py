@@ -50,12 +50,13 @@ ALLOWED_INTEGRATIONS = [
     'all',
 ]
 ALLOWED_KUBERNETES_MODES = ['image']
-ALLOWED_KUBERNETES_VERSIONS = ['v1.23.4', 'v1.22.7', 'v1.21.10', 'v1.20.15']
-ALLOWED_KIND_VERSIONS = ['v0.12.0']
+ALLOWED_KUBERNETES_VERSIONS = ['v1.24.0', 'v1.23.6', 'v1.22.9', 'v1.21.12', 'v1.20.15']
+ALLOWED_KIND_VERSIONS = ['v0.13.0']
 ALLOWED_HELM_VERSIONS = ['v3.6.3']
 ALLOWED_EXECUTORS = ['KubernetesExecutor', 'CeleryExecutor', 'LocalExecutor', 'CeleryKubernetesExecutor']
 ALLOWED_KIND_OPERATIONS = ['start', 'stop', 'restart', 'status', 'deploy', 'test', 'shell', 'k9s']
-ALLOWED_GENERATE_CONSTRAINTS_MODES = ['source-providers', 'pypi-providers', 'no-providers']
+ALLOWED_CONSTRAINTS_MODES_CI = ['constraints-source-providers', 'constraints', 'constraints-no-providers']
+ALLOWED_CONSTRAINTS_MODES_PROD = ['constraints', 'constraints-no-providers', 'constraints-source-providers']
 
 MOUNT_SELECTED = "selected"
 MOUNT_ALL = "all"
@@ -84,7 +85,7 @@ ALLOWED_PACKAGE_FORMATS = ['wheel', 'sdist', 'both']
 ALLOWED_INSTALLATION_PACKAGE_FORMATS = ['wheel', 'sdist']
 ALLOWED_INSTALLATION_METHODS = ['.', 'apache-airflow']
 ALLOWED_DEBIAN_VERSIONS = ['bullseye', 'buster']
-ALLOWED_BUILD_CACHE = ["pulled", "local", "disabled"]
+ALLOWED_BUILD_CACHE = ["registry", "local", "disabled"]
 MULTI_PLATFORM = "linux/amd64,linux/arm64"
 ALLOWED_PLATFORMS = ["linux/amd64", "linux/arm64", MULTI_PLATFORM]
 ALLOWED_USE_AIRFLOW_VERSIONS = ['none', 'wheel', 'sdist']
@@ -225,8 +226,8 @@ FILES_FOR_REBUILD_CHECK = [
 ENABLED_SYSTEMS = ""
 
 CURRENT_KUBERNETES_MODES = ['image']
-CURRENT_KUBERNETES_VERSIONS = ['v1.23.4', 'v1.22.7', 'v1.21.10', 'v1.20.15']
-CURRENT_KIND_VERSIONS = ['v0.12.0']
+CURRENT_KUBERNETES_VERSIONS = ['v1.24.0', 'v1.23.6', 'v1.22.9', 'v1.21.12', 'v1.20.15']
+CURRENT_KIND_VERSIONS = ['v0.13.0']
 CURRENT_HELM_VERSIONS = ['v3.6.3']
 CURRENT_EXECUTORS = ['KubernetesExecutor']
 
