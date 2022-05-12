@@ -1,3 +1,4 @@
+#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,43 +16,29 @@
 # specific language governing permissions and limitations
 # under the License.
 
----
-package-name: apache-airflow-providers-apache-beam
-name: Apache Beam
-description: |
-    `Apache Beam <https://beam.apache.org/>`__.
+"""Add index for ``event`` column in ``log`` table.
 
-versions:
-  - 3.4.0
-  - 3.3.0
-  - 3.2.1
-  - 3.2.0
-  - 3.1.0
-  - 3.0.1
-  - 3.0.0
-  - 2.0.0
-  - 1.0.1
-  - 1.0.0
+Revision ID: 1de7bc13c950
+Revises: b1b348e02d07
+Create Date: 2022-05-10 18:18:43.484829
 
-additional-dependencies:
-  - apache-airflow>=2.1.0
+"""
 
-integrations:
-  - integration-name: Apache Beam
-    external-doc-url: https://beam.apache.org/
-    how-to-guide:
-      - /docs/apache-airflow-providers-apache-beam/operators.rst
-    tags: [apache]
+from alembic import op
 
-operators:
-  - integration-name: Apache Beam
-    python-modules:
-      - airflow.providers.apache.beam.operators.beam
+# revision identifiers, used by Alembic.
+revision = '1de7bc13c950'
+down_revision = 'b1b348e02d07'
+branch_labels = None
+depends_on = None
+airflow_version = '2.3.1'
 
-hooks:
-  - integration-name: Apache Beam
-    python-modules:
-      - airflow.providers.apache.beam.hooks.beam
 
-additional-extras:
-  google: apache-beam[gcp]
+def upgrade():
+    """Apply Add index for ``event`` column in ``log`` table."""
+    op.create_index('idx_log_event', 'log', ['event'], unique=False)
+
+
+def downgrade():
+    """Unapply Add index for ``event`` column in ``log`` table."""
+    op.drop_index('idx_log_event', table_name='log')
