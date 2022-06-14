@@ -15,10 +15,27 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
+from urllib.parse import quote_plus
+
+from airflow.providers.amazon.aws.links.base_aws import BASE_AWS_CONSOLE_LINK, BaseAwsLink
 
 
-@pytest.fixture(autouse=True, scope="session")
-def initialize_airflow_tests(request):
-    # Skip airflow tests initialization for all Helm tests
-    return
+class CloudWatchEventsLink(BaseAwsLink):
+    """Helper class for constructing AWS CloudWatch Events Link"""
+
+    name = "CloudWatch Events"
+    key = "cloudwatch_events"
+    format_str = (
+        BASE_AWS_CONSOLE_LINK
+        + "/cloudwatch/home?region={awslogs_region}#logsV2:log-groups/log-group/{awslogs_group}"
+        + "/log-events/{awslogs_stream_name}"
+    )
+
+    def format_link(self, **kwargs) -> str:
+        for field in ("awslogs_stream_name", "awslogs_group"):
+            if field in kwargs:
+                kwargs[field] = quote_plus(kwargs[field])
+            else:
+                return ""
+
+        return super().format_link(**kwargs)
