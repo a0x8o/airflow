@@ -15,28 +15,20 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import re
-from datetime import datetime
-from typing import Tuple
+import pytest
 
-from airflow.version import version
+from airflow.providers.snowflake.utils.common import enclose_param
 
 
-def datetime_to_epoch(date_time: datetime) -> int:
-    """Convert a datetime object to an epoch integer (seconds)."""
-    return int(date_time.timestamp())
-
-
-def datetime_to_epoch_ms(date_time: datetime) -> int:
-    """Convert a datetime object to an epoch integer (milliseconds)."""
-    return int(date_time.timestamp() * 1_000)
-
-
-def datetime_to_epoch_us(date_time: datetime) -> int:
-    """Convert a datetime object to an epoch integer (microseconds)."""
-    return int(date_time.timestamp() * 1_000_000)
-
-
-def get_airflow_version() -> Tuple[int, ...]:
-    val = re.sub(r'(\d+\.\d+\.\d+).*', lambda x: x.group(1), version)
-    return tuple(int(x) for x in val.split('.'))
+@pytest.mark.parametrize(
+    "param,expected",
+    [
+        ("without quotes", "'without quotes'"),
+        ("'with quotes'", "'''with quotes'''"),
+        ("Today's sales projections", "'Today''s sales projections'"),
+        ("sample/john's.csv", "'sample/john''s.csv'"),
+        (".*'awesome'.*[.]csv", "'.*''awesome''.*[.]csv'"),
+    ],
+)
+def test_parameter_enclosure(param, expected):
+    assert enclose_param(param) == expected
