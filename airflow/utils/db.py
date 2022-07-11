@@ -93,6 +93,7 @@ REVISION_HEADS_MAP = {
     "2.3.0": "b1b348e02d07",
     "2.3.1": "1de7bc13c950",
     "2.3.2": "3c94c427fdf6",
+    "2.3.3": "f5fcbda3e651",
 }
 
 
@@ -834,10 +835,15 @@ def synchronize_log_template(*, session: Session = NEW_SESSION) -> None:
             session.add(
                 LogTemplate(
                     filename="{{ ti.dag_id }}/{{ ti.task_id }}/{{ ts }}/{{ try_number }}.log",
-                    elasticsearch_id="{dag_id}-{task_id}-{execution_date}-{try_number}",
+                    elasticsearch_id="{dag_id}_{task_id}_{execution_date}_{try_number}",
                 )
             )
             session.flush()
+    wrong_log_id = "{dag_id}-{task_id}-{execution_date}-{try_number}"
+    correct_log_id = "{dag_id}_{task_id}_{execution_date}_{try_number}"
+    session.query(LogTemplate).filter(LogTemplate.elasticsearch_id == wrong_log_id).update(
+        {LogTemplate.elasticsearch_id: correct_log_id}, synchronize_session='fetch'
+    )
 
     # Before checking if the _current_ value exists, we need to check if the old config value we upgraded in
     # place exists!
