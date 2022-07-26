@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,19 +14,3 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import os
-import subprocess
-from pathlib import Path
-
-if __name__ not in ("__main__", "__mp_main__"):
-    raise SystemExit(
-        "This file is intended to be executed as an executable program. You cannot use it as a module."
-        f"To run this script, run the ./{__file__} command"
-    )
-
-if __name__ == '__main__':
-    dir = Path("airflow") / "www"
-    env = os.environ.copy()
-    env['FORCE_COLOR'] = "true"
-    subprocess.check_call(['yarn', 'install', '--frozen-lockfile'], cwd=str(dir))
-    subprocess.check_call(['yarn', 'run', 'build'], cwd=str(dir), env=env)
