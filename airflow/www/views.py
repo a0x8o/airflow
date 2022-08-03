@@ -35,6 +35,7 @@ from operator import itemgetter
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 from urllib.parse import parse_qsl, unquote, urlencode, urlparse
 
+import configupdater
 import lazy_object_proxy
 import markupsafe
 import nvd3
@@ -2708,29 +2709,6 @@ class Airflow(AirflowBaseView):
         if num_runs is None:
             num_runs = conf.getint('webserver', 'default_dag_run_display_number')
 
-        try:
-            base_date = _safe_parse_datetime(request.args["base_date"])
-        except (KeyError, ValueError):
-            base_date = dag.get_latest_execution_date() or timezone.utcnow()
-
-        dag_runs = (
-            session.query(DagRun)
-            .filter(DagRun.dag_id == dag.dag_id, DagRun.execution_date <= base_date)
-            .order_by(DagRun.execution_date.desc())
-            .limit(num_runs)
-            .all()
-        )
-        dag_run_dates = {dr.execution_date: alchemy_to_dict(dr) for dr in dag_runs}
-
-        max_date = max(dag_run_dates, default=None)
-
-        form = DateTimeWithNumRunsForm(
-            data={
-                'base_date': max_date or timezone.utcnow(),
-                'num_runs': num_runs,
-            }
-        )
-
         doc_md = wwwutils.wrapped_markdown(getattr(dag, 'doc_md', None))
 
         task_log_reader = TaskLogReader()
@@ -2748,9 +2726,7 @@ class Airflow(AirflowBaseView):
 
         return self.render_template(
             'airflow/grid.html',
-            operators=sorted({op.task_type: op for op in dag.tasks}.values(), key=lambda x: x.task_type),
             root=root,
-            form=form,
             dag=dag,
             doc_md=doc_md,
             num_runs=num_runs,
@@ -3752,12 +3728,33 @@ class ConfigurationView(AirflowBaseView):
         raw = request.args.get('raw') == "true"
         title = "Airflow Configuration"
         subtitle = AIRFLOW_CONFIG
+
+        expose_config = conf.get('webserver', 'expose_config')
+
         # Don't show config when expose_config variable is False in airflow config
-        if conf.getboolean("webserver", "expose_config"):
+        # Don't show sensitive config values if expose_config variable is 'non-sensitive-only'
+        # in airflow config
+        if expose_config.lower() == 'non-sensitive-only':
+            from airflow.configuration import SENSITIVE_CONFIG_VALUES
+
+            updater = configupdater.ConfigUpdater()
+            updater.read(AIRFLOW_CONFIG)
+            for sect, key in SENSITIVE_CONFIG_VALUES:
+                if updater.has_option(sect, key):
+                    updater[sect][key].value = '< hidden >'
+            config = str(updater)
+
+            table = [
+                (section, key, str(value), source)
+                for section, parameters in conf.as_dict(True, False).items()
+                for key, (value, source) in parameters.items()
+            ]
+        elif expose_config.lower() in ['true', 't', '1']:
+
             with open(AIRFLOW_CONFIG) as file:
                 config = file.read()
             table = [
-                (section, key, value, source)
+                (section, key, str(value), source)
                 for section, parameters in conf.as_dict(True, True).items()
                 for key, (value, source) in parameters.items()
             ]
