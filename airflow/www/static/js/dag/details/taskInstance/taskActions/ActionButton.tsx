@@ -18,30 +18,22 @@
  */
 
 import React from 'react';
-import {
-  Box,
-  Heading,
-} from '@chakra-ui/react';
+import { Button, ButtonProps } from '@chakra-ui/react';
 
-interface Props {
-  label: string;
-  value: React.ReactNode;
-}
+const titleMap = {
+  past: 'Also include past task instances when clearing this one',
+  future: 'Also include future task instances when clearing this one',
+  upstream: 'Also include upstream dependencies',
+  downstream: 'Also include downstream dependencies',
+  recursive: '',
+  failed: 'Only consider failed task instances when clearing this one',
+};
 
-const BreadcrumbText = ({ label, value }: Props) => (
-  <Box position="relative">
-    <Heading
-      as="h5"
-      size="sm"
-      color="gray.300"
-      position="absolute"
-      top="-12px"
-      whiteSpace="nowrap"
-    >
-      {label}
-    </Heading>
-    <Heading as="h3" size="md">{value}</Heading>
-  </Box>
+type KeysOfTitleMap = keyof (typeof titleMap);
+
+type Props = ButtonProps & { name: Capitalize<KeysOfTitleMap> } ;
+const ActionButton = ({ name, ...rest }: Props) => (
+  <Button title={titleMap[name.toLowerCase() as KeysOfTitleMap]} {...rest}>{name}</Button>
 );
 
-export default BreadcrumbText;
+export default ActionButton;
