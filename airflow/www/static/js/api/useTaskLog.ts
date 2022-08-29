@@ -19,28 +19,31 @@
 
 import axios, { AxiosResponse } from 'axios';
 import { useQuery } from 'react-query';
-
-import { getMetaValue } from 'src/utils';
+import { useAutoRefresh } from 'src/context/autorefresh';
 import type { API } from 'src/types';
 
-interface Props {
-  runId: string;
-}
+import { getMetaValue } from 'src/utils';
 
-export default function useUpstreamDatasetEvents({ runId }: Props) {
-  const query = useQuery(
-    ['upstreamDatasetEvents', runId],
-    () => {
-      const dagId = getMetaValue('dag_id');
-      const upstreamEventsUrl = (
-        getMetaValue('upstream_dataset_events_api')
-          || `api/v1/dags/${dagId}/dagRuns/_DAG_RUN_ID_/upstreamDatasetEvents`
-      ).replace('_DAG_RUN_ID_', runId);
-      return axios.get<AxiosResponse, API.DatasetEventCollection>(upstreamEventsUrl);
+const taskLogApi = getMetaValue('task_log_api');
+
+const useTaskLog = ({
+  dagId, dagRunId, taskId, taskTryNumber, mapIndex, fullContent,
+}: API.GetLogVariables) => {
+  let url: string = '';
+  if (taskLogApi) {
+    url = taskLogApi.replace('_DAG_RUN_ID_', dagRunId).replace('_TASK_ID_', taskId).replace(/-1$/, taskTryNumber.toString());
+  }
+
+  const { isRefreshOn } = useAutoRefresh();
+
+  return useQuery(
+    ['taskLogs', dagId, dagRunId, taskId, mapIndex, taskTryNumber, fullContent],
+    () => axios.get<AxiosResponse, string>(url, { headers: { Accept: 'text/plain' }, params: { map_index: mapIndex, full_content: fullContent } }),
+    {
+      placeholderData: '',
+      refetchInterval: isRefreshOn && (autoRefreshInterval || 1) * 1000,
     },
   );
-  return {
-    ...query,
-    data: query.data || { datasetEvents: [], totalEntries: 0 },
-  };
-}
+};
+
+export default useTaskLog;
