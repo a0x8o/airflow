@@ -179,8 +179,6 @@ require Breeze Docker image to be build locally.
 +--------------------------------------------------------+------------------------------------------------------------------+---------+
 | check-incorrect-use-of-LoggingMixin                    | Make sure LoggingMixin is not used alone                         |         |
 +--------------------------------------------------------+------------------------------------------------------------------+---------+
-| check-integrations-are-consistent                      | Check if integration list is consistent in various places        |         |
-+--------------------------------------------------------+------------------------------------------------------------------+---------+
 | check-lazy-logging                                     | Check that all logging methods are lazy                          |         |
 +--------------------------------------------------------+------------------------------------------------------------------+---------+
 | check-merge-conflict                                   | Check that merge conflicts are not being committed               |         |
@@ -261,8 +259,6 @@ require Breeze Docker image to be build locally.
 | lint-dockerfile                                        | Lint dockerfile                                                  |         |
 +--------------------------------------------------------+------------------------------------------------------------------+---------+
 | lint-helm-chart                                        | Lint Helm Chart                                                  |         |
-+--------------------------------------------------------+------------------------------------------------------------------+---------+
-| lint-javascript                                        | ESLint against airflow/ui                                        |         |
 +--------------------------------------------------------+------------------------------------------------------------------+---------+
 | lint-json-schema                                       | * Lint JSON Schema files with JSON Schema                        |         |
 |                                                        | * Lint NodePort Service with JSON Schema                         |         |

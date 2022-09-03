@@ -185,25 +185,32 @@ option_image_tag_for_pulling = click.option(
     '-t',
     '--image-tag',
     help='Tag of the image which is used to pull the image',
+    show_default=True,
+    default="latest",
     envvar='IMAGE_TAG',
-    required=True,
 )
 option_image_tag_for_building = click.option(
     '-t',
     '--image-tag',
     help='Tag the image after building it',
+    show_default=True,
+    default="latest",
     envvar='IMAGE_TAG',
 )
 option_image_tag_for_running = click.option(
     '-t',
     '--image-tag',
     help='Tag of the image which is used to run the image (implies --mount-sources=skip)',
+    show_default=True,
+    default="latest",
     envvar='IMAGE_TAG',
 )
 option_image_tag_for_verifying = click.option(
     '-t',
     '--image-tag',
     help='Tag of the image when verifying it',
+    show_default=True,
+    default="latest",
     envvar='IMAGE_TAG',
 )
 option_image_name = click.option(
@@ -227,6 +234,13 @@ option_upgrade_to_newer_dependencies = click.option(
     is_flag=True,
     help='When set, upgrade all PIP packages to latest.',
     envvar='UPGRADE_TO_NEWER_DEPENDENCIES',
+)
+option_upgrade_on_failure = click.option(
+    "-u",
+    '--upgrade-on-failure',
+    is_flag=True,
+    help='When set, attempt to run upgrade to newer dependencies when regular build fails.',
+    envvar='UPGRADE_ON_FAILURE',
 )
 option_additional_extras = click.option(
     '--additional-extras',
