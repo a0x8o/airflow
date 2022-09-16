@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,11 +14,29 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-cd /opt/airflow/ || exit
-clear
-echo "Welcome to your tmux based running Airflow environment (courtesy of Breeze)."
-echo
-echo "     To stop Airflow and exit tmux, just type 'stop_airflow'."
-echo
-echo "     If you want to build webserver assets dynamically, run start-airflow command with --dev-mode"
-echo
+
+from __future__ import annotations
+
+from marshmallow_sqlalchemy import SQLAlchemySchema, auto_field
+
+from airflow.jobs.base_job import BaseJob
+
+
+class JobSchema(SQLAlchemySchema):
+    """Sla Miss Schema"""
+
+    class Meta:
+        """Meta"""
+
+        model = BaseJob
+
+    id = auto_field(dump_only=True)
+    dag_id = auto_field(dump_only=True)
+    state = auto_field(dump_only=True)
+    job_type = auto_field(dump_only=True)
+    start_date = auto_field(dump_only=True)
+    end_date = auto_field(dump_only=True)
+    latest_heartbeat = auto_field(dump_only=True)
+    executor_class = auto_field(dump_only=True)
+    hostname = auto_field(dump_only=True)
+    unixname = auto_field(dump_only=True)
