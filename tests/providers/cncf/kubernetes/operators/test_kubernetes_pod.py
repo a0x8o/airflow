@@ -101,6 +101,41 @@ class TestKubernetesPodOperator:
 
         patch.stopall()
 
+    def test_templates(self, create_task_instance_of_operator):
+        dag_id = "TestKubernetesPodOperator"
+        ti = create_task_instance_of_operator(
+            KubernetesPodOperator,
+            dag_id=dag_id,
+            task_id="task-id",
+            namespace="{{ dag.dag_id }}",
+            container_resources=k8s.V1ResourceRequirements(
+                requests={"memory": "{{ dag.dag_id }}", "cpu": "{{ dag.dag_id }}"},
+                limits={"memory": "{{ dag.dag_id }}", "cpu": "{{ dag.dag_id }}"},
+            ),
+            pod_template_file="{{ dag.dag_id }}",
+            config_file="{{ dag.dag_id }}",
+            labels="{{ dag.dag_id }}",
+            env_vars=["{{ dag.dag_id }}"],
+            arguments="{{ dag.dag_id }}",
+            cmds="{{ dag.dag_id }}",
+            image="{{ dag.dag_id }}",
+        )
+
+        rendered = ti.render_templates()
+
+        assert dag_id == rendered.container_resources.limits["memory"]
+        assert dag_id == rendered.container_resources.limits["cpu"]
+        assert dag_id == rendered.container_resources.requests["memory"]
+        assert dag_id == rendered.container_resources.requests["cpu"]
+        assert dag_id == ti.task.image
+        assert dag_id == ti.task.cmds
+        assert dag_id == ti.task.namespace
+        assert dag_id == ti.task.config_file
+        assert dag_id == ti.task.labels
+        assert dag_id == ti.task.pod_template_file
+        assert dag_id == ti.task.arguments
+        assert dag_id == ti.task.env_vars[0]
+
     def run_pod(self, operator: KubernetesPodOperator, map_index: int = -1) -> k8s.V1Pod:
         with self.dag_maker(dag_id="dag") as dag:
             operator.dag = dag
@@ -414,6 +449,28 @@ class TestKubernetesPodOperator:
             context=context,
         )
         mock_find.assert_called_once_with("default", context=context)
+
+    @patch(HOOK_CLASS)
+    def test_xcom_sidecar_container_image_default(self, hook_mock):
+        hook_mock.return_value.get_xcom_sidecar_container_image.return_value = None
+        k = KubernetesPodOperator(
+            name="test",
+            task_id="task",
+            do_xcom_push=True,
+        )
+        pod = k.build_pod_request_obj(create_context(k))
+        assert pod.spec.containers[1].image == "alpine"
+
+    @patch(HOOK_CLASS)
+    def test_xcom_sidecar_container_image_custom(self, hook_mock):
+        hook_mock.return_value.get_xcom_sidecar_container_image.return_value = "private.repo/alpine:3.13"
+        k = KubernetesPodOperator(
+            name="test",
+            task_id="task",
+            do_xcom_push=True,
+        )
+        pod = k.build_pod_request_obj(create_context(k))
+        assert pod.spec.containers[1].image == "private.repo/alpine:3.13"
 
     def test_image_pull_policy_correctly_set(self):
         k = KubernetesPodOperator(
