@@ -304,7 +304,7 @@ ldap = [
     "ldap3>=2.5.1",
     "python-ldap",
 ]
-leveldb = ['plyvel; platform_machine != "aarch64"']
+leveldb = ["plyvel"]
 pandas = [
     "pandas>=0.17.1",
 ]
@@ -374,10 +374,12 @@ devel_only = [
     "flake8>=3.9.0",
     "flake8-colors",
     "flake8-implicit-str-concat",
-    "flaky",
     "gitpython",
     "ipdb",
-    "isort",
+    # make sure that we are using stable sorting order from 5.* version (some changes were introduced
+    # in 5.11.3. Black is not compatible yet, so we need to limit isort
+    # we can remove the limit when black and isort agree on the order
+    "isort==5.11.2",
     "jira",
     "jsondiff",
     "mongomock",
@@ -807,6 +809,10 @@ def replace_extra_dependencies_with_provider_packages(extra: str, providers: lis
         EXTRAS_DEPENDENCIES[extra].extend(
             [get_provider_package_name_from_package_id(package_name) for package_name in providers]
         )
+    elif extra == "apache.hive":
+        # We moved the hive macros to the hive provider, and they are available in hive provider only as of
+        # 5.1.0 version only, so we have to make sure minimum version is used
+        EXTRAS_DEPENDENCIES[extra] = ["apache-airflow-providers-hive>=5.1.0"]
     else:
         EXTRAS_DEPENDENCIES[extra] = [
             get_provider_package_name_from_package_id(package_name) for package_name in providers

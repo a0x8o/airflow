@@ -1,3 +1,4 @@
+aarch
 abc
 accessor
 accountmaking
@@ -335,6 +336,7 @@ dat
 Databricks
 databricks
 datacenter
+dataclass
 Datadog
 datadog
 Dataflow
@@ -389,6 +391,7 @@ Decrypt
 decrypt
 decrypted
 Decrypts
+dedented
 deduplicate
 deduplication
 deepcopy
@@ -404,6 +407,7 @@ DependencyMixin
 deploymentUrl
 Deprecations
 deps
+deques
 deregister
 desc
 deserialization
@@ -564,6 +568,8 @@ Firestore
 firestore
 firstname
 Flink
+flink
+flinkDeployment
 FluentD
 fluentd
 fmt
@@ -1350,7 +1356,6 @@ ssm
 Stackdriver
 stackdriver
 stacktrace
-Standarization
 starttls
 StatefulSet
 StatefulSets

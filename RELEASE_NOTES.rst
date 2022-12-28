@@ -429,14 +429,14 @@ If you have the producer and consumer in different files you do not need to use 
 Datasets represent the abstract concept of a dataset, and (for now) do not have any direct read or write
 capability - in this release we are adding the foundational feature that we will build upon.
 
-For more info on Datasets please see :doc:`/concepts/datasets`.
+For more info on Datasets please see :doc:`/authoring-and-scheduling/datasets`.
 
 Expanded dynamic task mapping support
 """""""""""""""""""""""""""""""""""""
 
 Dynamic task mapping now includes support for ``expand_kwargs``, ``zip`` and ``map``.
 
-For more info on dynamic task mapping please see :doc:`/concepts/dynamic-task-mapping`.
+For more info on dynamic task mapping please see :doc:`/authoring-and-scheduling/dynamic-task-mapping`.
 
 DAGS used in a context manager no longer need to be assigned to a module variable (#23592)
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
@@ -7956,7 +7956,7 @@ Improvement
 - [AIRFLOW-3862] Check types with mypy. (#4685)
 - [AIRFLOW-251] Add option SQL_ALCHEMY_SCHEMA parameter to specify schema for metadata (#4199)
 - [AIRFLOW-1814] Temple PythonOperator {op_args,op_kwargs} fields (#4691)
-- [AIRFLOW-3730] Standarization use of logs mechanisms (#4556)
+- [AIRFLOW-3730] Standardization use of logs mechanisms (#4556)
 - [AIRFLOW-3770] Validation of documentation on CI] (#4593)
 - [AIRFLOW-3866] Run docker-compose pull silently in CI (#4688)
 - [AIRFLOW-3685] Move licence header check (#4497)
