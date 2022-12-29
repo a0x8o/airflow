@@ -70,7 +70,6 @@ class FileGroupForCi(Enum):
     SETUP_FILES = "setup_files"
     DOC_FILES = "doc_files"
     WWW_FILES = "www_files"
-    SYSTEM_TEST_FILES = "system_tests"
     KUBERNETES_FILES = "kubernetes_files"
     ALL_PYTHON_FILES = "all_python_files"
     ALL_SOURCE_FILES = "all_sources_for_tests"
@@ -160,9 +159,6 @@ CI_FILE_GROUP_MATCHES = HashableDict(
             "^tests",
             "^kubernetes_tests",
         ],
-        FileGroupForCi.SYSTEM_TEST_FILES: [
-            "^tests/system/",
-        ],
     }
 )
 
@@ -182,6 +178,7 @@ TEST_TYPE_MATCHES = HashableDict(
         SelectiveUnitTestTypes.PROVIDERS: [
             "^airflow/providers/",
             "^tests/providers/",
+            "^tests/system/",
         ],
         SelectiveUnitTestTypes.WWW: ["^airflow/www", "^tests/www"],
     }
@@ -526,12 +523,9 @@ class SelectiveChecks:
         )
 
         kubernetes_files = self._matching_files(FileGroupForCi.KUBERNETES_FILES, CI_FILE_GROUP_MATCHES)
-        system_test_files = self._matching_files(FileGroupForCi.SYSTEM_TEST_FILES, CI_FILE_GROUP_MATCHES)
         all_source_files = self._matching_files(FileGroupForCi.ALL_SOURCE_FILES, CI_FILE_GROUP_MATCHES)
 
-        remaining_files = (
-            set(all_source_files) - set(matched_files) - set(kubernetes_files) - set(system_test_files)
-        )
+        remaining_files = set(all_source_files) - set(matched_files) - set(kubernetes_files)
         count_remaining_files = len(remaining_files)
         if count_remaining_files > 0:
             get_stderr_console().print(
