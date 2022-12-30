@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-=======
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -1760,4 +1758,3 @@ class BaseOperatorLink(metaclass=ABCMeta):
         :param ti_key: TaskInstance ID to return link for.
         :return: link to external system
         """
->>>>>>> develop
