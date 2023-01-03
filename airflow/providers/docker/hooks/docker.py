@@ -164,6 +164,7 @@ class DockerHook(BaseHook):
             self.log.error("Login failed")
             raise
 
+<<<<<<< HEAD
     @staticmethod
     def get_connection_form_widgets() -> dict[str, Any]:
         """Returns connection form widgets"""
@@ -178,6 +179,10 @@ class DockerHook(BaseHook):
 
     @classmethod
     def get_ui_field_behaviour(cls) -> dict[str, Any]:
+=======
+    @classmethod
+    def get_connection_form_widgets(cls) -> dict[str, Any]:
+>>>>>>> 828ee304 (Handle ConnectionReset exception in Executor cleanup (#28685))
         """Returns custom field behaviour"""
         return {
             "hidden_fields": ["schema"],
