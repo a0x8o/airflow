@@ -164,10 +164,6 @@ class DockerHook(BaseHook):
             self.log.error("Login failed")
             raise
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> a29fb028 (Add correct widgets in Docker Hook (#28700))
     @staticmethod
     def get_connection_form_widgets() -> dict[str, Any]:
         """Returns connection form widgets"""
@@ -180,17 +176,8 @@ class DockerHook(BaseHook):
             "email": StringField(lazy_gettext("Email"), widget=BS3TextFieldWidget()),
         }
 
-<<<<<<< HEAD
     @classmethod
     def get_ui_field_behaviour(cls) -> dict[str, Any]:
-=======
-    @classmethod
-    def get_connection_form_widgets(cls) -> dict[str, Any]:
->>>>>>> 828ee304 (Handle ConnectionReset exception in Executor cleanup (#28685))
-=======
-    @classmethod
-    def get_ui_field_behaviour(cls) -> dict[str, Any]:
->>>>>>> a29fb028 (Add correct widgets in Docker Hook (#28700))
         """Returns custom field behaviour"""
         return {
             "hidden_fields": ["schema"],
