@@ -17,16 +17,8 @@
 # under the License.
 from __future__ import annotations
 
-import os
-import subprocess
-import sys
+import itertools
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.resolve()))  # make sure common_precommit_utils is imported
-from common_precommit_utils import get_directory_hash  # isort: skip # noqa E402
-
-AIRFLOW_SOURCES_PATH = Path(__file__).parents[3].resolve()
-WWW_HASH_FILE = AIRFLOW_SOURCES_PATH / ".build" / "www" / "hash.txt"
 
 if __name__ not in ("__main__", "__mp_main__"):
     raise SystemExit(
@@ -34,16 +26,20 @@ if __name__ not in ("__main__", "__mp_main__"):
         f"To run this script, run the ./{__file__} command"
     )
 
+
+AIRFLOW_SOURCES = Path(__file__).parents[3].resolve()
+
+
+def stable_sort(x):
+    return x.casefold(), x
+
+
+def sort_uniq(sequence):
+    return (x[0] for x in itertools.groupby(sorted(sequence, key=stable_sort)))
+
+
 if __name__ == "__main__":
-    www_directory = AIRFLOW_SOURCES_PATH / "airflow" / "www"
-    WWW_HASH_FILE.parent.mkdir(exist_ok=True)
-    old_hash = WWW_HASH_FILE.read_text() if WWW_HASH_FILE.exists() else ""
-    new_hash = get_directory_hash(www_directory, skip_path_regexp=r".*node_modules.*")
-    if new_hash == old_hash:
-        print("The WWW directory has not changed! Skip regeneration.")
-        sys.exit(0)
-    env = os.environ.copy()
-    env["FORCE_COLOR"] = "true"
-    subprocess.check_call(["yarn", "install", "--frozen-lockfile"], cwd=os.fspath(www_directory))
-    subprocess.check_call(["yarn", "run", "build"], cwd=os.fspath(www_directory), env=env)
-    WWW_HASH_FILE.write_text(new_hash)
+    installed_providers_path = Path(AIRFLOW_SOURCES) / "scripts" / "ci" / "installed_providers.txt"
+    content = installed_providers_path.read_text().splitlines(keepends=True)
+    sorted_content = sort_uniq(content)
+    installed_providers_path.write_text("".join(sorted_content))
