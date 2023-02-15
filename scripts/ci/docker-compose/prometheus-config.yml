@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,25 +14,25 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+---
+# Configuration for the Prometheus targets.
+# Used by integration-statsd.yml and integration-otel.yml
+global:
+    scrape_interval: 30s
+    evaluation_interval: 30s
+    scrape_timeout: 10s
 
-#
-# Run airflow command in container
-#
+scrape_configs:
+    - job_name: 'prometheus'
+      static_configs:
+          - targets: ['localhost:9090']
 
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    - job_name: 'statsd-exporter'
+      static_configs:
+          - targets: ['breeze-statsd-exporter:9102']
+      tls_config:
+          insecure_skip_verify: true
 
-set -euo pipefail
-
-# check is there a docker-compose command, if not, use "docker compose" instead.
-if [ -x "$(command -v docker-compose)" ]; then
-    dc=docker-compose
-else
-    dc="docker compose"
-fi
-
-export COMPOSE_FILE="${PROJECT_DIR}/docker-compose.yaml"
-if [ $# -gt 0 ]; then
-    exec $dc run --rm airflow-cli "${@}"
-else
-    exec $dc run --rm airflow-cli
-fi
+    - job_name: 'opentelemetry-collector'
+      static_configs:
+          - targets: ['breeze-opentelemetry-collector:8888']
