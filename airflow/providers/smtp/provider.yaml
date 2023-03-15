@@ -16,42 +16,34 @@
 # under the License.
 
 ---
-package-name: apache-airflow-providers-datadog
-name: Datadog
+package-name: apache-airflow-providers-smtp
+name: Simple Mail Transfer Protocol (SMTP)
+
 description: |
-    `Datadog <https://www.datadoghq.com/>`__
+  `Simple Mail Transfer Protocol (SMTP) <https://tools.ietf.org/html/rfc5321>`__
 
 versions:
-  - 3.1.0
-  - 3.0.0
-  - 2.0.4
-  - 2.0.3
-  - 2.0.2
-  - 2.0.1
-  - 2.0.0
-  - 1.0.1
   - 1.0.0
 
 dependencies:
   - apache-airflow>=2.3.0
-  - datadog>=0.14.0
 
 integrations:
-  - integration-name: Datadog
-    external-doc-url: https://www.datadoghq.com/
-    logo: /integration-logos/datadog/datadog.png
-    tags: [service]
+  - integration-name: Simple Mail Transfer Protocol (SMTP)
+    external-doc-url: https://tools.ietf.org/html/rfc5321
+    logo: /integration-logos/smtp/SMTP.png
+    tags: [protocol]
 
-sensors:
-  - integration-name: Datadog
+operators:
+  - integration-name: Simple Mail Transfer Protocol (SMTP)
     python-modules:
-      - airflow.providers.datadog.sensors.datadog
+      - airflow.providers.smtp.operators.smtp
 
 hooks:
-  - integration-name: Datadog
+  - integration-name: Simple Mail Transfer Protocol (SMTP)
     python-modules:
-      - airflow.providers.datadog.hooks.datadog
+      - airflow.providers.smtp.hooks.smtp
 
 connection-types:
-  - hook-class-name: airflow.providers.datadog.hooks.datadog.DatadogHook
-    connection-type: datadog
+  - hook-class-name: airflow.providers.smtp.hooks.smtp.SmtpHook
+    connection-type: smtp
