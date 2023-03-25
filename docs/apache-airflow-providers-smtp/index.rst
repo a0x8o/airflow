@@ -16,29 +16,24 @@
     specific language governing permissions and limitations
     under the License.
 
-``apache-airflow-providers-datadog``
-====================================
+``apache-airflow-providers-smtp``
+=================================
 
 Content
 -------
 
 .. toctree::
     :maxdepth: 1
-    :caption: Guides
-
-    Connection types <connections/datadog>
-
-.. toctree::
-    :maxdepth: 1
     :caption: References
 
-    Python API <_api/airflow/providers/datadog/index>
+    Connection types <connections/smtp>
+    Python API <_api/airflow/providers/smtp/index>
 
 .. toctree::
     :maxdepth: 1
     :caption: Resources
 
-    PyPI Repository <https://pypi.org/project/apache-airflow-providers-datadog/>
+    PyPI Repository <https://pypi.org/project/apache-airflow-providers-smtp/>
     Installing from sources <installing-providers-from-sources>
 
 .. THE REMAINDER OF THE FILE IS AUTOMATICALLY GENERATED. IT WILL BE OVERWRITTEN AT RELEASE TIME!
@@ -51,35 +46,25 @@ Content
     Detailed list of commits <commits>
 
 
-Package apache-airflow-providers-datadog
+Package apache-airflow-providers-smtp
 ------------------------------------------------------
 
-`Datadog <https://www.datadoghq.com/>`__
+`Simple Mail Transfer Protocol (SMTP) <https://tools.ietf.org/html/rfc5321>`__
 
 
-Release: 3.1.0
+Release: 1.0.0
 
 Provider package
 ----------------
 
-This is a provider package for ``datadog`` provider. All classes for this provider package
-are in ``airflow.providers.datadog`` python package.
+This is a provider package for ``smtp`` provider. All classes for this provider package
+are in ``airflow.providers.smtp`` python package.
 
 Installation
 ------------
 
 You can install this package on top of an existing Airflow 2 installation (see ``Requirements`` below)
 for the minimum Airflow version supported) via
-``pip install apache-airflow-providers-datadog``
+``pip install apache-airflow-providers-smtp``
 
-Requirements
-------------
-
-==================  ==================
-PIP package         Version required
-==================  ==================
-``apache-airflow``  ``>=2.3.0``
-``datadog``         ``>=0.14.0``
-==================  ==================
-
-.. include:: ../../airflow/providers/datadog/CHANGELOG.rst
+.. include:: ../../airflow/providers/smtp/CHANGELOG.rst
