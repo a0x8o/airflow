@@ -236,7 +236,7 @@ class ShortCircuitOperator(PythonOperator, SkipMixin):
 
     :param ignore_downstream_trigger_rules: If set to True, all downstream tasks from this operator task will
         be skipped. This is the default behavior. If set to False, the direct, downstream task(s) will be
-        skipped but the ``trigger_rule`` defined for a other downstream tasks will be respected.
+        skipped but the ``trigger_rule`` defined for all other downstream tasks will be respected.
     """
 
     def __init__(self, *, ignore_downstream_trigger_rules: bool = True, **kwargs) -> None:
@@ -260,12 +260,17 @@ class ShortCircuitOperator(PythonOperator, SkipMixin):
 
             if self.ignore_downstream_trigger_rules is True:
                 self.log.info("Skipping all downstream tasks...")
-                self.skip(dag_run, execution_date, downstream_tasks)
+                self.skip(dag_run, execution_date, downstream_tasks, map_index=context["ti"].map_index)
             else:
                 self.log.info("Skipping downstream tasks while respecting trigger rules...")
                 # Explicitly setting the state of the direct, downstream task(s) to "skipped" and letting the
                 # Scheduler handle the remaining downstream task(s) appropriately.
-                self.skip(dag_run, execution_date, context["task"].get_direct_relatives(upstream=False))
+                self.skip(
+                    dag_run,
+                    execution_date,
+                    context["task"].get_direct_relatives(upstream=False),
+                    map_index=context["ti"].map_index,
+                )
 
         self.log.info("Done.")
 
