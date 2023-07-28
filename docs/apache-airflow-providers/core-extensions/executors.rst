@@ -1,4 +1,3 @@
-
  .. Licensed to the Apache Software Foundation (ASF) under one
     or more contributor license agreements.  See the NOTICE file
     distributed with this work for additional information
@@ -16,4 +15,19 @@
     specific language governing permissions and limitations
     under the License.
 
-.. include:: ../../airflow/providers/sftp/CHANGELOG.rst
+Executors
+---------
+
+This is a summary of all Apache Airflow Community provided implementations of Executors
+exposed via community-managed providers.
+
+Airflow can be extended by providers with Executors. Each provider can define their own Executors,
+that can be configured to handle executing tasks
+
+The executors are explained in
+:doc:`apache-airflow:core-concepts/executor/index` and you can also see those
+provided by the community-managed providers:
+
+.. airflow-executors::
+   :tags: None
+   :header-separator: "
