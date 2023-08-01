@@ -515,6 +515,9 @@ workers:
 
   # Create ServiceAccount
   serviceAccount:
+    # default value is true
+    # ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+    automountServiceAccountToken: true
     # Specifies whether a ServiceAccount should be created
     create: true
     # The name of the ServiceAccount to use.
@@ -561,6 +564,10 @@ workers:
       {{- if eq .Values.executor "CeleryKubernetesExecutor" }}
       AND queue != '{{ .Values.config.celery_kubernetes_executor.kubernetes_queue }}'
       {{- end }}
+
+    # Weather to use PGBouncer to connect to the database or not when it is enabled
+    # This configuration will be ignored if PGBouncer is not enabled
+    usePgbouncer: true
 
   persistence:
     # Enable persistent volumes
@@ -746,6 +753,9 @@ scheduler:
 
   # Create ServiceAccount
   serviceAccount:
+    # default value is true
+    # ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+    automountServiceAccountToken: true
     # Specifies whether a ServiceAccount should be created
     create: true
     # The name of the ServiceAccount to use.
@@ -901,6 +911,9 @@ createUserJob:
 
   # Create ServiceAccount
   serviceAccount:
+    # default value is true
+    # ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+    automountServiceAccountToken: true
     # Specifies whether a ServiceAccount should be created
     create: true
     # The name of the ServiceAccount to use.
@@ -981,6 +994,9 @@ migrateDatabaseJob:
 
   # Create ServiceAccount
   serviceAccount:
+    # default value is true
+    # ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+    automountServiceAccountToken: true
     # Specifies whether a ServiceAccount should be created
     create: true
     # The name of the ServiceAccount to use.
@@ -1062,6 +1078,9 @@ webserver:
 
   # Create ServiceAccount
   serviceAccount:
+    # default value is true
+    # ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+    automountServiceAccountToken: true
     # Specifies whether a ServiceAccount should be created
     create: true
     # The name of the ServiceAccount to use.
@@ -1255,6 +1274,9 @@ triggerer:
 
   # Create ServiceAccount
   serviceAccount:
+    # default value is true
+    # ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+    automountServiceAccountToken: true
     # Specifies whether a ServiceAccount should be created
     create: true
     # The name of the ServiceAccount to use.
@@ -1408,6 +1430,9 @@ dagProcessor:
 
   # Create ServiceAccount
   serviceAccount:
+    # default value is true
+    # ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+    automountServiceAccountToken: true
     # Specifies whether a ServiceAccount should be created
     create: true
     # The name of the ServiceAccount to use.
@@ -1559,6 +1584,9 @@ flower:
 
   # Create ServiceAccount
   serviceAccount:
+    # default value is true
+    # ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+    automountServiceAccountToken: true
     # Specifies whether a ServiceAccount should be created
     create: true
     # The name of the ServiceAccount to use.
@@ -1641,6 +1669,9 @@ statsd:
 
   # Create ServiceAccount
   serviceAccount:
+    # default value is true
+    # ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+    automountServiceAccountToken: true
     # Specifies whether a ServiceAccount should be created
     create: true
     # The name of the ServiceAccount to use.
@@ -1719,6 +1750,9 @@ pgbouncer:
 
   # Create ServiceAccount
   serviceAccount:
+    # default value is true
+    # ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+    automountServiceAccountToken: true
     # Specifies whether a ServiceAccount should be created
     create: true
     # The name of the ServiceAccount to use.
@@ -1829,6 +1863,7 @@ pgbouncer:
 
   # Detailed default security context for pgbouncer for container level
   securityContexts:
+    pod: {}
     container: {}
 
   metricsExporterSidecar:
@@ -1862,6 +1897,9 @@ redis:
 
   # Create ServiceAccount
   serviceAccount:
+    # default value is true
+    # ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+    automountServiceAccountToken: true
     # Specifies whether a ServiceAccount should be created
     create: true
     # The name of the ServiceAccount to use.
@@ -1969,8 +2007,13 @@ limits: []
 # This runs as a CronJob to cleanup old pods.
 cleanup:
   enabled: false
-  # Run every 15 minutes
+  # Run every 15 minutes (templated).
   schedule: "*/15 * * * *"
+  # To select a random-ish, deterministic starting minute between 3 and 12 inclusive for each release:
+  #     '{{- add 3 (regexFind ".$" (adler32sum .Release.Name)) -}}-59/15 * * * *'
+  # To select the last digit of unix epoch time as the starting minute on each deploy:
+  #     '{{- now | unixEpoch | trunc -1 -}}-59/* * * * *'
+
   # Command to use when running the cleanup cronjob (templated).
   command: ~
   # Args to use when running the cleanup cronjob (templated).
@@ -2000,6 +2043,9 @@ cleanup:
 
   # Create ServiceAccount
   serviceAccount:
+    # default value is true
+    # ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+    automountServiceAccountToken: true
     # Specifies whether a ServiceAccount should be created
     create: true
     # The name of the ServiceAccount to use.
