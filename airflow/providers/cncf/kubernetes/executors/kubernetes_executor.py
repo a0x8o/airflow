@@ -33,9 +33,9 @@ from datetime import datetime
 from queue import Empty, Queue
 from typing import TYPE_CHECKING, Any, Sequence
 
-from sqlalchemy.orm import Session
+from sqlalchemy import select, update
 
-from airflow import AirflowException
+from airflow.exceptions import AirflowException
 
 try:
     from airflow.cli.cli_config import (
@@ -78,11 +78,14 @@ from airflow.providers.cncf.kubernetes.kubernetes_helper_functions import annota
 from airflow.utils.event_scheduler import EventScheduler
 from airflow.utils.log.logging_mixin import remove_escape_codes
 from airflow.utils.session import NEW_SESSION, provide_session
-from airflow.utils.state import State, TaskInstanceState
+from airflow.utils.state import TaskInstanceState
 
 if TYPE_CHECKING:
+    import argparse
+
     from kubernetes import client
     from kubernetes.client import models as k8s
+    from sqlalchemy.orm import Session
 
     from airflow.executors.base_executor import CommandType
     from airflow.models.taskinstance import TaskInstance
@@ -146,6 +149,7 @@ KUBERNETES_COMMANDS = (
 class KubernetesExecutor(BaseExecutor):
     """Executor for Kubernetes."""
 
+    RUNNING_POD_LOG_LINES = 100
     supports_ad_hoc_ti_run: bool = True
 
     def __init__(self):
@@ -181,6 +185,7 @@ class KubernetesExecutor(BaseExecutor):
     def _make_safe_label_value(self, input_value: str | datetime) -> str:
         """
         Normalize a provided label to be of valid length and characters.
+
         See airflow.providers.cncf.kubernetes.pod_generator.make_safe_label_value for more details.
         """
         # airflow.providers.cncf.kubernetes is an expensive import, locally import it here to
@@ -212,12 +217,12 @@ class KubernetesExecutor(BaseExecutor):
         from airflow.models.taskinstance import TaskInstance
 
         self.log.debug("Clearing tasks that have not been launched")
-        query = session.query(TaskInstance).filter(
+        query = select(TaskInstance).where(
             TaskInstance.state == TaskInstanceState.QUEUED, TaskInstance.queued_by_job_id == self.job_id
         )
         if self.kubernetes_queue:
-            query = query.filter(TaskInstance.queue == self.kubernetes_queue)
-        queued_tis: list[TaskInstance] = query.all()
+            query = query.where(TaskInstance.queue == self.kubernetes_queue)
+        queued_tis: list[TaskInstance] = session.scalars(query).all()
         self.log.info("Found %s queued task instances", len(queued_tis))
 
         # Go through the "last seen" dictionary and clean out old entries
@@ -242,7 +247,7 @@ class KubernetesExecutor(BaseExecutor):
             if ti.map_index >= 0:
                 # Old tasks _couldn't_ be mapped, so we don't have to worry about compat
                 base_label_selector += f",map_index={ti.map_index}"
-            kwargs = dict(label_selector=base_label_selector)
+            kwargs = {"label_selector": base_label_selector}
             if self.kube_config.kube_client_request_args:
                 kwargs.update(**self.kube_config.kube_client_request_args)
 
@@ -259,12 +264,16 @@ class KubernetesExecutor(BaseExecutor):
             if pod_list:
                 continue
             self.log.info("TaskInstance: %s found in queued state but was not launched, rescheduling", ti)
-            session.query(TaskInstance).filter(
-                TaskInstance.dag_id == ti.dag_id,
-                TaskInstance.task_id == ti.task_id,
-                TaskInstance.run_id == ti.run_id,
-                TaskInstance.map_index == ti.map_index,
-            ).update({TaskInstance.state: TaskInstanceState.SCHEDULED})
+            session.execute(
+                update(TaskInstance)
+                .where(
+                    TaskInstance.dag_id == ti.dag_id,
+                    TaskInstance.task_id == ti.task_id,
+                    TaskInstance.run_id == ti.run_id,
+                    TaskInstance.map_index == ti.map_index,
+                )
+                .values(state=TaskInstanceState.SCHEDULED)
+            )
 
     def start(self) -> None:
         """Starts the executor."""
@@ -370,7 +379,7 @@ class KubernetesExecutor(BaseExecutor):
         from airflow.providers.cncf.kubernetes.executors.kubernetes_executor_utils import ResourceVersion
 
         resource_instance = ResourceVersion()
-        for ns in resource_instance.resource_version.keys():
+        for ns in resource_instance.resource_version:
             resource_instance.resource_version[ns] = (
                 last_resource_version[ns] or resource_instance.resource_version[ns]
             )
@@ -425,7 +434,7 @@ class KubernetesExecutor(BaseExecutor):
     def _change_state(
         self,
         key: TaskInstanceKey,
-        state: str | None,
+        state: TaskInstanceState | None,
         pod_name: str,
         namespace: str,
         session: Session = NEW_SESSION,
@@ -433,12 +442,12 @@ class KubernetesExecutor(BaseExecutor):
         if TYPE_CHECKING:
             assert self.kube_scheduler
 
-        if state == State.RUNNING:
+        if state == TaskInstanceState.RUNNING:
             self.event_buffer[key] = state, None
             return
 
         if self.kube_config.delete_worker_pods:
-            if state != State.FAILED or self.kube_config.delete_worker_pods_on_failure:
+            if state != TaskInstanceState.FAILED or self.kube_config.delete_worker_pods_on_failure:
                 self.kube_scheduler.delete_pod(pod_name=pod_name, namespace=namespace)
                 self.log.info("Deleted pod: %s in namespace %s", str(key), str(namespace))
         else:
@@ -454,7 +463,8 @@ class KubernetesExecutor(BaseExecutor):
         if state is None:
             from airflow.models.taskinstance import TaskInstance
 
-            state = session.query(TaskInstance.state).filter(TaskInstance.filter_for_tis([key])).scalar()
+            state = session.scalar(select(TaskInstance.state).where(TaskInstance.filter_for_tis([key])))
+            state = TaskInstanceState(state)
 
         self.event_buffer[key] = state, None
 
@@ -499,7 +509,7 @@ class KubernetesExecutor(BaseExecutor):
                 namespace=namespace,
                 container="base",
                 follow=False,
-                tail_lines=100,
+                tail_lines=self.RUNNING_POD_LOG_LINES,
                 _preload_content=False,
             )
             for line in res:
@@ -507,7 +517,7 @@ class KubernetesExecutor(BaseExecutor):
             if log:
                 messages.append("Found logs through kube API")
         except Exception as e:
-            messages.append(f"Reading from k8s pod logs failed: {str(e)}")
+            messages.append(f"Reading from k8s pod logs failed: {e}")
         return messages, ["\n".join(log)]
 
     def try_adopt_task_instances(self, tis: Sequence[TaskInstance]) -> Sequence[TaskInstance]:
@@ -727,3 +737,11 @@ class KubernetesExecutor(BaseExecutor):
                 subcommands=KUBERNETES_COMMANDS,
             )
         ]
+
+
+def _get_parser() -> argparse.ArgumentParser:
+    """This method is used by Sphinx to generate documentation.
+
+    :meta private:
+    """
+    return KubernetesExecutor._get_parser()

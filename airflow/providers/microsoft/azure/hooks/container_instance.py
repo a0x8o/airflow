@@ -18,12 +18,16 @@
 from __future__ import annotations
 
 import warnings
+from functools import cached_property
+from typing import TYPE_CHECKING
 
 from azure.mgmt.containerinstance import ContainerInstanceManagementClient
-from azure.mgmt.containerinstance.models import ContainerGroup
 
 from airflow.exceptions import AirflowProviderDeprecationWarning
 from airflow.providers.microsoft.azure.hooks.base_azure import AzureBaseHook
+
+if TYPE_CHECKING:
+    from azure.mgmt.containerinstance.models import ContainerGroup
 
 
 class AzureContainerInstanceHook(AzureBaseHook):
@@ -47,7 +51,10 @@ class AzureContainerInstanceHook(AzureBaseHook):
 
     def __init__(self, azure_conn_id: str = default_conn_name) -> None:
         super().__init__(sdk_client=ContainerInstanceManagementClient, conn_id=azure_conn_id)
-        self.connection = self.get_conn()
+
+    @cached_property
+    def connection(self):
+        return self.get_conn()
 
     def create_or_update(self, resource_group: str, name: str, container_group: ContainerGroup) -> None:
         """
