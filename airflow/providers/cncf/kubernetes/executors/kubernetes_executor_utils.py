@@ -23,7 +23,6 @@ from queue import Empty, Queue
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from kubernetes import client, watch
-from kubernetes.client import Configuration, models as k8s
 from kubernetes.client.rest import ApiException
 from urllib3.exceptions import ReadTimeoutError
 
@@ -36,7 +35,7 @@ from airflow.providers.cncf.kubernetes.kubernetes_helper_functions import (
 )
 from airflow.providers.cncf.kubernetes.pod_generator import PodGenerator
 from airflow.utils.log.logging_mixin import LoggingMixin
-from airflow.utils.state import State
+from airflow.utils.state import TaskInstanceState
 
 try:
     from airflow.providers.cncf.kubernetes.executors.kubernetes_executor_types import (
@@ -51,6 +50,8 @@ except ImportError:
     )
 
 if TYPE_CHECKING:
+    from kubernetes.client import Configuration, models as k8s
+
     from airflow.providers.cncf.kubernetes.executors.kubernetes_executor_types import (
         KubernetesJobType,
         KubernetesResultsType,
@@ -223,12 +224,16 @@ class KubernetesJobWatcher(multiprocessing.Process, LoggingMixin):
             # since kube server have received request to delete pod set TI state failed
             if event["type"] == "DELETED" and pod.metadata.deletion_timestamp:
                 self.log.info("Event: Failed to start pod %s, annotations: %s", pod_name, annotations_string)
-                self.watcher_queue.put((pod_name, namespace, State.FAILED, annotations, resource_version))
+                self.watcher_queue.put(
+                    (pod_name, namespace, TaskInstanceState.FAILED, annotations, resource_version)
+                )
             else:
                 self.log.debug("Event: %s Pending, annotations: %s", pod_name, annotations_string)
         elif status == "Failed":
             self.log.error("Event: %s Failed, annotations: %s", pod_name, annotations_string)
-            self.watcher_queue.put((pod_name, namespace, State.FAILED, annotations, resource_version))
+            self.watcher_queue.put(
+                (pod_name, namespace, TaskInstanceState.FAILED, annotations, resource_version)
+            )
         elif status == "Succeeded":
             # We get multiple events once the pod hits a terminal state, and we only want to
             # send it along to the scheduler once.
@@ -256,7 +261,9 @@ class KubernetesJobWatcher(multiprocessing.Process, LoggingMixin):
                     pod_name,
                     annotations_string,
                 )
-                self.watcher_queue.put((pod_name, namespace, State.FAILED, annotations, resource_version))
+                self.watcher_queue.put(
+                    (pod_name, namespace, TaskInstanceState.FAILED, annotations, resource_version)
+                )
             else:
                 self.log.info("Event: %s is Running, annotations: %s", pod_name, annotations_string)
         else:

@@ -18,13 +18,16 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 from attrs import Factory, define
-from openlineage.client.facet import BaseFacet
-from openlineage.client.run import Dataset
 
 from airflow.utils.log.logging_mixin import LoggingMixin
 from airflow.utils.state import TaskInstanceState
+
+if TYPE_CHECKING:
+    from openlineage.client.facet import BaseFacet
+    from openlineage.client.run import Dataset
 
 
 @define
@@ -86,6 +89,12 @@ class DefaultExtractor(BaseExtractor):
         # OpenLineage methods are optional - if there's no method, return None
         try:
             return self._get_openlineage_facets(self.operator.get_openlineage_facets_on_start)  # type: ignore
+        except ImportError:
+            self.log.error(
+                "OpenLineage provider method failed to import OpenLineage integration. "
+                "This should not happen. Please report this bug to developers."
+            )
+            return None
         except AttributeError:
             return None
 

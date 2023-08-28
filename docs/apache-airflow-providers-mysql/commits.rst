@@ -28,14 +28,39 @@ For high-level changelog, see :doc:`package information including changelog <ind
 
 
 
+5.3.0
+.....
+
+Latest change: 2023-08-18
+
+=================================================================================================  ===========  ================================================================
+Commit                                                                                             Committed    Subject
+=================================================================================================  ===========  ================================================================
+`dce9796861 <https://github.com/apache/airflow/commit/dce9796861e0a535952f79b0e2a7d5a012fcc01b>`_  2023-08-18   ``Add init_command parameter to MySqlHook (#33359)``
+`744aa609c8 <https://github.com/apache/airflow/commit/744aa609c82e6cd4230a12a80424c9b7fec17779>`_  2023-08-17   ``Add 'local_infile' parameter to 'S3ToMySqlOperator' (#33459)``
+=================================================================================================  ===========  ================================================================
+
+5.2.1
+.....
+
+Latest change: 2023-08-05
+
+=================================================================================================  ===========  =====================================================================
+Commit                                                                                             Committed    Subject
+=================================================================================================  ===========  =====================================================================
+`60677b0ba3 <https://github.com/apache/airflow/commit/60677b0ba3c9e81595ec2aa3d4be2737e5b32054>`_  2023-08-05   ``Prepare docs for Aug 2023 1st wave of Providers (#33128)``
+`108a07b580 <https://github.com/apache/airflow/commit/108a07b580ca185b5982f2e60deb70f73a1f745a>`_  2023-08-04   ``Bring back mysql-connector-python as required depednency (#32989)``
+=================================================================================================  ===========  =====================================================================
+
 5.2.0
 .....
 
-Latest change: 2023-07-25
+Latest change: 2023-07-29
 
 =================================================================================================  ===========  ================================================================================
 Commit                                                                                             Committed    Subject
 =================================================================================================  ===========  ================================================================================
+`d06b7af69a <https://github.com/apache/airflow/commit/d06b7af69a65c50321ba2a9904551f3b8affc7f1>`_  2023-07-29   ``Prepare docs for July 2023 3rd wave of Providers (#32875)``
 `ce2841bf6a <https://github.com/apache/airflow/commit/ce2841bf6ab609f31cb04aea9a39473de281bf24>`_  2023-07-25   ``Add default port to Openlineage authority method. (#32828)``
 `98a999034c <https://github.com/apache/airflow/commit/98a999034cab576b001340c9274ed293dcfce2cd>`_  2023-07-21   ``Add OpenLineage support for MySQL. (#31609)``
 `e01323635a <https://github.com/apache/airflow/commit/e01323635a88ecf313a415ea41d32d6d28fa0794>`_  2023-07-13   ``Add deprecation info to the providers modules and classes docstring (#32536)``
