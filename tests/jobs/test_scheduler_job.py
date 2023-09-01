@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import collections
+import contextlib
 import datetime
 import logging
 import os
@@ -576,7 +577,7 @@ class TestSchedulerJob:
 
         res = self.job_runner._executable_task_instances_to_queued(max_tis=32, session=session)
         assert 1 == len(res)
-        res_keys = map(lambda x: x.key, res)
+        res_keys = (x.key for x in res)
         assert ti_with_dagrun.key in res_keys
         session.rollback()
 
@@ -1017,7 +1018,7 @@ class TestSchedulerJob:
         res = self.job_runner._executable_task_instances_to_queued(max_tis=32, session=session)
 
         assert 1 == len(res)
-        res_keys = map(lambda x: x.key, res)
+        res_keys = (x.key for x in res)
         assert ti2.key in res_keys
 
         ti2.state = State.RUNNING
@@ -1535,7 +1536,7 @@ class TestSchedulerJob:
         def _create_dagruns():
             dagrun = dag_maker.create_dagrun(run_type=DagRunType.SCHEDULED, state=State.RUNNING)
             yield dagrun
-            for _ in range(0, 3):
+            for _ in range(3):
                 dagrun = dag_maker.create_dagrun_after(
                     dagrun,
                     run_type=DagRunType.SCHEDULED,
@@ -1587,7 +1588,7 @@ class TestSchedulerJob:
         def _create_dagruns():
             dagrun = dag_maker.create_dagrun(run_type=DagRunType.SCHEDULED, state=State.RUNNING)
             yield dagrun
-            for _ in range(0, 19):
+            for _ in range(19):
                 dagrun = dag_maker.create_dagrun_after(
                     dagrun,
                     run_type=DagRunType.SCHEDULED,
@@ -3016,10 +3017,8 @@ class TestSchedulerJob:
         ti.task = dag_task1
 
         def run_with_error(ti, ignore_ti_state=False):
-            try:
+            with contextlib.suppress(AirflowException):
                 ti.run(ignore_ti_state=ignore_ti_state)
-            except AirflowException:
-                pass
 
         assert ti.try_number == 1
         # At this point, scheduler has tried to schedule the task once and

@@ -1139,12 +1139,10 @@ def get_prs_for_package(package_id: str) -> list[int]:
             if skip_line:
                 # Skip first "....." header
                 skip_line = False
-                continue
-            if line.strip() == current_release_version:
+            elif line.strip() == current_release_version:
                 extract_prs = True
                 skip_line = True
-                continue
-            if extract_prs:
+            elif extract_prs:
                 if len(line) > 1 and all(c == "." for c in line.strip()):
                     # Header for next version reached
                     break
@@ -1220,7 +1218,7 @@ def generate_issue_content_providers(
                 )
                 continue
             prs = get_prs_for_package(package_id)
-            provider_prs[package_id] = list(filter(lambda pr: pr not in excluded_prs, prs))
+            provider_prs[package_id] = [pr for pr in prs if pr not in excluded_prs]
             all_prs.update(provider_prs[package_id])
         g = Github(github_token)
         repo = g.get_repo("apache/airflow")

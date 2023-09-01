@@ -131,13 +131,14 @@ if TYPE_CHECKING:
     from pendulum.tz.timezone import Timezone
     from sqlalchemy.orm.query import Query
     from sqlalchemy.orm.session import Session
-    from typing_extensions import Literal
 
     from airflow.datasets import Dataset
     from airflow.decorators import TaskDecoratorCollection
     from airflow.models.dagbag import DagBag
     from airflow.models.operator import Operator
     from airflow.models.slamiss import SlaMiss
+    from airflow.serialization.pydantic.dag import DagModelPydantic
+    from airflow.typing_compat import Literal
     from airflow.utils.task_group import TaskGroup
 
 log = logging.getLogger(__name__)
@@ -3275,7 +3276,7 @@ class DAG(LoggingMixin):
         if not self.timetable.can_be_scheduled:
             return
 
-        for k, v in self.params.items():
+        for v in self.params.values():
             # As type can be an array, we would check if `null` is an allowed type or not
             if not v.has_value and ("type" not in v.schema or "null" not in v.schema["type"]):
                 raise AirflowException(
@@ -3482,8 +3483,9 @@ class DagModel(Base):
         )
 
     @classmethod
+    @internal_api_call
     @provide_session
-    def get_current(cls, dag_id, session=NEW_SESSION):
+    def get_current(cls, dag_id: str, session=NEW_SESSION) -> DagModel | DagModelPydantic:
         return session.scalar(select(cls).where(cls.dag_id == dag_id))
 
     @provide_session
