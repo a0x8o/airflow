@@ -26,13 +26,13 @@ from typing_extensions import Literal
 
 from airflow.configuration import conf
 from airflow.exceptions import AirflowException
-from airflow.providers.amazon.aws.hooks.base_aws import BaseAwsConnection
 from airflow.providers.amazon.aws.hooks.sqs import SqsHook
 from airflow.providers.amazon.aws.triggers.sqs import SqsSensorTrigger
 from airflow.providers.amazon.aws.utils.sqs import process_response
 from airflow.sensors.base import BaseSensorOperator
 
 if TYPE_CHECKING:
+    from airflow.providers.amazon.aws.hooks.base_aws import BaseAwsConnection
     from airflow.utils.context import Context
 from datetime import timedelta
 
@@ -204,11 +204,11 @@ class SqsSensor(BaseSensorOperator):
 
                 if "Successful" not in response:
                     raise AirflowException(f"Delete SQS Messages failed {response} for messages {messages}")
-        if not message_batch:
+        if message_batch:
+            context["ti"].xcom_push(key="messages", value=message_batch)
+            return True
+        else:
             return False
-
-        context["ti"].xcom_push(key="messages", value=message_batch)
-        return True
 
     @deprecated(reason="use `hook` property instead.")
     def get_hook(self) -> SqsHook:
