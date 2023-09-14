@@ -1051,6 +1051,7 @@ openapi
 openfaas
 openlineage
 oper
+OperatorLineage
 Opsgenie
 opsgenie
 Optimise
@@ -1071,6 +1072,7 @@ oversubscription
 PaaS
 Pagerduty
 pagerduty
+PagerdutyEventsHook
 pageviews
 paginator
 Papermill
@@ -1576,6 +1578,7 @@ tzinfo
 UA
 ui
 uid
+ulimit
 Umask
 umask
 Un
