@@ -51,7 +51,9 @@ class TestCloudBatchSubmitJobOperator:
 
         assert completed_job["name"] == JOB_NAME
 
-        mock.return_value.submit_batch_job.assert_called_with(job_name=JOB_NAME, job=JOB, region=REGION)
+        mock.return_value.submit_batch_job.assert_called_with(
+            job_name=JOB_NAME, job=JOB, region=REGION, project_id=PROJECT_ID
+        )
         mock.return_value.wait_for_job.assert_called()
 
     @mock.patch(CLOUD_BATCH_HOOK_PATH)
@@ -119,7 +121,6 @@ class TestCloudBatchDeleteJobOperator:
 class TestCloudBatchListJobsOperator:
     @mock.patch(CLOUD_BATCH_HOOK_PATH)
     def test_execute(self, hook_mock):
-
         filter = "filter_description"
         limit = 2
         operator = CloudBatchListJobsOperator(
@@ -134,7 +135,6 @@ class TestCloudBatchListJobsOperator:
 
     @mock.patch(CLOUD_BATCH_HOOK_PATH)
     def test_execute_with_invalid_limit(self, hook_mock):
-
         filter = "filter_description"
         limit = -1
 
@@ -147,7 +147,6 @@ class TestCloudBatchListJobsOperator:
 class TestCloudBatchListTasksOperator:
     @mock.patch(CLOUD_BATCH_HOOK_PATH)
     def test_execute(self, hook_mock):
-
         filter = "filter_description"
         limit = 2
         job_name = "test_job"
@@ -174,7 +173,6 @@ class TestCloudBatchListTasksOperator:
 
     @mock.patch(CLOUD_BATCH_HOOK_PATH)
     def test_execute_with_invalid_limit(self, hook_mock):
-
         filter = "filter_description"
         limit = -1
         job_name = "test_job"

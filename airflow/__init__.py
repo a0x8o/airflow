@@ -15,24 +15,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""
-Init setup.
-
-Authentication is implemented using flask_login and different environments can
-implement their own login mechanisms by providing an `airflow_login` module
-in their PYTHONPATH. airflow_login should be based off the `airflow.www.login`
-
-isort:skip_file
-"""
 from __future__ import annotations
 
-__version__ = "2.8.0.dev0"
-
-# flake8: noqa: F401
+__version__ = "2.10.0.dev0"
 
 import os
 import sys
-from typing import Callable
+import warnings
+from typing import TYPE_CHECKING
 
 if os.environ.get("_AIRFLOW_PATCH_GEVENT"):
     # If you are using gevents and start airflow webserver, you might want to run gevent monkeypatching
@@ -41,6 +31,17 @@ if os.environ.get("_AIRFLOW_PATCH_GEVENT"):
     from gevent.monkey import patch_all
 
     patch_all()
+
+if sys.platform == "win32":
+    warnings.warn(
+        "Airflow currently can be run on POSIX-compliant Operating Systems. For development, "
+        "it is regularly tested on fairly modern Linux Distros and recent versions of macOS. "
+        "On Windows you can run it via WSL2 (Windows Subsystem for Linux 2) or via Linux Containers. "
+        "The work to add Windows support is tracked via https://github.com/apache/airflow/issues/10388, "
+        "but it is not a high priority.",
+        category=RuntimeWarning,
+        stacklevel=1,
+    )
 
 # The configuration module initializes and validates the conf object as a side effect the first
 # time it is imported. If it is not imported before importing the settings module, the conf
@@ -51,9 +52,14 @@ if os.environ.get("_AIRFLOW_PATCH_GEVENT"):
 # configuration is therefore initted early here, simply by importing it.
 from airflow import configuration, settings
 
-__all__ = ["__version__", "login", "DAG", "PY36", "PY37", "PY38", "PY39", "PY310", "XComArg"]
+__all__ = [
+    "__version__",
+    "DAG",
+    "Dataset",
+    "XComArg",
+]
 
-# Make `airflow` an namespace package, supporting installing
+# Make `airflow` a namespace package, supporting installing
 # airflow.providers.* in different locations (i.e. one in site, and one in user
 # lib.)
 __path__ = __import__("pkgutil").extend_path(__path__, __name__)  # type: ignore
@@ -67,15 +73,6 @@ __path__ = __import__("pkgutil").extend_path(__path__, __name__)  # type: ignore
 if not os.environ.get("_AIRFLOW__AS_LIBRARY", None):
     settings.initialize()
 
-login: Callable | None = None
-
-PY36 = sys.version_info >= (3, 6)
-PY37 = sys.version_info >= (3, 7)
-PY38 = sys.version_info >= (3, 8)
-PY39 = sys.version_info >= (3, 9)
-PY310 = sys.version_info >= (3, 10)
-PY311 = sys.version_info >= (3, 11)
-
 # Things to lazy import in form {local_name: ('target_module', 'target_name', 'deprecated')}
 __lazy_imports: dict[str, tuple[str, str, bool]] = {
     "DAG": (".models.dag", "DAG", False),
@@ -85,16 +82,30 @@ __lazy_imports: dict[str, tuple[str, str, bool]] = {
     # Deprecated lazy imports
     "AirflowException": (".exceptions", "AirflowException", True),
 }
+if TYPE_CHECKING:
+    # These objects are imported by PEP-562, however, static analyzers and IDE's
+    # have no idea about typing of these objects.
+    # Add it under TYPE_CHECKING block should help with it.
+    from airflow.models.dag import DAG
+    from airflow.models.dataset import Dataset
+    from airflow.models.xcom_arg import XComArg
 
 
 def __getattr__(name: str):
     # PEP-562: Lazy loaded attributes on python modules
     module_path, attr_name, deprecated = __lazy_imports.get(name, ("", "", False))
     if not module_path:
+        if name.startswith("PY3") and (py_minor := name[3:]) in ("6", "7", "8", "9", "10", "11", "12"):
+            warnings.warn(
+                f"Python version constraint {name!r} is deprecated and will be removed in the future. "
+                f"Please get version info from the 'sys.version_info'.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return sys.version_info >= (3, int(py_minor))
+
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     elif deprecated:
-        import warnings
-
         warnings.warn(
             f"Import {name!r} directly from the airflow module is deprecated and "
             f"will be removed in the future. Please import it from 'airflow{module_path}.{attr_name}'.",
@@ -116,9 +127,9 @@ def __getattr__(name: str):
 
 
 if not settings.LAZY_LOAD_PROVIDERS:
-    from airflow import providers_manager
+    from airflow.providers_manager import ProvidersManager
 
-    manager = providers_manager.ProvidersManager()
+    manager = ProvidersManager()
     manager.initialize_providers_list()
     manager.initialize_providers_hooks()
     manager.initialize_providers_extra_links()
@@ -126,15 +137,3 @@ if not settings.LAZY_LOAD_PLUGINS:
     from airflow import plugins_manager
 
     plugins_manager.ensure_plugins_loaded()
-
-
-# This is never executed, but tricks static analyzers (PyDev, PyCharm,)
-# into knowing the types of these symbols, and what
-# they contain.
-STATICA_HACK = True
-globals()["kcah_acitats"[::-1].upper()] = False
-if STATICA_HACK:  # pragma: no cover
-    from airflow.exceptions import AirflowException
-    from airflow.models.dag import DAG
-    from airflow.models.dataset import Dataset
-    from airflow.models.xcom_arg import XComArg

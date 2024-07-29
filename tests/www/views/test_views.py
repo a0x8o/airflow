@@ -19,20 +19,24 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Callable
 from unittest import mock
+from unittest.mock import patch
 
 import pytest
+from markupsafe import Markup
 
+from airflow import __version__ as airflow_version
 from airflow.configuration import (
     initialize_config,
     write_default_airflow_configuration_if_needed,
     write_webserver_configuration_if_needed,
 )
 from airflow.plugins_manager import AirflowPlugin, EntryPointSource
+from airflow.utils.docs import get_doc_url_for_provider
 from airflow.utils.task_group import TaskGroup
-from airflow.www import views
 from airflow.www.views import (
+    ProviderView,
+    build_scarf_url,
     get_key_paths,
     get_safe_url,
     get_task_stats_from_query,
@@ -41,6 +45,8 @@ from airflow.www.views import (
 from tests.test_utils.config import conf_vars
 from tests.test_utils.mock_plugins import mock_plugin_manager
 from tests.test_utils.www import check_content_in_response, check_content_not_in_response
+
+pytestmark = pytest.mark.db_test
 
 
 def test_configuration_do_not_expose_config(admin_client):
@@ -94,6 +100,8 @@ def test_redoc_should_render_template(capture_templates, admin_client):
         "openapi_spec_url": "/api/v1/openapi.yaml",
         "rest_api_enabled": True,
         "get_docs_url": get_docs_url,
+        "excluded_events_raw": "",
+        "included_events_raw": "",
     }
 
 
@@ -130,11 +138,77 @@ def test_should_list_providers_on_page_with_details(admin_client):
     resp = admin_client.get("/provider")
     beam_href = '<a href="https://airflow.apache.org/docs/apache-airflow-providers-apache-beam/'
     beam_text = "apache-airflow-providers-apache-beam</a>"
-    beam_description = '<a href="https://beam.apache.org/">Apache Beam</a>'
+    beam_description = (
+        '<a href="https://beam.apache.org/" target="_blank" rel="noopener noreferrer">Apache Beam</a>'
+    )
     check_content_in_response(beam_href, resp)
     check_content_in_response(beam_text, resp)
     check_content_in_response(beam_description, resp)
     check_content_in_response("Providers", resp)
+
+
+@pytest.mark.parametrize(
+    "provider_description, expected",
+    [
+        (
+            "`Airbyte <https://airbyte.com/>`__",
+            Markup('<a href="https://airbyte.com/" target="_blank" rel="noopener noreferrer">Airbyte</a>'),
+        ),
+        (
+            "Amazon integration (including `Amazon Web Services (AWS) <https://aws.amazon.com/>`__).",
+            Markup(
+                'Amazon integration (including <a href="https://aws.amazon.com/" '
+                'target="_blank" rel="noopener noreferrer">Amazon Web Services (AWS)</a>).'
+            ),
+        ),
+        (
+            "`Java Database Connectivity (JDBC) <https://docs.oracle.com/javase/8/docs/technotes/guides/jdbc"
+            "/>`__",
+            Markup(
+                '<a href="https://docs.oracle.com/javase/8/docs/technotes/guides/jdbc/" '
+                'target="_blank" rel="noopener noreferrer">Java Database Connectivity (JDBC)</a>'
+            ),
+        ),
+        (
+            "`click me <javascript:prompt(document.domain)>`__",
+            Markup("`click me &lt;javascript:prompt(document.domain)&gt;`__"),
+        ),
+    ],
+)
+def test__clean_description(admin_client, provider_description, expected):
+    p = ProviderView()
+    actual = p._clean_description(provider_description)
+    assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "provider_name, project_url, expected",
+    [
+        (
+            "apache-airflow-providers-airbyte",
+            "Documentation, https://airflow.apache.org/docs/apache-airflow-providers-airbyte/3.8.1/",
+            "https://airflow.apache.org/docs/apache-airflow-providers-airbyte/3.8.1/",
+        ),
+        (
+            "apache-airflow-providers-amazon",
+            "Documentation, https://airflow.apache.org/docs/apache-airflow-providers-amazon/8.25.0/",
+            "https://airflow.apache.org/docs/apache-airflow-providers-amazon/8.25.0/",
+        ),
+        (
+            "apache-airflow-providers-apache-druid",
+            "Documentation, javascript:prompt(document.domain)",
+            # the default one is returned
+            "https://airflow.apache.org/docs/apache-airflow-providers-apache-druid/1.0.0/",
+        ),
+    ],
+)
+@patch("airflow.utils.docs.get_project_url_from_metadata")
+def test_get_doc_url_for_provider(
+    mock_get_project_url_from_metadata, admin_client, provider_name, project_url, expected
+):
+    mock_get_project_url_from_metadata.return_value = [project_url]
+    actual = get_doc_url_for_provider(provider_name, "1.0.0")
+    assert actual == expected
 
 
 def test_endpoint_should_not_be_unauthenticated(app):
@@ -454,34 +528,6 @@ def test_get_value_from_path(test_content_dict, test_key_path, expected_value):
     assert expected_value == get_value_from_path(test_key_path, test_content_dict)
 
 
-def assert_decorator_used(cls: type, fn_name: str, decorator: Callable):
-    fn = getattr(cls, fn_name)
-    code = decorator(None).__code__
-    while fn is not None:
-        if fn.__code__ is code:
-            return
-        if not hasattr(fn, "__wrapped__"):
-            break
-        fn = getattr(fn, "__wrapped__")
-    assert False, f"{cls.__name__}.{fn_name} was not decorated with @{decorator.__name__}"
-
-
-@pytest.mark.parametrize(
-    "cls",
-    [
-        views.TaskInstanceModelView,
-        views.DagRunModelView,
-    ],
-)
-def test_dag_edit_privileged_requires_view_has_action_decorators(cls: type):
-    action_funcs = {func for func in dir(cls) if callable(getattr(cls, func)) and func.startswith("action_")}
-
-    # We remove action_post as this is a standard SQLAlchemy function no enable other action functions.
-    action_funcs = action_funcs - {"action_post"}
-    for action_function in action_funcs:
-        assert_decorator_used(cls, action_function, views.action_has_dag_edit_access)
-
-
 def test_get_task_stats_from_query():
     query_data = [
         ["dag1", "queued", True, 1],
@@ -536,22 +582,6 @@ INVALID_DATETIME_RESPONSE = re.compile(r"Invalid datetime: &#x?\d+;invalid&#x?\d
             INVALID_DATETIME_RESPONSE,
         ),
         (
-            "dags/example_bash_operator/graph?execution_date=invalid",
-            INVALID_DATETIME_RESPONSE,
-        ),
-        (
-            "dags/example_bash_operator/duration?base_date=invalid",
-            INVALID_DATETIME_RESPONSE,
-        ),
-        (
-            "dags/example_bash_operator/tries?base_date=invalid",
-            INVALID_DATETIME_RESPONSE,
-        ),
-        (
-            "dags/example_bash_operator/landing-times?base_date=invalid",
-            INVALID_DATETIME_RESPONSE,
-        ),
-        (
             "dags/example_bash_operator/gantt?execution_date=invalid",
             INVALID_DATETIME_RESPONSE,
         ),
@@ -567,3 +597,30 @@ def test_invalid_dates(app, admin_client, url, content):
 
     assert resp.status_code == 400
     assert re.search(content, resp.get_data().decode())
+
+
+@pytest.mark.parametrize("enabled, dags_count", [(False, 5), (True, 5)])
+@patch("airflow.utils.usage_data_collection.get_platform_info", return_value=("Linux", "x86_64"))
+@patch("airflow.utils.usage_data_collection.get_database_version", return_value="12.3")
+@patch("airflow.utils.usage_data_collection.get_database_name", return_value="postgres")
+@patch("airflow.utils.usage_data_collection.get_executor", return_value="SequentialExecutor")
+@patch("airflow.utils.usage_data_collection.get_python_version", return_value="3.8.5")
+def test_build_scarf_url(
+    get_platform_info,
+    get_database_version,
+    get_database_name,
+    get_executor,
+    get_python_version,
+    enabled,
+    dags_count,
+):
+    with patch("airflow.settings.is_usage_data_collection_enabled", return_value=enabled):
+        result = build_scarf_url(dags_count)
+        expected_url = (
+            "https://apacheairflow.gateway.scarf.sh/webserver/"
+            f"{airflow_version}/3.8.5/Linux/x86_64/postgres/12.3/SequentialExecutor/5"
+        )
+        if enabled:
+            assert result == expected_url
+        else:
+            assert result == ""

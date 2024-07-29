@@ -18,7 +18,8 @@
 from __future__ import annotations
 
 import boto3
-from moto import mock_s3
+import pytest
+from moto import mock_aws
 
 from airflow.models import DAG
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
@@ -27,6 +28,9 @@ from airflow.providers.ssh.hooks.ssh import SSHHook
 from airflow.providers.ssh.operators.ssh import SSHOperator
 from airflow.utils.timezone import datetime
 from tests.test_utils.config import conf_vars
+
+pytestmark = pytest.mark.db_test
+
 
 TASK_ID = "test_s3_to_sftp"
 BUCKET = "test-s3-bucket"
@@ -44,7 +48,6 @@ DEFAULT_DATE = datetime(2018, 1, 1)
 
 class TestS3ToSFTPOperator:
     def setup_method(self):
-
         hook = SSHHook(ssh_conn_id="ssh_default")
         hook.no_host_key_check = True
         dag = DAG(
@@ -63,7 +66,7 @@ class TestS3ToSFTPOperator:
         self.sftp_path = SFTP_PATH
         self.s3_key = S3_KEY
 
-    @mock_s3
+    @mock_aws
     @conf_vars({("core", "enable_xcom_pickling"): "True"})
     def test_s3_to_sftp_operation(self):
         s3_hook = S3Hook(aws_conn_id=None)
@@ -121,10 +124,13 @@ class TestS3ToSFTPOperator:
         assert not s3_hook.check_for_bucket(self.s3_bucket)
 
     def delete_remote_resource(self):
+        # Initiate SHH hook
+        hook = SSHHook(ssh_conn_id="ssh_default")
+        hook.no_host_key_check = True
         # check the remote file content
         remove_file_task = SSHOperator(
             task_id="test_rm_file",
-            ssh_hook=self.hook,
+            ssh_hook=hook,
             command=f"rm {self.sftp_path}",
             do_xcom_push=True,
             dag=self.dag,

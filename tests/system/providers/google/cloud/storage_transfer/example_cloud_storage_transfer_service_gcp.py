@@ -23,7 +23,7 @@ Example Airflow DAG that demonstrates interactions with Google Cloud Transfer.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from airflow.models.dag import DAG
@@ -53,6 +53,7 @@ from airflow.providers.google.cloud.operators.cloud_storage_transfer_service imp
     CloudDataTransferServiceDeleteJobOperator,
     CloudDataTransferServiceGetOperationOperator,
     CloudDataTransferServiceListOperationsOperator,
+    CloudDataTransferServiceRunJobOperator,
     CloudDataTransferServiceUpdateJobOperator,
 )
 from airflow.providers.google.cloud.operators.gcs import GCSCreateBucketOperator, GCSDeleteBucketOperator
@@ -83,7 +84,7 @@ gcs_to_gcs_transfer_body = {
     SCHEDULE: {
         SCHEDULE_START_DATE: datetime(2015, 1, 1).date(),
         SCHEDULE_END_DATE: datetime(2030, 1, 1).date(),
-        START_TIME_OF_DAY: (datetime.utcnow() + timedelta(seconds=120)).time(),
+        START_TIME_OF_DAY: (datetime.now(tz=timezone.utc) + timedelta(seconds=120)).time(),
     },
     TRANSFER_SPEC: {
         GCS_DATA_SOURCE: {BUCKET_NAME: BUCKET_NAME_SRC},
@@ -108,7 +109,6 @@ with DAG(
     catchup=False,
     tags=["example", "transfer", "gcp"],
 ) as dag:
-
     create_bucket_src = GCSCreateBucketOperator(
         task_id="create_bucket_src",
         bucket_name=BUCKET_NAME_SRC,
@@ -148,6 +148,14 @@ with DAG(
         expected_statuses={GcpTransferOperationStatus.SUCCESS},
     )
 
+    # [START howto_operator_gcp_transfer_run_job]
+    run_transfer = CloudDataTransferServiceRunJobOperator(
+        task_id="run_transfer",
+        job_name="{{task_instance.xcom_pull('create_transfer')['name']}}",
+        project_id=PROJECT_ID_TRANSFER,
+    )
+    # [END howto_operator_gcp_transfer_run_job]
+
     list_operations = CloudDataTransferServiceListOperationsOperator(
         task_id="list_operations",
         request_filter={
@@ -181,6 +189,7 @@ with DAG(
         >> create_transfer
         >> wait_for_transfer
         >> update_transfer
+        >> run_transfer
         >> list_operations
         >> get_operation
         >> [delete_transfer, delete_bucket_src, delete_bucket_dst]

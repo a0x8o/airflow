@@ -15,7 +15,7 @@
     specific language governing permissions and limitations
     under the License.
 
-Upgrading Airflow™ to a newer version
+Upgrading Airflow® to a newer version
 -------------------------------------
 
 Why you need to upgrade
@@ -25,12 +25,17 @@ Newer Airflow versions can contain database migrations so you must run ``airflow
 to migrate your database with the schema changes in the Airflow version you are upgrading to.
 Don't worry, it's safe to run even if there are no migrations to perform.
 
+What are the changes between Airflow version x and y?
+=====================================================
+
+The :doc:`release notes <../release_notes>` lists the changes that were included in any given Airflow release.
+
 Upgrade preparation - make a backup of DB
 =========================================
 
 It is highly recommended to make a backup of your metadata DB before any migration.
 If you do not have a "hot backup" capability for your DB, you should
-do it after shutting down your Airflow instances, so that the backup of is consistent.
+do it after shutting down your Airflow instances, so that the backup of your database will be consistent.
 If you did not make a backup and your migration fails, you might end-up in
 a half-migrated state and restoring DB from backup and repeating the
 migration might be the only easy way out. This can for example be caused by a broken
@@ -52,23 +57,29 @@ when you choose to upgrade airflow via their UI.
 How to upgrade
 ==============
 
+Reinstall Apache Airflow®, specifying the desired new version.
+
+To upgrade a bootstrapped local instance, you can set the ``AIRFLOW_VERSION`` environment variable to the
+intended version prior to rerunning the installation command. Upgrade incrementally by patch version: e.g.,
+if upgrading from version 2.8.2 to 2.8.4, upgrade first to 2.8.3. For more detailed guidance, see
+:doc:`/start`.
+
+To upgrade a PyPI package, rerun the ``pip install`` command in your environment using the desired version
+as a constraint. For more detailed guidance, see :doc:`/installation/installing-from-pypi`.
+
 In order to manually migrate the database you should run the ``airflow db migrate`` command in your
 environment. It can be run either in your virtual environment or in the containers that give
 you access to Airflow ``CLI`` :doc:`/howto/usage-cli` and the database.
 
 Offline SQL migration scripts
 =============================
-If you want to run the upgrade script offline, you can use the ``-r`` or ``--revision-range`` flag
-to get the SQL statements that would be executed. This feature is supported in Postgres and MySQL
-from Airflow 2.0.0 onward and in MSSQL from Airflow 2.2.0 onward.
+If you want to run the upgrade script offline, you can use the ``-s`` or ``--show-sql-only`` flag
+to get the SQL statements that would be executed. You may also specify the starting airflow version with the ``--from-version`` flag and the ending airflow version with the ``-n`` or ``--to-version`` flag. This feature is supported in Postgres and MySQL
+from Airflow 2.0.0 onward.
 
-Sample usage:
-   ``airflow db migrate -r "2.0.0:2.2.0"``
-   ``airflow db migrate --revision-range "e959f08ac86c:142555e44c17"``
-
-But for Airflow version 2.7.0 or greater, please use
-    ``airflow db migrate -r "2.0.0:2.2.0"``
-    ``airflow db migrate --revision-range "e959f08ac86c:142555e44c17"``
+Sample usage for Airflow version 2.7.0 or greater:
+   ``airflow db migrate -s --from-version "2.4.3" -n "2.7.3"``
+   ``airflow db migrate --show-sql-only --from-version "2.4.3" --to-version "2.7.3"``
 
 .. note::
     ``airflow db upgrade`` has been replaced by ``airflow db migrate`` since Airflow version 2.7.0

@@ -36,9 +36,6 @@ from airflow.utils.trigger_rule import TriggerRule
 from tests.system.providers.amazon.aws.utils import ENV_ID_KEY, SystemTestContextBuilder
 from tests.system.providers.amazon.aws.utils.k8s import get_describe_pod_operator
 
-# Ignore missing args provided by default_args
-# type: ignore[call-arg]
-
 DAG_ID = "example_eks_with_nodegroups"
 
 # Externally fetched variables:
@@ -132,6 +129,7 @@ with DAG(
         cmds=["sh", "-c", "echo Test Airflow; date"],
         labels={"demo": "hello_world"},
         get_logs=True,
+        on_finish_action="keep_pod",
     )
     # [END howto_operator_eks_pod_operator]
     # Keep the pod alive, so we can describe it in case of trouble. It's deleted with the cluster anyway.

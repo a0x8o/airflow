@@ -28,6 +28,7 @@ from unittest.mock import patch
 import psutil
 import pytest
 
+from airflow.exceptions import AirflowTaskTimeout
 from airflow.jobs.job import Job
 from airflow.jobs.local_task_job_runner import LocalTaskJobRunner
 from airflow.listeners.listener import get_listener_manager
@@ -44,10 +45,10 @@ from tests.listeners.file_write_listener import FileWriteListener
 from tests.test_utils.db import clear_db_runs
 
 TEST_DAG_FOLDER = os.environ["AIRFLOW__CORE__DAGS_FOLDER"]
-
 DEFAULT_DATE = timezone.datetime(2016, 1, 1)
-
 TASK_FORMAT = "%(filename)s:%(lineno)d %(levelname)s - %(message)s"
+
+logger = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -96,8 +97,9 @@ class TestStandardTaskRunner:
         yield
         get_listener_manager().clear()
 
+    @mock.patch.object(StandardTaskRunner, "_read_task_utilization")
     @patch("airflow.utils.log.file_task_handler.FileTaskHandler._init_file")
-    def test_start_and_terminate(self, mock_init):
+    def test_start_and_terminate(self, mock_init, mock_read_task_utilization):
         mock_init.return_value = "/tmp/any"
         Job = mock.Mock()
         Job.job_type = None
@@ -131,7 +133,9 @@ class TestStandardTaskRunner:
             assert not psutil.pid_exists(process.pid), f"{process} is still alive"
 
         assert task_runner.return_code() is not None
+        mock_read_task_utilization.assert_called()
 
+    @pytest.mark.db_test
     def test_notifies_about_start_and_stop(self, tmp_path):
         path_listener_writer = tmp_path / "test_notifies_about_start_and_stop"
 
@@ -172,6 +176,7 @@ class TestStandardTaskRunner:
             assert f.readline() == "on_task_instance_success\n"
             assert f.readline() == "before_stopping\n"
 
+    @pytest.mark.db_test
     def test_notifies_about_fail(self, tmp_path):
         path_listener_writer = tmp_path / "test_notifies_about_fail"
 
@@ -212,6 +217,7 @@ class TestStandardTaskRunner:
             assert f.readline() == "on_task_instance_failed\n"
             assert f.readline() == "before_stopping\n"
 
+    @pytest.mark.db_test
     def test_ol_does_not_block_xcoms(self, tmp_path):
         """
         Test that ensures that pushing and pulling xcoms both in listener and task does not collide
@@ -257,8 +263,9 @@ class TestStandardTaskRunner:
             assert f.readline() == "on_task_instance_success\n"
             assert f.readline() == "listener\n"
 
+    @mock.patch.object(StandardTaskRunner, "_read_task_utilization")
     @patch("airflow.utils.log.file_task_handler.FileTaskHandler._init_file")
-    def test_start_and_terminate_run_as_user(self, mock_init):
+    def test_start_and_terminate_run_as_user(self, mock_init, mock_read_task_utilization):
         mock_init.return_value = "/tmp/any"
         Job = mock.Mock()
         Job.job_type = None
@@ -293,6 +300,7 @@ class TestStandardTaskRunner:
             assert not psutil.pid_exists(process.pid), f"{process} is still alive"
 
         assert task_runner.return_code() is not None
+        mock_read_task_utilization.assert_called()
 
     @propagate_task_logger()
     @patch("airflow.utils.log.file_task_handler.FileTaskHandler._init_file")
@@ -337,6 +345,7 @@ class TestStandardTaskRunner:
         assert task_runner.return_code() == -9
         assert "running out of memory" in caplog.text
 
+    @pytest.mark.db_test
     def test_on_kill(self):
         """
         Test that ensures that clearing in the UI SIGTERMS
@@ -374,20 +383,20 @@ class TestStandardTaskRunner:
 
         processes = list(self._procs_in_pgroup(runner_pgid))
 
-        logging.info("Waiting for the task to start")
+        logger.info("Waiting for the task to start")
         with timeout(seconds=20):
             while not path_on_kill_running.exists():
                 time.sleep(0.01)
-        logging.info("Task started. Give the task some time to settle")
+        logger.info("Task started. Give the task some time to settle")
         time.sleep(3)
-        logging.info("Terminating processes %s belonging to %s group", processes, runner_pgid)
+        logger.info("Terminating processes %s belonging to %s group", processes, runner_pgid)
         task_runner.terminate()
 
-        logging.info("Waiting for the on kill killed file to appear")
+        logger.info("Waiting for the on kill killed file to appear")
         with timeout(seconds=4):
             while not path_on_kill_killed.exists():
                 time.sleep(0.01)
-        logging.info("The file appeared")
+        logger.info("The file appeared")
 
         with path_on_kill_killed.open() as f:
             assert "ON_KILL_TEST" == f.readline()
@@ -395,6 +404,7 @@ class TestStandardTaskRunner:
         for process in processes:
             assert not psutil.pid_exists(process.pid), f"{process} is still alive"
 
+    @pytest.mark.db_test
     def test_parsing_context(self):
         context_file = Path("/tmp/airflow_parsing_context")
         context_file.unlink(missing_ok=True)
@@ -438,6 +448,35 @@ class TestStandardTaskRunner:
             text == "_AIRFLOW_PARSING_CONTEXT_DAG_ID=test_parsing_context\n"
             "_AIRFLOW_PARSING_CONTEXT_TASK_ID=task1\n"
         )
+
+    @pytest.mark.db_test
+    @mock.patch("airflow.task.task_runner.standard_task_runner.Stats.gauge")
+    @patch("airflow.utils.log.file_task_handler.FileTaskHandler._init_file")
+    def test_read_task_utilization(self, mock_init, mock_stats, tmp_path):
+        mock_init.return_value = (tmp_path / "test_read_task_utilization.log").as_posix()
+        Job = mock.Mock()
+        Job.job_type = None
+        Job.task_instance = mock.MagicMock()
+        Job.task_instance.task_id = "task_id"
+        Job.task_instance.dag_id = "dag_id"
+        Job.task_instance.run_as_user = None
+        Job.task_instance.command_as_list.return_value = [
+            "airflow",
+            "tasks",
+            "run",
+            "test_on_kill",
+            "task1",
+            "2016-01-01",
+        ]
+        job_runner = LocalTaskJobRunner(job=Job, task_instance=Job.task_instance)
+        task_runner = StandardTaskRunner(job_runner)
+        task_runner.start()
+        try:
+            with timeout(1):
+                task_runner._read_task_utilization()
+        except AirflowTaskTimeout:
+            pass
+        assert mock_stats.call_count == 2
 
     @staticmethod
     def _procs_in_pgroup(pgid):

@@ -18,7 +18,8 @@ from __future__ import annotations
 
 from deprecated import deprecated
 
-from airflow.auth.managers.fab.security_manager.override import FabAirflowSecurityManagerOverride
+from airflow.exceptions import RemovedInAirflow3Warning
+from airflow.providers.fab.auth_manager.security_manager.override import FabAirflowSecurityManagerOverride
 
 EXISTING_ROLES = {
     "Admin",
@@ -31,11 +32,13 @@ EXISTING_ROLES = {
 
 @deprecated(
     reason="If you want to override the security manager, you should inherit from "
-    "`airflow.auth.managers.fab.security_manager.override.FabAirflowSecurityManagerOverride` "
-    "instead"
+    "`airflow.providers.fab.auth_manager.security_manager.override.FabAirflowSecurityManagerOverride` "
+    "instead",
+    category=RemovedInAirflow3Warning,
 )
 class AirflowSecurityManager(FabAirflowSecurityManagerOverride):
-    """Placeholder, just here to avoid breaking the code of users who inherit from this.
+    """
+    Placeholder, just here to avoid breaking the code of users who inherit from this.
 
     Do not use if writing new code.
     """

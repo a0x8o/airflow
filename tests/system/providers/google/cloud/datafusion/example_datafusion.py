@@ -17,6 +17,7 @@
 """
 Example Airflow DAG that shows how to use DataFusion.
 """
+
 from __future__ import annotations
 
 import os
@@ -40,10 +41,11 @@ from airflow.providers.google.cloud.operators.datafusion import (
 from airflow.providers.google.cloud.operators.gcs import GCSCreateBucketOperator, GCSDeleteBucketOperator
 from airflow.providers.google.cloud.sensors.datafusion import CloudDataFusionPipelineStateSensor
 from airflow.utils.trigger_rule import TriggerRule
+from tests.system.providers.google import DEFAULT_GCP_SYSTEM_TEST_PROJECT_ID
 
 # [START howto_data_fusion_env_variables]
 SERVICE_ACCOUNT = os.environ.get("GCP_DATAFUSION_SERVICE_ACCOUNT")
-PROJECT_ID = os.environ.get("SYSTEM_TESTS_GCP_PROJECT")
+PROJECT_ID = os.environ.get("SYSTEM_TESTS_GCP_PROJECT") or DEFAULT_GCP_SYSTEM_TEST_PROJECT_ID
 ENV_ID = os.environ.get("SYSTEM_TESTS_ENV_ID")
 LOCATION = "europe-north1"
 DAG_ID = "example_datafusion"
@@ -159,7 +161,10 @@ PIPELINE = {
 }
 # [END howto_data_fusion_env_variables]
 
-CloudDataFusionCreatePipelineOperator.template_fields += ("pipeline",)
+CloudDataFusionCreatePipelineOperator.template_fields = (
+    *CloudDataFusionCreatePipelineOperator.template_fields,
+    "pipeline",
+)
 
 
 with DAG(
@@ -212,7 +217,7 @@ with DAG(
     # [END howto_cloud_data_fusion_update_instance_operator]
 
     @task(task_id="get_artifacts_versions")
-    def get_artifacts_versions(ti) -> dict:
+    def get_artifacts_versions(ti=None):
         hook = DataFusionHook()
         instance_url = ti.xcom_pull(task_ids="get_instance", key="return_value")["apiEndpoint"]
         artifacts = hook.get_instance_artifacts(instance_url=instance_url, namespace="default")

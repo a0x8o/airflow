@@ -16,20 +16,31 @@
 # specific language governing permissions and limitations
 # under the License.
 """Operators that interact with Google Cloud Life Sciences service."""
+
 from __future__ import annotations
 
-import warnings
 from typing import TYPE_CHECKING, Sequence
+
+from deprecated import deprecated
 
 from airflow.exceptions import AirflowException, AirflowProviderDeprecationWarning
 from airflow.providers.google.cloud.hooks.life_sciences import LifeSciencesHook
 from airflow.providers.google.cloud.links.life_sciences import LifeSciencesLink
 from airflow.providers.google.cloud.operators.cloud_base import GoogleCloudBaseOperator
+from airflow.providers.google.common.hooks.base_google import PROVIDE_PROJECT_ID
 
 if TYPE_CHECKING:
     from airflow.utils.context import Context
 
 
+@deprecated(
+    reason=(
+        "Consider using Google Cloud Batch Operators instead."
+        "The Life Sciences API (beta) will be discontinued "
+        "on July 8, 2025 in favor of Google Cloud Batch."
+    ),
+    category=AirflowProviderDeprecationWarning,
+)
 class LifeSciencesRunPipelineOperator(GoogleCloudBaseOperator):
     """
     Runs a Life Sciences Pipeline.
@@ -72,7 +83,7 @@ class LifeSciencesRunPipelineOperator(GoogleCloudBaseOperator):
         *,
         body: dict,
         location: str,
-        project_id: str | None = None,
+        project_id: str = PROVIDE_PROJECT_ID,
         gcp_conn_id: str = "google_cloud_default",
         api_version: str = "v2beta",
         impersonation_chain: str | Sequence[str] | None = None,
@@ -86,14 +97,6 @@ class LifeSciencesRunPipelineOperator(GoogleCloudBaseOperator):
         self.api_version = api_version
         self._validate_inputs()
         self.impersonation_chain = impersonation_chain
-
-        warnings.warn(
-            """This operator is deprecated. Consider using Google Cloud Batch Operators instead.
-            The Life Sciences API (beta) will be discontinued on July 8, 2025 in favor
-            of Google Cloud Batch.""",
-            AirflowProviderDeprecationWarning,
-            stacklevel=3,
-        )
 
     def _validate_inputs(self) -> None:
         if not self.body:

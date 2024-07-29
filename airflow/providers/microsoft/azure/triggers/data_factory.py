@@ -30,7 +30,8 @@ from airflow.triggers.base import BaseTrigger, TriggerEvent
 
 
 class ADFPipelineRunStatusSensorTrigger(BaseTrigger):
-    """Trigger with params to run the task when the ADF Pipeline is running.
+    """
+    Trigger with params to run the task when the ADF Pipeline is running.
 
     :param run_id: The pipeline run identifier.
     :param azure_data_factory_conn_id: The connection identifier for connecting to Azure Data Factory.
@@ -55,7 +56,7 @@ class ADFPipelineRunStatusSensorTrigger(BaseTrigger):
         self.poke_interval = poke_interval
 
     def serialize(self) -> tuple[str, dict[str, Any]]:
-        """Serializes ADFPipelineRunStatusSensorTrigger arguments and classpath."""
+        """Serialize ADFPipelineRunStatusSensorTrigger arguments and classpath."""
         return (
             "airflow.providers.microsoft.azure.triggers.data_factory.ADFPipelineRunStatusSensorTrigger",
             {
@@ -96,7 +97,7 @@ class ADFPipelineRunStatusSensorTrigger(BaseTrigger):
                     await asyncio.sleep(self.poke_interval)
                 except ServiceRequestError:
                     # conn might expire during long running pipeline.
-                    # If expcetion is caught, it tries to refresh connection once.
+                    # If exception is caught, it tries to refresh connection once.
                     # If it still doesn't fix the issue,
                     # than the execute_after_token_refresh would still be False
                     # and an exception will be raised
@@ -110,7 +111,8 @@ class ADFPipelineRunStatusSensorTrigger(BaseTrigger):
 
 
 class AzureDataFactoryTrigger(BaseTrigger):
-    """Trigger when the Azure data factory pipeline job finishes.
+    """
+    Trigger when the Azure data factory pipeline job finishes.
 
     When wait_for_termination is set to False, it triggers immediately with success status.
 
@@ -143,7 +145,7 @@ class AzureDataFactoryTrigger(BaseTrigger):
         self.end_time = end_time
 
     def serialize(self) -> tuple[str, dict[str, Any]]:
-        """Serializes AzureDataFactoryTrigger arguments and classpath."""
+        """Serialize AzureDataFactoryTrigger arguments and classpath."""
         return (
             "airflow.providers.microsoft.azure.triggers.data_factory.AzureDataFactoryTrigger",
             {
@@ -200,7 +202,7 @@ class AzureDataFactoryTrigger(BaseTrigger):
                         await asyncio.sleep(self.check_interval)
                     except ServiceRequestError:
                         # conn might expire during long running pipeline.
-                        # If expcetion is caught, it tries to refresh connection once.
+                        # If exception is caught, it tries to refresh connection once.
                         # If it still doesn't fix the issue,
                         # than the execute_after_token_refresh would still be False
                         # and an exception will be raised

@@ -27,6 +27,180 @@
 Changelog
 ---------
 
+3.7.2
+.....
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fixing exception types to include TypeError, which is what is raised in (#40012)``
+* ``catch sentry flush if exception happens in _execute_in_fork finally block (#40060)``
+
+Misc
+~~~~
+
+* ``Add PID and return code to _execute_in_fork logging (#40058)``
+
+3.7.1
+.....
+
+Misc
+~~~~
+
+* ``Faster 'airflow_version' imports (#39552)``
+* ``Simplify 'airflow_version' imports (#39497)``
+* ``ECS Executor: Set tasks to RUNNING state once active (#39212)``
+* ``Remove compat code for 2.7.0 - its now the min Airflow version (#39591)``
+* ``misc: add comment about remove unused code (#39748)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Reapply templates for all providers (#39554)``
+
+3.7.0
+.....
+
+.. note::
+  This release of provider is only available for Airflow 2.7+ as explained in the
+  `Apache Airflow providers support policy <https://github.com/apache/airflow/blob/main/PROVIDERS.rst#minimum-supported-version-of-airflow-for-community-managed-providers>`_.
+
+Misc
+~~~~
+
+* ``Bump minimum Airflow version in providers to Airflow 2.7.0 (#39240)``
+
+3.6.2
+.....
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Ensure __exit__ is called in decorator context managers (#38383)``
+* ``Don't dispose sqlalchemy engine when using internal api (#38562)``
+* ``Use celery worker CLI from Airflow package for Airflow < 2.8.0 (#38879)``
+
+Misc
+~~~~
+
+* ``Allow to use 'redis'>=5 (#38385)``
+* ``Reraise of AirflowOptionalProviderFeatureException should be direct (#38555)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Bump ruff to 0.3.3 (#38240)``
+
+3.6.1
+.....
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Remove pid arg from celery option to fix duplicate pid issue, Move celery command to provider package (#36794)``
+* ``Change AirflowTaskTimeout to inherit BaseException (#35653)``
+
+Misc
+~~~~
+
+* ``Migrate executor docs to respective providers (#37728)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Resolve G003: "Logging statement uses +" (#37848)``
+   * ``Add comment about versions updated by release manager (#37488)``
+
+3.6.0
+.....
+
+Features
+~~~~~~~~
+
+* ``Add 'task_acks_late' configuration to Celery Executor (#37066)``
+
+Misc
+~~~~
+
+* ``improve info for prevent celery command autoscale misconfig (#36576)``
+
+3.5.2
+.....
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fix stacklevel in warnings.warn into the providers (#36831)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Standardize airflow build process and switch to Hatchling build backend (#36537)``
+   * ``Prepare docs 1st wave of Providers January 2024 (#36640)``
+   * ``Speed up autocompletion of Breeze by simplifying provider state (#36499)``
+   * ``Prepare docs 2nd wave of Providers January 2024 (#36945)``
+
+3.5.1
+.....
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fix 'sentinel_kwargs' load from ENV (#36318)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+
+3.5.0
+.....
+
+.. note::
+  This release of provider is only available for Airflow 2.6+ as explained in the
+  `Apache Airflow providers support policy <https://github.com/apache/airflow/blob/main/PROVIDERS.rst#minimum-supported-version-of-airflow-for-community-managed-providers>`_.
+
+Misc
+~~~~
+
+* ``Bump minimum Airflow version in providers to Airflow 2.6.0 (#36017)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Fix and reapply templates for provider documentation (#35686)``
+   * ``Prepare docs 3rd wave of Providers October 2023 - FIX (#35233)``
+   * ``Update information about links into the provider.yaml files (#35837)``
+   * ``Prepare docs 2nd wave of Providers November 2023 (#35836)``
+   * ``Use reproducible builds for provider packages (#35693)``
+   * ``Prepare docs 1st wave of Providers November 2023 (#35537)``
+   * ``Prepare docs 3rd wave of Providers October 2023 (#35187)``
+   * ``Pre-upgrade 'ruff==0.0.292' changes in providers (#35053)``
+
+3.4.1
+.....
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fix _SECRET and _CMD broker configuration (#34782)``
+* ``Remove sensitive information from Celery executor warning (#34954)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``D401 Support - A thru Common (Inclusive) (#34934)``
+
+
+3.4.0
+.....
+
+.. note::
+  This release of provider is only available for Airflow 2.5+ as explained in the
+  `Apache Airflow providers support policy <https://github.com/apache/airflow/blob/main/PROVIDERS.rst#minimum-supported-version-of-airflow-for-community-managed-providers>`_.
+
+Misc
+~~~~
+
+* ``Bump min airflow version of providers (#34728)``
+* ``respect soft_fail argument when exception is raised for celery sensors (#34474)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Refactor usage of str() in providers (#34320)``
+
 3.3.4
 .....
 

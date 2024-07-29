@@ -22,10 +22,11 @@ This module contains AWS Athena hook.
 
     PageIterator
 """
+
 from __future__ import annotations
 
 import warnings
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Collection
 
 from airflow.exceptions import AirflowException, AirflowProviderDeprecationWarning
 from airflow.providers.amazon.aws.hooks.base_aws import AwsBaseHook
@@ -34,9 +35,23 @@ from airflow.providers.amazon.aws.utils.waiter_with_logging import wait
 if TYPE_CHECKING:
     from botocore.paginate import PageIterator
 
+MULTI_LINE_QUERY_LOG_PREFIX = "\n\t\t"
+
+
+def query_params_to_string(params: dict[str, str | Collection[str]]) -> str:
+    result = ""
+    for key, value in params.items():
+        if key == "QueryString":
+            value = (
+                MULTI_LINE_QUERY_LOG_PREFIX + str(value).replace("\n", MULTI_LINE_QUERY_LOG_PREFIX).rstrip()
+            )
+        result += f"\t{key}: {value}\n"
+    return result.rstrip()
+
 
 class AthenaHook(AwsBaseHook):
-    """Interact with Amazon Athena.
+    """
+    Interact with Amazon Athena.
 
     Provide thick wrapper around
     :external+boto3:py:class:`boto3.client("athena") <Athena.Client>`.
@@ -82,6 +97,7 @@ class AthenaHook(AwsBaseHook):
         else:
             self.sleep_time = 30  # previous default value
         self.log_query = log_query
+        self.__query_results: dict[str, Any] = {}
 
     def run_query(
         self,
@@ -91,19 +107,19 @@ class AthenaHook(AwsBaseHook):
         client_request_token: str | None = None,
         workgroup: str = "primary",
     ) -> str:
-        """Run a Presto query on Athena with provided config.
+        """
+        Run a Trino/Presto query on Athena with provided config.
 
         .. seealso::
             - :external+boto3:py:meth:`Athena.Client.start_query_execution`
 
-        :param query: Presto query to run.
+        :param query: Trino/Presto query to run.
         :param query_context: Context in which query need to be run.
         :param result_configuration: Dict with path to store results in and
             config related to encryption.
         :param client_request_token: Unique token created by user to avoid
             multiple executions of same query.
-        :param workgroup: Athena workgroup name, when not specified, will be
-            ``'primary'``.
+        :param workgroup: Athena workgroup name, when not specified, will be ``'primary'``.
         :return: Submitted query execution ID.
         """
         params = {
@@ -115,14 +131,32 @@ class AthenaHook(AwsBaseHook):
         if client_request_token:
             params["ClientRequestToken"] = client_request_token
         if self.log_query:
-            self.log.info("Running Query with params: %s", params)
+            self.log.info("Running Query with params:\n%s", query_params_to_string(params))
         response = self.get_conn().start_query_execution(**params)
         query_execution_id = response["QueryExecutionId"]
         self.log.info("Query execution id: %s", query_execution_id)
         return query_execution_id
 
-    def check_query_status(self, query_execution_id: str) -> str | None:
-        """Fetch the state of a submitted query.
+    def get_query_info(self, query_execution_id: str, use_cache: bool = False) -> dict:
+        """
+        Get information about a single execution of a query.
+
+        .. seealso::
+            - :external+boto3:py:meth:`Athena.Client.get_query_execution`
+
+        :param query_execution_id: Id of submitted athena query
+        :param use_cache: If True, use execution information cache
+        """
+        if use_cache and query_execution_id in self.__query_results:
+            return self.__query_results[query_execution_id]
+        response = self.get_conn().get_query_execution(QueryExecutionId=query_execution_id)
+        if use_cache:
+            self.__query_results[query_execution_id] = response
+        return response
+
+    def check_query_status(self, query_execution_id: str, use_cache: bool = False) -> str | None:
+        """
+        Fetch the state of a submitted query.
 
         .. seealso::
             - :external+boto3:py:meth:`Athena.Client.get_query_execution`
@@ -131,7 +165,7 @@ class AthenaHook(AwsBaseHook):
         :return: One of valid query states, or *None* if the response is
             malformed.
         """
-        response = self.get_conn().get_query_execution(QueryExecutionId=query_execution_id)
+        response = self.get_query_info(query_execution_id=query_execution_id, use_cache=use_cache)
         state = None
         try:
             state = response["QueryExecution"]["Status"]["State"]
@@ -144,7 +178,7 @@ class AthenaHook(AwsBaseHook):
             # The error is being absorbed to implement retries.
             return state
 
-    def get_state_change_reason(self, query_execution_id: str) -> str | None:
+    def get_state_change_reason(self, query_execution_id: str, use_cache: bool = False) -> str | None:
         """
         Fetch the reason for a state change (e.g. error message). Returns None or reason string.
 
@@ -153,7 +187,7 @@ class AthenaHook(AwsBaseHook):
 
         :param query_execution_id: Id of submitted athena query
         """
-        response = self.get_conn().get_query_execution(QueryExecutionId=query_execution_id)
+        response = self.get_query_info(query_execution_id=query_execution_id, use_cache=use_cache)
         reason = None
         try:
             reason = response["QueryExecution"]["Status"]["StateChangeReason"]
@@ -170,7 +204,8 @@ class AthenaHook(AwsBaseHook):
     def get_query_results(
         self, query_execution_id: str, next_token_id: str | None = None, max_results: int = 1000
     ) -> dict | None:
-        """Fetch submitted query results.
+        """
+        Fetch submitted query results.
 
         .. seealso::
             - :external+boto3:py:meth:`Athena.Client.get_query_results`
@@ -204,7 +239,8 @@ class AthenaHook(AwsBaseHook):
         page_size: int | None = None,
         starting_token: str | None = None,
     ) -> PageIterator | None:
-        """Fetch submitted Athena query results.
+        """
+        Fetch submitted Athena query results.
 
         .. seealso::
             - :external+boto3:py:class:`Athena.Paginator.GetQueryResults`
@@ -244,7 +280,8 @@ class AthenaHook(AwsBaseHook):
     def poll_query_status(
         self, query_execution_id: str, max_polling_attempts: int | None = None, sleep_time: int | None = None
     ) -> str | None:
-        """Poll the state of a submitted query until it reaches final state.
+        """
+        Poll the state of a submitted query until it reaches final state.
 
         :param query_execution_id: ID of submitted athena query
         :param max_polling_attempts: Number of times to poll for query state before function exits
@@ -269,34 +306,29 @@ class AthenaHook(AwsBaseHook):
             return self.check_query_status(query_execution_id)
 
     def get_output_location(self, query_execution_id: str) -> str:
-        """Get the output location of the query results in S3 URI format.
+        """
+        Get the output location of the query results in S3 URI format.
 
         .. seealso::
             - :external+boto3:py:meth:`Athena.Client.get_query_execution`
 
         :param query_execution_id: Id of submitted athena query
         """
-        output_location = None
-        if query_execution_id:
-            response = self.get_conn().get_query_execution(QueryExecutionId=query_execution_id)
+        if not query_execution_id:
+            raise ValueError(f"Invalid Query execution id. Query execution id: {query_execution_id}")
 
-            if response:
-                try:
-                    output_location = response["QueryExecution"]["ResultConfiguration"]["OutputLocation"]
-                except KeyError:
-                    self.log.error(
-                        "Error retrieving OutputLocation. Query execution id: %s", query_execution_id
-                    )
-                    raise
-            else:
-                raise
-        else:
-            raise ValueError("Invalid Query execution id. Query execution id: %s", query_execution_id)
+        if not (response := self.get_query_info(query_execution_id=query_execution_id, use_cache=True)):
+            raise ValueError(f"Unable to get query information for execution id: {query_execution_id}")
 
-        return output_location
+        try:
+            return response["QueryExecution"]["ResultConfiguration"]["OutputLocation"]
+        except KeyError:
+            self.log.error("Error retrieving OutputLocation. Query execution id: %s", query_execution_id)
+            raise
 
     def stop_query(self, query_execution_id: str) -> dict:
-        """Cancel the submitted query.
+        """
+        Cancel the submitted query.
 
         .. seealso::
             - :external+boto3:py:meth:`Athena.Client.stop_query_execution`

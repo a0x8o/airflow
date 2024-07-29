@@ -25,13 +25,18 @@ from sqlalchemy import and_, select
 from airflow.api_connexion import security
 from airflow.api_connexion.exceptions import BadRequest, NotFound
 from airflow.api_connexion.parameters import check_limit, format_parameters
-from airflow.api_connexion.schemas.xcom_schema import XComCollection, xcom_collection_schema, xcom_schema
+from airflow.api_connexion.schemas.xcom_schema import (
+    XComCollection,
+    xcom_collection_schema,
+    xcom_schema_native,
+    xcom_schema_string,
+)
+from airflow.auth.managers.models.resource_details import DagAccessEntity
 from airflow.models import DagRun as DR, XCom
-from airflow.security import permissions
 from airflow.settings import conf
-from airflow.utils.airflow_flask_app import get_airflow_app
 from airflow.utils.db import get_query_count
 from airflow.utils.session import NEW_SESSION, provide_session
+from airflow.www.extensions.init_auth_manager import get_auth_manager
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -39,14 +44,7 @@ if TYPE_CHECKING:
     from airflow.api_connexion.types import APIResponse
 
 
-@security.requires_access(
-    [
-        (permissions.ACTION_CAN_READ, permissions.RESOURCE_DAG),
-        (permissions.ACTION_CAN_READ, permissions.RESOURCE_DAG_RUN),
-        (permissions.ACTION_CAN_READ, permissions.RESOURCE_TASK_INSTANCE),
-        (permissions.ACTION_CAN_READ, permissions.RESOURCE_XCOM),
-    ],
-)
+@security.requires_access_dag("GET", DagAccessEntity.XCOM)
 @format_parameters({"limit": check_limit})
 @provide_session
 def get_xcom_entries(
@@ -63,8 +61,7 @@ def get_xcom_entries(
     """Get all XCom values."""
     query = select(XCom)
     if dag_id == "~":
-        appbuilder = get_airflow_app().appbuilder
-        readable_dag_ids = appbuilder.sm.get_readable_dag_ids(g.user)
+        readable_dag_ids = get_auth_manager().get_permitted_dag_ids(methods=["GET"], user=g.user)
         query = query.where(XCom.dag_id.in_(readable_dag_ids))
         query = query.join(DR, and_(XCom.dag_id == DR.dag_id, XCom.run_id == DR.run_id))
     else:
@@ -79,20 +76,14 @@ def get_xcom_entries(
         query = query.where(XCom.map_index == map_index)
     if xcom_key is not None:
         query = query.where(XCom.key == xcom_key)
-    query = query.order_by(DR.execution_date, XCom.task_id, XCom.dag_id, XCom.key)
+    # Match idx_xcom_task_instance + idx_xcom_key for performance.
+    query = query.order_by(XCom.dag_id, XCom.task_id, XCom.run_id, XCom.map_index, XCom.key)
     total_entries = get_query_count(query, session=session)
     query = session.scalars(query.offset(offset).limit(limit))
     return xcom_collection_schema.dump(XComCollection(xcom_entries=query, total_entries=total_entries))
 
 
-@security.requires_access(
-    [
-        (permissions.ACTION_CAN_READ, permissions.RESOURCE_DAG),
-        (permissions.ACTION_CAN_READ, permissions.RESOURCE_DAG_RUN),
-        (permissions.ACTION_CAN_READ, permissions.RESOURCE_TASK_INSTANCE),
-        (permissions.ACTION_CAN_READ, permissions.RESOURCE_XCOM),
-    ],
-)
+@security.requires_access_dag("GET", DagAccessEntity.XCOM)
 @provide_session
 def get_xcom_entry(
     *,
@@ -102,6 +93,7 @@ def get_xcom_entry(
     xcom_key: str,
     map_index: int = -1,
     deserialize: bool = False,
+    stringify: bool = True,
     session: Session = NEW_SESSION,
 ) -> APIResponse:
     """Get an XCom entry."""
@@ -133,4 +125,7 @@ def get_xcom_entry(
         stub.value = XCom.deserialize_value(stub)
         item = stub
 
-    return xcom_schema.dump(item)
+    if stringify:
+        return xcom_schema_string.dump(item)
+
+    return xcom_schema_native.dump(item)

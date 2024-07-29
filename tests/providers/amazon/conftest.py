@@ -19,11 +19,7 @@ from __future__ import annotations
 
 import os
 import warnings
-
-try:
-    import importlib_metadata
-except ImportError:
-    from importlib import metadata as importlib_metadata  # type: ignore[no-redef]
+from importlib import metadata
 
 import pytest
 
@@ -31,15 +27,15 @@ import pytest
 @pytest.fixture(scope="session")
 def botocore_version():
     try:
-        version = importlib_metadata.version("botocore")
-    except importlib_metadata.PackageNotFoundError:
-        warnings.warn("'botocore' package not found'", UserWarning)
+        version = metadata.version("botocore")
+    except ModuleNotFoundError:
+        warnings.warn("'botocore' package not found'", UserWarning, stacklevel=2)
         return None
 
     try:
         return tuple(map(int, version.split(".")[:3]))
     except Exception:
-        warnings.warn(f"Unable to parse botocore {version!r}", UserWarning)
+        warnings.warn(f"Unable to parse botocore {version!r}", UserWarning, stacklevel=2)
         return None
 
 
@@ -102,4 +98,11 @@ def set_default_aws_settings(aws_testing_env_vars, monkeypatch):
             monkeypatch.delenv(env_name, raising=False)
     for env_name, value in aws_testing_env_vars.items():
         monkeypatch.setenv(env_name, value)
-    yield
+
+
+@pytest.fixture(scope="package", autouse=True)
+def setup_default_aws_connections():
+    with pytest.MonkeyPatch.context() as mp_ctx:
+        mp_ctx.setenv("AIRFLOW_CONN_AWS_DEFAULT", '{"conn_type": "aws"}')
+        mp_ctx.setenv("AIRFLOW_CONN_EMR_DEFAULT", '{"conn_type": "emr", "extra": {}}')
+        yield

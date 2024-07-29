@@ -21,9 +21,9 @@ import socket
 from unittest import mock
 
 import pytest
-from openlineage.client.run import Dataset
 
 from airflow.models import DAG, Connection
+from airflow.providers.common.compat.openlineage.facet import Dataset
 from airflow.providers.ftp.operators.ftp import (
     FTPFileTransmitOperator,
     FTPOperation,
@@ -152,15 +152,15 @@ class TestFTPFileTransmitOperator:
         assert task_0.ftp_conn_id == DEFAULT_CONN_ID
 
         # Exception should be raised if operation is invalid
+        task_1 = FTPFileTransmitOperator(
+            task_id="test_ftp_args_1",
+            ftp_conn_id=DEFAULT_CONN_ID,
+            local_filepath=self.test_local_filepath,
+            remote_filepath=self.test_remote_filepath,
+            operation="invalid_operation",
+            dag=dag,
+        )
         with pytest.raises(TypeError, match="Unsupported operation value invalid_operation, "):
-            task_1 = FTPFileTransmitOperator(
-                task_id="test_ftp_args_1",
-                ftp_conn_id=DEFAULT_CONN_ID,
-                local_filepath=self.test_local_filepath,
-                remote_filepath=self.test_remote_filepath,
-                operation="invalid_operation",
-                dag=dag,
-            )
             task_1.execute(None)
 
     def test_unequal_local_remote_file_paths(self):

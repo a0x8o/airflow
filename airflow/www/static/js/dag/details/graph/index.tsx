@@ -26,13 +26,22 @@ import ReactFlow, {
   MiniMap,
   useReactFlow,
   Panel,
+  useOnViewportChange,
+  Viewport,
 } from "reactflow";
 
-import { useGraphData, useGridData } from "src/api";
+import {
+  useDatasetEvents,
+  useDatasets,
+  useGraphData,
+  useGridData,
+  useUpstreamDatasetEvents,
+} from "src/api";
 import useSelection from "src/dag/useSelection";
-import { useOffsetTop } from "src/utils";
+import { getMetaValue, getTask, useOffsetTop } from "src/utils";
 import { useGraphLayout } from "src/utils/graph";
 import Edge from "src/components/Graph/Edge";
+import type { DepNode, WebserverEdge } from "src/types";
 
 import Node from "./Node";
 import { buildEdges, nodeStrokeColor, nodeColor, flattenNodes } from "./utils";
@@ -46,30 +55,114 @@ interface Props {
   hoveredTaskState?: string | null;
 }
 
+const dagId = getMetaValue("dag_id");
+
 const Graph = ({ openGroupIds, onToggleGroups, hoveredTaskState }: Props) => {
   const graphRef = useRef(null);
   const { data } = useGraphData();
   const [arrange, setArrange] = useState(data?.arrange || "LR");
   const [hasRendered, setHasRendered] = useState(false);
+  const [isZoomedOut, setIsZoomedOut] = useState(false);
+  const { selected } = useSelection();
+
+  const {
+    data: { dagRuns, groups },
+  } = useGridData();
 
   useEffect(() => {
     setArrange(data?.arrange || "LR");
   }, [data?.arrange]);
 
+  const { data: datasetsCollection } = useDatasets({
+    dagIds: [dagId],
+  });
+
+  const enabledDatasets = !!(
+    selected.runId && datasetsCollection?.datasets?.length
+  );
+
+  const {
+    data: { datasetEvents: upstreamDatasetEvents = [] },
+  } = useUpstreamDatasetEvents({
+    dagId,
+    dagRunId: selected.runId || "",
+    options: { enabled: enabledDatasets },
+  });
+
+  const {
+    data: { datasetEvents: downstreamDatasetEvents = [] },
+  } = useDatasetEvents({
+    sourceDagId: dagId,
+    sourceRunId: selected.runId || undefined,
+    options: { enabled: enabledDatasets },
+  });
+
+  const datasetEdges: WebserverEdge[] = [];
+  const rawNodes =
+    data?.nodes && datasetsCollection?.datasets?.length
+      ? {
+          ...data.nodes,
+          children: [
+            ...(data.nodes.children || []),
+            ...(datasetsCollection?.datasets || []).map(
+              (dataset) =>
+                ({
+                  id: dataset?.id?.toString() || "",
+                  value: {
+                    class: "dataset",
+                    label: dataset.uri,
+                  },
+                } as DepNode)
+            ),
+          ],
+        }
+      : data?.nodes;
+
+  datasetsCollection?.datasets?.forEach((dataset) => {
+    const producingTask = dataset?.producingTasks?.find(
+      (t) => t.dagId === dagId
+    );
+    const consumingDag = dataset?.consumingDags?.find((d) => d.dagId === dagId);
+    if (dataset.id) {
+      // check that the task is in the graph
+      if (
+        producingTask?.taskId &&
+        getTask({ taskId: producingTask?.taskId, task: groups })
+      ) {
+        datasetEdges.push({
+          sourceId: producingTask.taskId,
+          targetId: dataset.id.toString(),
+        });
+      }
+      if (consumingDag && data?.nodes?.children?.length) {
+        datasetEdges.push({
+          sourceId: dataset.id.toString(),
+          // Point upstream datasets to the first task
+          targetId: data.nodes?.children[0].id,
+          isSourceDataset: true,
+        });
+      }
+    }
+  });
+
   const { data: graphData } = useGraphLayout({
-    edges: data?.edges,
-    nodes: data?.nodes,
+    edges: [...(data?.edges || []), ...datasetEdges],
+    nodes: rawNodes,
     openGroupIds,
     arrange,
   });
-  const { selected } = useSelection();
-  const {
-    data: { dagRuns, groups },
-  } = useGridData();
+
   const { colors } = useTheme();
   const { getZoom, fitView } = useReactFlow();
   const latestDagRunId = dagRuns[dagRuns.length - 1]?.runId;
   const offsetTop = useOffsetTop(graphRef);
+
+  useOnViewportChange({
+    onEnd: (viewport: Viewport) => {
+      if (viewport.zoom < 0.5 && !isZoomedOut) setIsZoomedOut(true);
+      if (viewport.zoom >= 0.5 && isZoomedOut) setIsZoomedOut(false);
+    },
+  });
 
   const { nodes, edges: nodeEdges } = useMemo(
     () =>
@@ -81,6 +174,10 @@ const Graph = ({ openGroupIds, onToggleGroups, hoveredTaskState }: Props) => {
         latestDagRunId,
         groups,
         hoveredTaskState,
+        isZoomedOut,
+        datasetEvents: selected.runId
+          ? [...upstreamDatasetEvents, ...downstreamDatasetEvents]
+          : [],
       }),
     [
       graphData?.children,
@@ -90,6 +187,9 @@ const Graph = ({ openGroupIds, onToggleGroups, hoveredTaskState }: Props) => {
       latestDagRunId,
       groups,
       hoveredTaskState,
+      isZoomedOut,
+      upstreamDatasetEvents,
+      downstreamDatasetEvents,
     ]
   );
 
@@ -97,6 +197,7 @@ const Graph = ({ openGroupIds, onToggleGroups, hoveredTaskState }: Props) => {
   useEffect(() => {
     if (hasRendered) {
       const zoom = getZoom();
+      if (zoom < 0.5) setIsZoomedOut(true);
       fitView({
         duration: 750,
         nodes: selected.taskId ? [{ id: selected.taskId }] : undefined,
@@ -116,6 +217,7 @@ const Graph = ({ openGroupIds, onToggleGroups, hoveredTaskState }: Props) => {
     edges: flatEdges,
     nodes,
     selectedTaskId: selected.taskId,
+    isZoomedOut,
   });
 
   return (
@@ -171,17 +273,9 @@ const Graph = ({ openGroupIds, onToggleGroups, hoveredTaskState }: Props) => {
   );
 };
 
-const GraphWrapper = ({
-  openGroupIds,
-  onToggleGroups,
-  hoveredTaskState,
-}: Props) => (
+const GraphWrapper = (props: Props) => (
   <ReactFlowProvider>
-    <Graph
-      openGroupIds={openGroupIds}
-      onToggleGroups={onToggleGroups}
-      hoveredTaskState={hoveredTaskState}
-    />
+    <Graph {...props} />
   </ReactFlowProvider>
 );
 

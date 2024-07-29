@@ -20,20 +20,27 @@ from functools import cached_property
 from typing import TYPE_CHECKING
 
 import redshift_connector
+from packaging.version import Version
 from redshift_connector import Connection as RedshiftConnection
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
 
+from airflow import __version__ as AIRFLOW_VERSION
 from airflow.exceptions import AirflowException
 from airflow.providers.amazon.aws.hooks.base_aws import AwsBaseHook
 from airflow.providers.common.sql.hooks.sql import DbApiHook
 
+_IS_AIRFLOW_2_10_OR_HIGHER = Version(Version(AIRFLOW_VERSION).base_version) >= Version("2.10.0")
+
+
 if TYPE_CHECKING:
     from airflow.models.connection import Connection
+    from airflow.providers.openlineage.sqlparser import DatabaseInfo
 
 
 class RedshiftSQLHook(DbApiHook):
-    """Execute statements against Amazon Redshift.
+    """
+    Execute statements against Amazon Redshift.
 
     This hook requires the redshift_conn_id connection.
 
@@ -58,12 +65,12 @@ class RedshiftSQLHook(DbApiHook):
     hook_name = "Amazon Redshift"
     supports_autocommit = True
 
-    def __init__(self, *args, aws_conn_id: str = "aws_default", **kwargs) -> None:
+    def __init__(self, *args, aws_conn_id: str | None = "aws_default", **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.aws_conn_id = aws_conn_id
 
-    @staticmethod
-    def get_ui_field_behaviour() -> dict:
+    @classmethod
+    def get_ui_field_behaviour(cls) -> dict:
         """Get custom field behavior."""
         return {
             "hidden_fields": [],
@@ -97,29 +104,53 @@ class RedshiftSQLHook(DbApiHook):
         return conn_params
 
     def get_iam_token(self, conn: Connection) -> tuple[str, str, int]:
-        """Retrieve a temporary password to connect to Redshift.
+        """
+        Retrieve a temporary password to connect to Redshift.
 
         Port is required. If none is provided, default is used for each service.
         """
         port = conn.port or 5439
-        # Pull the custer-identifier from the beginning of the Redshift URL
-        # ex. my-cluster.ccdre4hpd39h.us-east-1.redshift.amazonaws.com returns my-cluster
-        cluster_identifier = conn.extra_dejson.get("cluster_identifier")
-        if not cluster_identifier:
-            if conn.host:
-                cluster_identifier = conn.host.split(".", 1)[0]
-            else:
-                raise AirflowException("Please set cluster_identifier or host in redshift connection.")
-        redshift_client = AwsBaseHook(aws_conn_id=self.aws_conn_id, client_type="redshift").conn
-        # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/redshift.html#Redshift.Client.get_cluster_credentials
-        cluster_creds = redshift_client.get_cluster_credentials(
-            DbUser=conn.login,
-            DbName=conn.schema,
-            ClusterIdentifier=cluster_identifier,
-            AutoCreate=False,
-        )
-        token = cluster_creds["DbPassword"]
-        login = cluster_creds["DbUser"]
+        is_serverless = conn.extra_dejson.get("is_serverless", False)
+        if is_serverless:
+            serverless_work_group = conn.extra_dejson.get("serverless_work_group")
+            if not serverless_work_group:
+                raise AirflowException(
+                    "Please set serverless_work_group in redshift connection to use IAM with"
+                    " Redshift Serverless."
+                )
+            serverless_token_duration_seconds = conn.extra_dejson.get(
+                "serverless_token_duration_seconds", 3600
+            )
+            redshift_serverless_client = AwsBaseHook(
+                aws_conn_id=self.aws_conn_id, client_type="redshift-serverless"
+            ).conn
+            # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/redshift-serverless/client/get_credentials.html#get-credentials
+            cluster_creds = redshift_serverless_client.get_credentials(
+                dbName=conn.schema,
+                workgroupName=serverless_work_group,
+                durationSeconds=serverless_token_duration_seconds,
+            )
+            token = cluster_creds["dbPassword"]
+            login = cluster_creds["dbUser"]
+        else:
+            # Pull the custer-identifier from the beginning of the Redshift URL
+            # ex. my-cluster.ccdre4hpd39h.us-east-1.redshift.amazonaws.com returns my-cluster
+            cluster_identifier = conn.extra_dejson.get("cluster_identifier")
+            if not cluster_identifier:
+                if conn.host:
+                    cluster_identifier = conn.host.split(".", 1)[0]
+                else:
+                    raise AirflowException("Please set cluster_identifier or host in redshift connection.")
+            redshift_client = AwsBaseHook(aws_conn_id=self.aws_conn_id, client_type="redshift").conn
+            # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/redshift.html#Redshift.Client.get_cluster_credentials
+            cluster_creds = redshift_client.get_cluster_credentials(
+                DbUser=conn.login,
+                DbName=conn.schema,
+                ClusterIdentifier=cluster_identifier,
+                AutoCreate=False,
+            )
+            token = cluster_creds["DbPassword"]
+            login = cluster_creds["DbUser"]
         return login, token, port
 
     def get_uri(self) -> str:
@@ -148,7 +179,8 @@ class RedshiftSQLHook(DbApiHook):
         return create_engine(self.get_uri(), **engine_kwargs)
 
     def get_table_primary_key(self, table: str, schema: str | None = "public") -> list[str] | None:
-        """Get the table's primary key.
+        """
+        Get the table's primary key.
 
         :param table: Name of the target table
         :param schema: Name of the target schema, public by default
@@ -174,3 +206,65 @@ class RedshiftSQLHook(DbApiHook):
         conn_kwargs_dejson = self.conn.extra_dejson
         conn_kwargs: dict = {**conn_params, **conn_kwargs_dejson}
         return redshift_connector.connect(**conn_kwargs)
+
+    def get_openlineage_database_info(self, connection: Connection) -> DatabaseInfo:
+        """Return Redshift specific information for OpenLineage."""
+        from airflow.providers.openlineage.sqlparser import DatabaseInfo
+
+        authority = self._get_openlineage_redshift_authority_part(connection)
+
+        return DatabaseInfo(
+            scheme="redshift",
+            authority=authority,
+            database=connection.schema,
+            information_schema_table_name="SVV_REDSHIFT_COLUMNS",
+            information_schema_columns=[
+                "schema_name",
+                "table_name",
+                "column_name",
+                "ordinal_position",
+                "data_type",
+                "database_name",
+            ],
+            is_information_schema_cross_db=True,
+            use_flat_cross_db_query=True,
+        )
+
+    def _get_openlineage_redshift_authority_part(self, connection: Connection) -> str:
+        from airflow.providers.amazon.aws.hooks.base_aws import AwsBaseHook
+
+        port = connection.port or 5439
+
+        cluster_identifier = None
+
+        if connection.extra_dejson.get("iam", False):
+            cluster_identifier = connection.extra_dejson.get("cluster_identifier")
+            region_name = AwsBaseHook(aws_conn_id=self.aws_conn_id).region_name
+            identifier = f"{cluster_identifier}.{region_name}"
+        if not cluster_identifier:
+            identifier = self._get_identifier_from_hostname(connection.host)
+        return f"{identifier}:{port}"
+
+    def _get_identifier_from_hostname(self, hostname: str) -> str:
+        parts = hostname.split(".")
+        if hostname.endswith("amazonaws.com") and len(parts) == 6:
+            return f"{parts[0]}.{parts[2]}"
+        else:
+            self.log.debug(
+                """Could not parse identifier from hostname '%s'.
+            You are probably using IP to connect to Redshift cluster.
+            Expected format: 'cluster_identifier.id.region_name.redshift.amazonaws.com'
+            Falling back to whole hostname.""",
+                hostname,
+            )
+            return hostname
+
+    def get_openlineage_database_dialect(self, connection: Connection) -> str:
+        """Return redshift dialect."""
+        return "redshift"
+
+    def get_openlineage_default_schema(self) -> str | None:
+        """Return current schema. This is usually changed with ``SEARCH_PATH`` parameter."""
+        if _IS_AIRFLOW_2_10_OR_HIGHER:
+            return self.get_first("SELECT CURRENT_SCHEMA();")[0]
+        return super().get_openlineage_default_schema()

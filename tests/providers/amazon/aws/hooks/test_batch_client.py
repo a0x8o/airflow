@@ -38,7 +38,6 @@ LOG_STREAM_NAME = "test/stream/d56a66bb98a14c4593defa1548686edf"
 
 
 class TestBatchClient:
-
     MAX_RETRIES = 2
     STATUS_RETRIES = 3
 
@@ -246,13 +245,14 @@ class TestBatchClient:
         assert msg in str(ctx.value)
         assert status in str(ctx.value)
 
-    def test_check_job_success_raises_without_jobs(self):
+    def test_check_job_success_raises_without_jobs(self, caplog):
         self.client_mock.describe_jobs.return_value = {"jobs": []}
-        with pytest.raises(AirflowException) as ctx:
-            self.batch_client.check_job_success(JOB_ID)
-        self.client_mock.describe_jobs.assert_called_once_with(jobs=[JOB_ID])
-        msg = f"AWS Batch job ({JOB_ID}) description error"
-        assert msg in str(ctx.value)
+        with caplog.at_level(level=logging.WARNING):
+            with pytest.raises(AirflowException):
+                self.batch_client.check_job_success(JOB_ID)
+            self.client_mock.describe_jobs.assert_has_calls([mock.call(jobs=[JOB_ID])] * 3)
+            msg = f"AWS Batch job ({JOB_ID}) description error"
+            assert msg in caplog.messages[0]
 
     def test_terminate_job(self):
         self.client_mock.terminate_job.return_value = {}

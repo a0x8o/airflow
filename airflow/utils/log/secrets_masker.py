@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Mask sensitive information from logs."""
+
 from __future__ import annotations
 
 import collections.abc
@@ -261,7 +262,7 @@ class SecretsMasker(logging.Filter):
                     # We can't replace specific values, but the key-based redacting
                     # can still happen, so we can't short-circuit, we need to walk
                     # the structure.
-                    return self.replacer.sub("***", item)
+                    return self.replacer.sub("***", str(item))
                 return item
             elif isinstance(item, (tuple, set)):
                 # Turn set in to tuple!
@@ -276,19 +277,21 @@ class SecretsMasker(logging.Filter):
                 return item
         # I think this should never happen, but it does not hurt to leave it just in case
         # Well. It happened (see https://github.com/apache/airflow/issues/19816#issuecomment-983311373)
-        # but it caused infinite recursion, so we need to cast it to str first.
+        # but it caused infinite recursion, to avoid this we mark the log as already filtered.
         except Exception as exc:
             log.warning(
-                "Unable to redact %r, please report this via <https://github.com/apache/airflow/issues>. "
-                "Error was: %s: %s",
+                "Unable to redact value of type %s, please report this via "
+                "<https://github.com/apache/airflow/issues>. Error was: %s: %s",
                 item,
                 type(exc).__name__,
                 exc,
+                extra={self.ALREADY_FILTERED_FLAG: True},
             )
             return item
 
     def redact(self, item: Redactable, name: str | None = None, max_depth: int | None = None) -> Redacted:
-        """Redact an any secrets found in ``item``, if it is a string.
+        """
+        Redact an any secrets found in ``item``, if it is a string.
 
         If ``name`` is given, and it's a "sensitive" name (see
         :func:`should_hide_value_for_key`) then all string values in the item
@@ -298,7 +301,8 @@ class SecretsMasker(logging.Filter):
 
     @cached_property
     def _mask_adapter(self) -> None | Callable:
-        """Pulls the secret mask adapter from config.
+        """
+        Pulls the secret mask adapter from config.
 
         This lives in a function here to be cached and only hit the config once.
         """
@@ -308,7 +312,8 @@ class SecretsMasker(logging.Filter):
 
     @cached_property
     def _test_mode(self) -> bool:
-        """Pulls the unit test mode flag from config.
+        """
+        Pulls the unit test mode flag from config.
 
         This lives in a function here to be cached and only hit the config once.
         """
@@ -355,7 +360,8 @@ class SecretsMasker(logging.Filter):
 
 
 class RedactedIO(TextIO):
-    """IO class that redacts values going into stdout.
+    """
+    IO class that redacts values going into stdout.
 
     Expected usage::
 

@@ -30,30 +30,34 @@ import useSelection from "src/dag/useSelection";
 import Time from "src/components/Time";
 import { useGridData } from "src/api";
 import RunTypeIcon from "src/components/RunTypeIcon";
+import BreadcrumbText from "src/components/BreadcrumbText";
 
-import BreadcrumbText from "./BreadcrumbText";
+const dagDisplayName = getMetaValue("dag_display_name");
 
-const dagId = getMetaValue("dag_id");
+interface Props {
+  mapIndex?: string | number | null;
+}
 
-const Header = () => {
+const Header = ({ mapIndex }: Props) => {
   const {
-    data: { dagRuns, groups, ordering },
+    data: { dagRuns, groups },
   } = useGridData();
 
   const {
-    selected: { taskId, runId, mapIndex },
+    selected: { taskId, runId },
     onSelect,
     clearSelection,
   } = useSelection();
-  const dagRun = dagRuns.find((r) => r.runId === runId);
 
-  // clearSelection if the current selected dagRun is
-  // filtered out.
+  const dagRun = dagRuns.find((r) => r.runId === runId);
+  const group = getTask({ taskId, task: groups });
+
+  // If taskId can't be found remove the selection
   useEffect(() => {
-    if (runId && !dagRun) {
-      clearSelection();
+    if (taskId && !group) {
+      onSelect({ runId });
     }
-  }, [clearSelection, dagRun, runId]);
+  }, [taskId, group, onSelect, runId]);
 
   let runLabel;
   if (dagRun && runId) {
@@ -63,7 +67,7 @@ const Header = () => {
       runId.includes("scheduled__") ||
       runId.includes("backfill__") ||
       runId.includes("dataset_triggered__") ? (
-        <Time dateTime={getDagRunLabel({ dagRun, ordering })} />
+        <Time dateTime={getDagRunLabel({ dagRun })} />
       ) : (
         runId
       );
@@ -75,25 +79,21 @@ const Header = () => {
     );
   }
 
-  const group = getTask({ taskId, task: groups });
-
-  const lastIndex = taskId ? taskId.lastIndexOf(".") : null;
-  const taskName =
-    taskId && lastIndex ? taskId.substring(lastIndex + 1) : taskId;
+  const taskName = group?.label || group?.id || "";
 
   const isDagDetails = !runId && !taskId;
   const isRunDetails = !!(runId && !taskId);
-  const isTaskDetails = runId && taskId && mapIndex === undefined;
+  const isTaskDetails = !runId && taskId;
   const isMappedTaskDetails = runId && taskId && mapIndex !== undefined;
 
   return (
-    <Breadcrumb separator={<Text color="gray.300">/</Text>}>
+    <Breadcrumb ml={3} pt={2} separator={<Text color="gray.300">/</Text>}>
       <BreadcrumbItem isCurrentPage={isDagDetails} mt={4}>
         <BreadcrumbLink
           onClick={clearSelection}
           _hover={isDagDetails ? { cursor: "default" } : undefined}
         >
-          <BreadcrumbText label="DAG" value={dagId} />
+          <BreadcrumbText label="DAG" value={dagDisplayName} />
         </BreadcrumbLink>
       </BreadcrumbItem>
       {runId && (
@@ -109,7 +109,11 @@ const Header = () => {
       {taskId && (
         <BreadcrumbItem isCurrentPage mt={4}>
           <BreadcrumbLink
-            onClick={() => onSelect({ runId, taskId })}
+            onClick={() =>
+              mapIndex !== undefined
+                ? onSelect({ runId, taskId })
+                : onSelect({ taskId })
+            }
             _hover={isTaskDetails ? { cursor: "default" } : undefined}
           >
             <BreadcrumbText
@@ -119,7 +123,7 @@ const Header = () => {
           </BreadcrumbLink>
         </BreadcrumbItem>
       )}
-      {mapIndex !== undefined && (
+      {mapIndex !== undefined && mapIndex !== -1 && (
         <BreadcrumbItem isCurrentPage mt={4}>
           <BreadcrumbLink
             _hover={isMappedTaskDetails ? { cursor: "default" } : undefined}

@@ -29,7 +29,8 @@ from airflow.utils.module_loading import import_string
 
 
 class AwaitMessageTrigger(BaseTrigger):
-    """A trigger that waits for a message matching specific criteria to arrive in Kafka.
+    """
+    A trigger that waits for a message matching specific criteria to arrive in Kafka.
 
     The behavior of the consumer of this trigger is as follows:
     - poll the Kafka topics for a message, if no message returned, sleep
@@ -64,7 +65,6 @@ class AwaitMessageTrigger(BaseTrigger):
         poll_timeout: float = 1,
         poll_interval: float = 5,
     ) -> None:
-
         self.topics = topics
         self.apply_function = apply_function
         self.apply_function_args = apply_function_args or ()
@@ -100,7 +100,6 @@ class AwaitMessageTrigger(BaseTrigger):
         processing_call = partial(processing_call, *self.apply_function_args, **self.apply_function_kwargs)
         async_message_process = sync_to_async(processing_call)
         while True:
-
             message = await async_poll(self.poll_timeout)
 
             if message is None:
@@ -108,12 +107,11 @@ class AwaitMessageTrigger(BaseTrigger):
             elif message.error():
                 raise AirflowException(f"Error: {message.error()}")
             else:
-
                 rv = await async_message_process(message)
                 if rv:
-                    await async_commit(asynchronous=False)
+                    await async_commit(message=message, asynchronous=False)
                     yield TriggerEvent(rv)
                     break
                 else:
-                    await async_commit(asynchronous=False)
+                    await async_commit(message=message, asynchronous=False)
                     await asyncio.sleep(self.poll_interval)

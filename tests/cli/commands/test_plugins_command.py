@@ -21,6 +21,8 @@ import textwrap
 from contextlib import redirect_stdout
 from io import StringIO
 
+import pytest
+
 from airflow.cli import cli_parser
 from airflow.cli.commands import plugins_command
 from airflow.hooks.base import BaseHook
@@ -28,6 +30,8 @@ from airflow.listeners.listener import get_listener_manager
 from airflow.plugins_manager import AirflowPlugin
 from tests.plugins.test_plugin import AirflowTestPlugin as ComplexAirflowPlugin
 from tests.test_utils.mock_plugins import mock_plugin_manager
+
+pytestmark = pytest.mark.db_test
 
 
 class PluginHook(BaseHook):
@@ -61,7 +65,9 @@ class TestPluginsCommand:
         assert info == [
             {
                 "name": "test_plugin",
+                "admin_views": [],
                 "macros": ["tests.plugins.test_plugin.plugin_macro"],
+                "menu_links": [],
                 "executors": ["tests.plugins.test_plugin.PluginExecutor"],
                 "flask_blueprints": [
                     "<flask.blueprints.Blueprint: name='test_plugin' import_name='tests.plugins.test_plugin'>"
@@ -70,6 +76,7 @@ class TestPluginsCommand:
                     {
                         "name": "Test View",
                         "category": "Test Plugin",
+                        "label": "Test Label",
                         "view": "tests.plugins.test_plugin.PluginTestAppBuilderBaseView",
                     }
                 ],
@@ -85,7 +92,10 @@ class TestPluginsCommand:
                     "<tests.test_utils.mock_operators.CustomBaseIndexOpLink object>",
                 ],
                 "hooks": ["tests.plugins.test_plugin.PluginHook"],
-                "listeners": ["tests.listeners.empty_listener"],
+                "listeners": [
+                    "tests.listeners.empty_listener",
+                    "tests.listeners.class_listener.ClassBasedListener",
+                ],
                 "source": None,
                 "appbuilder_menu_items": [
                     {"name": "Google", "href": "https://www.google.com", "category": "Search"},
@@ -96,13 +106,13 @@ class TestPluginsCommand:
                     },
                 ],
                 "ti_deps": ["<TIDep(CustomTestTriggerRule)>"],
+                "priority_weight_strategies": ["tests.plugins.test_plugin.CustomPriorityWeightStrategy"],
             }
         ]
         get_listener_manager().clear()
 
     @mock_plugin_manager(plugins=[TestPlugin])
     def test_should_display_one_plugins_as_table(self):
-
         with redirect_stdout(StringIO()) as temp_stdout:
             plugins_command.dump_plugins(self.parser.parse_args(["plugins", "--output=table"]))
             stdout = temp_stdout.getvalue()

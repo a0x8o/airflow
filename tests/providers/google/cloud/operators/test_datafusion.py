@@ -39,6 +39,7 @@ from airflow.providers.google.cloud.triggers.datafusion import DataFusionStartPi
 from airflow.providers.google.cloud.utils.datafusion import DataFusionPipelineType
 
 HOOK_STR = "airflow.providers.google.cloud.operators.datafusion.DataFusionHook"
+RESOURCE_PATH_TO_DICT_STR = "airflow.providers.google.cloud.operators.datafusion.resource_path_to_dict"
 
 TASK_ID = "test_task"
 LOCATION = "test-location"
@@ -54,9 +55,11 @@ RUNTIME_ARGS = {"arg1": "a", "arg2": "b"}
 
 
 class TestCloudDataFusionUpdateInstanceOperator:
+    @mock.patch(RESOURCE_PATH_TO_DICT_STR)
     @mock.patch(HOOK_STR)
-    def test_execute_check_hook_call_should_execute_successfully(self, mock_hook):
+    def test_execute_check_hook_call_should_execute_successfully(self, mock_hook, mock_resource_to_dict):
         update_maks = "instance.name"
+        mock_resource_to_dict.return_value = {"projects": PROJECT_ID}
         op = CloudDataFusionUpdateInstanceOperator(
             task_id="test_tasks",
             instance_name=INSTANCE_NAME,
@@ -78,8 +81,10 @@ class TestCloudDataFusionUpdateInstanceOperator:
 
 
 class TestCloudDataFusionRestartInstanceOperator:
+    @mock.patch(RESOURCE_PATH_TO_DICT_STR)
     @mock.patch(HOOK_STR)
-    def test_execute_check_hook_call_should_execute_successfully(self, mock_hook):
+    def test_execute_check_hook_call_should_execute_successfully(self, mock_hook, mock_resource_path_to_dict):
+        mock_resource_path_to_dict.return_value = {"projects": PROJECT_ID}
         op = CloudDataFusionRestartInstanceOperator(
             task_id="test_tasks",
             instance_name=INSTANCE_NAME,
@@ -95,8 +100,10 @@ class TestCloudDataFusionRestartInstanceOperator:
 
 
 class TestCloudDataFusionCreateInstanceOperator:
+    @mock.patch(RESOURCE_PATH_TO_DICT_STR)
     @mock.patch(HOOK_STR)
-    def test_execute_check_hook_call_should_execute_successfully(self, mock_hook):
+    def test_execute_check_hook_call_should_execute_successfully(self, mock_hook, mock_resource_path_to_dict):
+        mock_resource_path_to_dict.return_value = {"projects": PROJECT_ID}
         op = CloudDataFusionCreateInstanceOperator(
             task_id="test_tasks",
             instance_name=INSTANCE_NAME,
@@ -133,8 +140,10 @@ class TestCloudDataFusionDeleteInstanceOperator:
 
 
 class TestCloudDataFusionGetInstanceOperator:
+    @mock.patch(RESOURCE_PATH_TO_DICT_STR)
     @mock.patch(HOOK_STR)
-    def test_execute_check_hook_call_should_execute_successfully(self, mock_hook):
+    def test_execute_check_hook_call_should_execute_successfully(self, mock_hook, mock_resource_path_to_dict):
+        mock_resource_path_to_dict.return_value = {"projects": PROJECT_ID}
         op = CloudDataFusionGetInstanceOperator(
             task_id="test_tasks",
             instance_name=INSTANCE_NAME,
@@ -354,7 +363,6 @@ class TestCloudDataFusionStartPipelineOperatorAsync:
             "serviceEndpoint": INSTANCE_URL,
         }
         mock_hook.return_value.start_pipeline.return_value = PIPELINE_ID
-
         op = CloudDataFusionStartPipelineOperator(
             task_id=TASK_ID,
             pipeline_name=PIPELINE_NAME,
@@ -365,10 +373,8 @@ class TestCloudDataFusionStartPipelineOperatorAsync:
             runtime_args=RUNTIME_ARGS,
             deferrable=True,
         )
-        op.dag = mock.MagicMock(spec=DAG, task_dict={}, dag_id="test")
         with pytest.raises(TaskDeferred):
-            result_pipeline_id = op.execute(context=mock.MagicMock())
-            assert result_pipeline_id == PIPELINE_ID
+            op.execute(context=mock.MagicMock())
 
         mock_hook.return_value.get_instance.assert_called_once_with(
             instance_name=INSTANCE_NAME, location=LOCATION, project_id=PROJECT_ID
@@ -388,22 +394,22 @@ class TestCloudDataFusionStartPipelineOperatorAsync:
             "serviceEndpoint": INSTANCE_URL,
         }
         mock_hook.return_value.start_pipeline.return_value = PIPELINE_ID
+        op = CloudDataFusionStartPipelineOperator(
+            task_id=TASK_ID,
+            pipeline_name=PIPELINE_NAME,
+            instance_name=INSTANCE_NAME,
+            namespace=NAMESPACE,
+            location=LOCATION,
+            project_id=PROJECT_ID,
+            runtime_args=RUNTIME_ARGS,
+            asynchronous=True,
+            deferrable=True,
+        )
+        op.dag = mock.MagicMock(spec=DAG, task_dict={}, dag_id="test")
         with pytest.raises(
             AirflowException,
             match=r"Both asynchronous and deferrable parameters were passed. Please, provide only one.",
         ):
-            op = CloudDataFusionStartPipelineOperator(
-                task_id=TASK_ID,
-                pipeline_name=PIPELINE_NAME,
-                instance_name=INSTANCE_NAME,
-                namespace=NAMESPACE,
-                location=LOCATION,
-                project_id=PROJECT_ID,
-                runtime_args=RUNTIME_ARGS,
-                asynchronous=True,
-                deferrable=True,
-            )
-            op.dag = mock.MagicMock(spec=DAG, task_dict={}, dag_id="test")
             op.execute(context=mock.MagicMock())
 
 

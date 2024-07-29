@@ -34,16 +34,16 @@ api_client = ApiClient()
 
 CHART_DIR = Path(__file__).resolve().parents[2] / "chart"
 
-DEFAULT_KUBERNETES_VERSION = "1.23.17"
+DEFAULT_KUBERNETES_VERSION = "1.29.1"
 BASE_URL_SPEC = (
     f"https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/"
     f"v{DEFAULT_KUBERNETES_VERSION}-standalone-strict"
 )
 
 crd_lookup = {
-    "keda.sh/v1alpha1::ScaledObject": "https://raw.githubusercontent.com/kedacore/keda/v2.0.0/config/crd/bases/keda.sh_scaledobjects.yaml",  # noqa: E501
+    "keda.sh/v1alpha1::ScaledObject": "https://raw.githubusercontent.com/kedacore/keda/v2.0.0/config/crd/bases/keda.sh_scaledobjects.yaml",
     # This object type was removed in k8s v1.22.0
-    "networking.k8s.io/v1beta1::Ingress": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.21.0/ingress-networking-v1beta1.json",  # noqa: E501
+    "networking.k8s.io/v1beta1::Ingress": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.21.0/ingress-networking-v1beta1.json",
 }
 
 
@@ -102,6 +102,11 @@ def validate_k8s_object(instance, kubernetes_version):
     validate.validate(instance)
 
 
+class HelmFailedError(subprocess.CalledProcessError):
+    def __str__(self):
+        return f"Helm command failed. Args: {self.args}\nStderr: \n{self.stderr.decode('utf-8')}"
+
+
 def render_chart(
     name="release-name",
     values=None,
@@ -135,7 +140,10 @@ def render_chart(
         if show_only:
             for i in show_only:
                 command.extend(["--show-only", i])
-        templates = subprocess.check_output(command, stderr=subprocess.PIPE, cwd=chart_dir)
+        result = subprocess.run(command, capture_output=True, cwd=chart_dir)
+        if result.returncode:
+            raise HelmFailedError(result.returncode, result.args, result.stdout, result.stderr)
+        templates = result.stdout
         k8s_objects = yaml.full_load_all(templates)
         k8s_objects = [k8s_object for k8s_object in k8s_objects if k8s_object]  # type: ignore
         for k8s_object in k8s_objects:

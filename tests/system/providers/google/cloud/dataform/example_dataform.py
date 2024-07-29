@@ -18,6 +18,7 @@
 """
 Example Airflow DAG for Google Cloud Dataform service
 """
+
 from __future__ import annotations
 
 import os
@@ -39,6 +40,7 @@ from airflow.providers.google.cloud.operators.dataform import (
     DataformGetWorkflowInvocationOperator,
     DataformInstallNpmPackagesOperator,
     DataformMakeDirectoryOperator,
+    DataformQueryWorkflowInvocationActionsOperator,
     DataformRemoveDirectoryOperator,
     DataformRemoveFileOperator,
     DataformWriteFileOperator,
@@ -46,11 +48,12 @@ from airflow.providers.google.cloud.operators.dataform import (
 from airflow.providers.google.cloud.sensors.dataform import DataformWorkflowInvocationStateSensor
 from airflow.providers.google.cloud.utils.dataform import make_initialization_workspace_flow
 from airflow.utils.trigger_rule import TriggerRule
+from tests.system.providers.google import DEFAULT_GCP_SYSTEM_TEST_PROJECT_ID
 
-ENV_ID = os.environ.get("SYSTEM_TESTS_ENV_ID")
-PROJECT_ID = os.environ.get("SYSTEM_TESTS_GCP_PROJECT", "default")
+ENV_ID = os.environ.get("SYSTEM_TESTS_ENV_ID", "default")
+PROJECT_ID = os.environ.get("SYSTEM_TESTS_GCP_PROJECT") or DEFAULT_GCP_SYSTEM_TEST_PROJECT_ID
 
-DAG_ID = "example_dataform"
+DAG_ID = "dataform"
 
 REPOSITORY_ID = f"example_dataform_repository_{ENV_ID}"
 REGION = "us-central1"
@@ -182,6 +185,18 @@ with DAG(
     )
     # [END howto_operator_get_workflow_invocation]
 
+    # [START howto_operator_query_workflow_invocation_actions]
+    query_workflow_invocation_actions = DataformQueryWorkflowInvocationActionsOperator(
+        task_id="query-workflow-invocation-actions",
+        project_id=PROJECT_ID,
+        region=REGION,
+        repository_id=REPOSITORY_ID,
+        workflow_invocation_id=(
+            "{{ task_instance.xcom_pull('create-workflow-invocation')['name'].split('/')[-1] }}"
+        ),
+    )
+    # [END howto_operator_query_workflow_invocation_actions]
+
     create_workflow_invocation_for_cancel = DataformCreateWorkflowInvocationOperator(
         task_id="create-workflow-invocation-for-cancel",
         project_id=PROJECT_ID,
@@ -267,10 +282,9 @@ with DAG(
         region=REGION,
         repository_id=REPOSITORY_ID,
         workspace_id=WORKSPACE_ID,
+        trigger_rule=TriggerRule.ALL_DONE,
     )
     # [END howto_operator_delete_workspace]
-
-    delete_workspace.trigger_rule = TriggerRule.ALL_DONE
 
     # [START howto_operator_delete_repository]
     delete_repository = DataformDeleteRepositoryOperator(
@@ -278,12 +292,17 @@ with DAG(
         project_id=PROJECT_ID,
         region=REGION,
         repository_id=REPOSITORY_ID,
+        trigger_rule=TriggerRule.ALL_DONE,
     )
     # [END howto_operator_delete_repository]
 
-    delete_repository.trigger_rule = TriggerRule.ALL_DONE
-
-    (make_repository >> make_workspace >> first_initialization_step)
+    (
+        # TEST SETUP
+        make_repository
+        >> make_workspace
+        # TEST BODY
+        >> first_initialization_step
+    )
     (
         last_initialization_step
         >> install_npm_packages
@@ -291,12 +310,14 @@ with DAG(
         >> get_compilation_result
         >> create_workflow_invocation
         >> get_workflow_invocation
+        >> query_workflow_invocation_actions
         >> create_workflow_invocation_async
         >> is_workflow_invocation_done
         >> create_workflow_invocation_for_cancel
         >> cancel_workflow_invocation
         >> make_test_directory
         >> write_test_file
+        # TEST TEARDOWN
         >> remove_test_file
         >> remove_test_directory
         >> delete_dataset

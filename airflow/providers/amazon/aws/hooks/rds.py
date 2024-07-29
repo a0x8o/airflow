@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Interact with AWS RDS."""
+
 from __future__ import annotations
 
 import time
@@ -26,7 +27,7 @@ from airflow.providers.amazon.aws.hooks.base_aws import AwsGenericHook
 from airflow.providers.amazon.aws.utils.waiter_with_logging import wait
 
 if TYPE_CHECKING:
-    from mypy_boto3_rds import RDSClient  # noqa
+    from mypy_boto3_rds import RDSClient  # noqa: F401
 
 
 class RdsHook(AwsGenericHook["RDSClient"]):
@@ -61,10 +62,8 @@ class RdsHook(AwsGenericHook["RDSClient"]):
         """
         try:
             response = self.conn.describe_db_snapshots(DBSnapshotIdentifier=snapshot_id)
-        except self.conn.exceptions.ClientError as e:
-            if e.response["Error"]["Code"] == "DBSnapshotNotFound":
-                raise AirflowNotFoundException(e)
-            raise e
+        except self.conn.exceptions.DBSnapshotNotFoundFault as e:
+            raise AirflowNotFoundException(e)
         return response["DBSnapshots"][0]["Status"].lower()
 
     def wait_for_db_snapshot_state(
@@ -109,10 +108,8 @@ class RdsHook(AwsGenericHook["RDSClient"]):
         """
         try:
             response = self.conn.describe_db_cluster_snapshots(DBClusterSnapshotIdentifier=snapshot_id)
-        except self.conn.exceptions.ClientError as e:
-            if e.response["Error"]["Code"] == "DBClusterSnapshotNotFoundFault":
-                raise AirflowNotFoundException(e)
-            raise e
+        except self.conn.exceptions.DBClusterSnapshotNotFoundFault as e:
+            raise AirflowNotFoundException(e)
         return response["DBClusterSnapshots"][0]["Status"].lower()
 
     def wait_for_db_cluster_snapshot_state(
@@ -239,10 +236,8 @@ class RdsHook(AwsGenericHook["RDSClient"]):
         """
         try:
             response = self.conn.describe_db_instances(DBInstanceIdentifier=db_instance_id)
-        except self.conn.exceptions.ClientError as e:
-            if e.response["Error"]["Code"] == "DBInstanceNotFoundFault":
-                raise AirflowNotFoundException(e)
-            raise e
+        except self.conn.exceptions.DBInstanceNotFoundFault as e:
+            raise AirflowNotFoundException(e)
         return response["DBInstances"][0]["DBInstanceStatus"].lower()
 
     def wait_for_db_instance_state(
@@ -264,7 +259,7 @@ class RdsHook(AwsGenericHook["RDSClient"]):
             return self.get_db_instance_state(db_instance_id)
 
         target_state = target_state.lower()
-        if target_state in ("available", "deleted"):
+        if target_state in ("available", "deleted", "stopped"):
             waiter = self.conn.get_waiter(f"db_instance_{target_state}")  # type: ignore
             wait(
                 waiter=waiter,
@@ -277,7 +272,7 @@ class RdsHook(AwsGenericHook["RDSClient"]):
             )
         else:
             self._wait_for_state(poke, target_state, check_interval, max_attempts)
-            self.log.info("DB cluster snapshot '%s' reached the '%s' state", db_instance_id, target_state)
+            self.log.info("DB cluster '%s' reached the '%s' state", db_instance_id, target_state)
 
     def get_db_cluster_state(self, db_cluster_id: str) -> str:
         """
@@ -292,10 +287,8 @@ class RdsHook(AwsGenericHook["RDSClient"]):
         """
         try:
             response = self.conn.describe_db_clusters(DBClusterIdentifier=db_cluster_id)
-        except self.conn.exceptions.ClientError as e:
-            if e.response["Error"]["Code"] == "DBClusterNotFoundFault":
-                raise AirflowNotFoundException(e)
-            raise e
+        except self.conn.exceptions.DBClusterNotFoundFault as e:
+            raise AirflowNotFoundException(e)
         return response["DBClusters"][0]["Status"].lower()
 
     def wait_for_db_cluster_state(
@@ -317,7 +310,7 @@ class RdsHook(AwsGenericHook["RDSClient"]):
             return self.get_db_cluster_state(db_cluster_id)
 
         target_state = target_state.lower()
-        if target_state in ("available", "deleted"):
+        if target_state in ("available", "deleted", "stopped"):
             waiter = self.conn.get_waiter(f"db_cluster_{target_state}")  # type: ignore
             waiter.wait(
                 DBClusterIdentifier=db_cluster_id,

@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """This module contains a Google PubSub sensor."""
+
 from __future__ import annotations
 
 from datetime import timedelta
@@ -169,7 +170,7 @@ class PubSubPullSensor(BaseSensorOperator):
             )
 
     def execute_complete(self, context: dict[str, Any], event: dict[str, str | list[str]]) -> str | list[str]:
-        """Callback for the trigger; returns immediately and relies on trigger to throw a success event."""
+        """Return immediately and relies on trigger to throw a success event. Callback for the trigger."""
         if event["status"] == "success":
             self.log.info("Sensor pulls messages: %s", event["message"])
             return event["message"]
@@ -185,6 +186,8 @@ class PubSubPullSensor(BaseSensorOperator):
         context: Context,
     ):
         """
+        Convert `ReceivedMessage` objects into JSON-serializable dicts.
+
         This method can be overridden by subclasses or by `messages_callback` constructor argument.
 
         This default implementation converts `ReceivedMessage` objects into JSON-serializable dicts.

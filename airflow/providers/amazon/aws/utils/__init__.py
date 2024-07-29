@@ -20,7 +20,10 @@ import logging
 import re
 from datetime import datetime, timezone
 from enum import Enum
+from importlib import metadata
+from typing import Any
 
+from airflow.exceptions import AirflowException
 from airflow.utils.helpers import prune_dict
 from airflow.version import version
 
@@ -70,6 +73,19 @@ def get_airflow_version() -> tuple[int, ...]:
     if match is None:  # Not theoratically possible.
         raise RuntimeError(f"Broken Airflow version: {version}")
     return tuple(int(x) for x in match.groups())
+
+
+def get_botocore_version() -> tuple[int, ...]:
+    """Return the version number of the installed botocore package in the form of a tuple[int,...]."""
+    return tuple(map(int, metadata.version("botocore").split(".")[:3]))
+
+
+def validate_execute_complete_event(event: dict[str, Any] | None = None) -> dict[str, Any]:
+    if event is None:
+        err_msg = "Trigger error: event is None"
+        log.error(err_msg)
+        raise AirflowException(err_msg)
+    return event
 
 
 class _StringCompareEnum(Enum):

@@ -18,16 +18,18 @@
 # Note: Any AirflowException raised is expected to cause the TaskInstance
 #       to be marked in an ERROR state
 """Exceptions used by Airflow."""
+
 from __future__ import annotations
 
 import warnings
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Any, NamedTuple, Sized
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from airflow.utils.trigger_rule import TriggerRule
 
 if TYPE_CHECKING:
     import datetime
+    from collections.abc import Sized
 
     from airflow.models import DAG, DagRun
 
@@ -73,13 +75,23 @@ class AirflowRescheduleException(AirflowException):
         super().__init__()
         self.reschedule_date = reschedule_date
 
+    def serialize(self):
+        return "AirflowRescheduleException", (), {"reschedule_date": self.reschedule_date}
+
 
 class InvalidStatsNameException(AirflowException):
     """Raise when name of the stats is invalid."""
 
 
-class AirflowTaskTimeout(AirflowException):
+# Important to inherit BaseException instead of AirflowException->Exception, since this Exception is used
+# to explicitly interrupt ongoing task. Code that does normal error-handling should not treat
+# such interrupt as an error that can be handled normally. (Compare with KeyboardInterrupt)
+class AirflowTaskTimeout(BaseException):
     """Raise when the task execution times-out."""
+
+
+class AirflowTaskTerminated(BaseException):
+    """Raise when the task execution is terminated."""
 
 
 class AirflowWebServerTimeout(AirflowException):
@@ -96,6 +108,16 @@ class AirflowFailException(AirflowException):
 
 class AirflowOptionalProviderFeatureException(AirflowException):
     """Raise by providers when imports are missing for optional provider features."""
+
+
+class AirflowInternalRuntimeError(BaseException):
+    """
+    Airflow Internal runtime error.
+
+    Indicates that something really terrible happens during the Airflow execution.
+
+    :meta private:
+    """
 
 
 class XComNotFound(AirflowException):
@@ -350,7 +372,10 @@ class TaskDeferred(BaseException):
     Signal an operator moving to deferred state.
 
     Special exception raised to signal that the operator it was raised from
-    wishes to defer until a trigger fires.
+    wishes to defer until a trigger fires. Triggers can send execution back to task or end the task instance
+    directly. If the trigger should end the task instance itself, ``method_name`` does not matter,
+    and can be None; otherwise, provide the name of the method that should be used when
+    resuming execution in the task.
     """
 
     def __init__(
@@ -369,6 +394,18 @@ class TaskDeferred(BaseException):
         # Check timeout type at runtime
         if self.timeout is not None and not hasattr(self.timeout, "total_seconds"):
             raise ValueError("Timeout value must be a timedelta")
+
+    def serialize(self):
+        return (
+            self.__class__.__name__,
+            (),
+            {
+                "trigger": self.trigger,
+                "method_name": self.method_name,
+                "kwargs": self.kwargs,
+                "timeout": self.timeout,
+            },
+        )
 
     def __repr__(self) -> str:
         return f"<TaskDeferred trigger={self.trigger} method={self.method_name}>"
@@ -424,3 +461,7 @@ class DeserializingResultError(ValueError):
             "Error deserializing result. Note that result deserialization "
             "is not supported across major Python versions. Cause: " + str(self.__cause__)
         )
+
+
+class UnknownExecutorException(ValueError):
+    """Raised when an attempt is made to load an executor which is not configured."""

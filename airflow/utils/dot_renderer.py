@@ -17,11 +17,21 @@
 # specific language governing permissions and limitations
 # under the License.
 """Renderer DAG (tasks and dependencies) to the graphviz object."""
+
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING, Any
 
-import graphviz
+try:
+    import graphviz
+except ImportError:
+    warnings.warn(
+        "Could not import graphviz. Rendering graph to the graphical format will not be possible.",
+        UserWarning,
+        stacklevel=2,
+    )
+    graphviz = None
 
 from airflow.exceptions import AirflowException
 from airflow.models.baseoperator import BaseOperator
@@ -34,7 +44,7 @@ if TYPE_CHECKING:
     from airflow.models import TaskInstance
     from airflow.models.dag import DAG
     from airflow.models.taskmixin import DependencyMixin
-    from airflow.serialization.serialized_objects import DagDependency
+    from airflow.serialization.dag_dependency import DagDependency
 
 
 def _refine_color(color: str):
@@ -151,6 +161,10 @@ def render_dag_dependencies(deps: dict[str, list[DagDependency]]) -> graphviz.Di
     :param deps: List of DAG dependencies
     :return: Graphviz object
     """
+    if not graphviz:
+        raise AirflowException(
+            "Could not import graphviz. Install the graphviz python package to fix this error."
+        )
     dot = graphviz.Digraph(graph_attr={"rankdir": "LR"})
 
     for dag, dependencies in deps.items():
@@ -179,6 +193,10 @@ def render_dag(dag: DAG, tis: list[TaskInstance] | None = None) -> graphviz.Digr
     :param tis: List of task instances
     :return: Graphviz object
     """
+    if not graphviz:
+        raise AirflowException(
+            "Could not import graphviz. Install the graphviz python package to fix this error."
+        )
     dot = graphviz.Digraph(
         dag.dag_id,
         graph_attr={

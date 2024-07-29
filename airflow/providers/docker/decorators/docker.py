@@ -17,10 +17,8 @@
 from __future__ import annotations
 
 import base64
-import inspect
 import os
 import pickle
-import textwrap
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Callable, Sequence
 
@@ -28,14 +26,6 @@ import dill
 
 from airflow.decorators.base import DecoratedOperator, task_decorator_factory
 from airflow.providers.docker.operators.docker import DockerOperator
-
-try:
-    from airflow.utils.decorators import remove_task_decorator
-
-    # This can be removed after we move to Airflow 2.4+
-except ImportError:
-    from airflow.utils.python_virtualenv import remove_task_decorator
-
 from airflow.utils.python_virtualenv import write_python_script
 
 if TYPE_CHECKING:
@@ -89,7 +79,7 @@ class _DockerDecoratedOperator(DecoratedOperator, DockerOperator):
         command = "placeholder command"
         self.python_command = python_command
         self.expect_airflow = expect_airflow
-        self.pickling_library = dill if use_dill else pickle
+        self.use_dill = use_dill
         super().__init__(
             command=command, retrieve_output=True, retrieve_output_path="/tmp/script.out", **kwargs
         )
@@ -99,7 +89,7 @@ class _DockerDecoratedOperator(DecoratedOperator, DockerOperator):
             f"""bash -cx  '{_generate_decode_command("__PYTHON_SCRIPT", "/tmp/script.py",
                                                      self.python_command)} &&"""
             f'{_generate_decode_command("__PYTHON_INPUT", "/tmp/script.in", self.python_command)} &&'
-            f"{self.python_command} /tmp/script.py /tmp/script.in /tmp/script.out'"
+            f"{self.python_command} /tmp/script.py /tmp/script.in /tmp/script.out none /tmp/script.out'"
         )
 
     def execute(self, context: Context):
@@ -136,12 +126,11 @@ class _DockerDecoratedOperator(DecoratedOperator, DockerOperator):
             self.command = self.generate_command()
             return super().execute(context)
 
-    # TODO: Remove me once this provider min supported Airflow version is 2.6
-    def get_python_source(self):
-        raw_source = inspect.getsource(self.python_callable)
-        res = textwrap.dedent(raw_source)
-        res = remove_task_decorator(res, self.custom_operator_name)
-        return res
+    @property
+    def pickling_library(self):
+        if self.use_dill:
+            return dill
+        return pickle
 
 
 def docker_task(

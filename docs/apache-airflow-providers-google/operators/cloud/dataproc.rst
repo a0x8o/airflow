@@ -145,6 +145,31 @@ You can generate and use config as followed:
     :start-after: [START how_to_cloud_dataproc_create_cluster_generate_cluster_config]
     :end-before: [END how_to_cloud_dataproc_create_cluster_generate_cluster_config]
 
+Diagnose a cluster
+------------------
+Dataproc supports the collection of `cluster diagnostic information <https://cloud.google.com/dataproc/docs/support/diagnose-cluster-command#diagnostic_summary_and_archive_contents>`_
+like system, Spark, Hadoop, and Dataproc logs, cluster configuration files that can be used to troubleshoot a Dataproc cluster or job.
+It is important to note that this information can only be collected before the cluster is deleted.
+For more information about the available fields to pass when diagnosing a cluster, visit
+`Dataproc diagnose cluster API. <https://cloud.google.com/dataproc/docs/reference/rest/v1/projects.regions.clusters/diagnose>`_
+
+To diagnose a Dataproc cluster use:
+:class:`~airflow.providers.google.cloud.operators.dataproc.DataprocDiagnoseClusterOperator`.
+
+.. exampleinclude:: /../../tests/system/providers/google/cloud/dataproc/example_dataproc_cluster_diagnose.py
+    :language: python
+    :dedent: 0
+    :start-after: [START how_to_cloud_dataproc_diagnose_cluster]
+    :end-before: [END how_to_cloud_dataproc_diagnose_cluster]
+
+You can also use deferrable mode in order to run the operator asynchronously:
+
+.. exampleinclude:: /../../tests/system/providers/google/cloud/dataproc/example_dataproc_cluster_diagnose.py
+    :language: python
+    :dedent: 0
+    :start-after: [START how_to_cloud_dataproc_diagnose_cluster_deferrable]
+    :end-before: [END how_to_cloud_dataproc_diagnose_cluster_deferrable]
+
 Update a cluster
 ----------------
 You can scale the cluster up or down by providing a cluster config and a updateMask.
@@ -176,11 +201,34 @@ You can use deferrable mode for this action in order to run the operator asynchr
     :start-after: [START how_to_cloud_dataproc_update_cluster_operator_async]
     :end-before: [END how_to_cloud_dataproc_update_cluster_operator_async]
 
+Starting a cluster
+---------------------------
+
+To start a cluster you can use the
+:class:`~airflow.providers.google.cloud.operators.dataproc.DataprocStartClusterOperator`:
+
+.. exampleinclude:: /../../tests/system/providers/google/cloud/dataproc/example_dataproc_cluster_start_stop.py
+    :language: python
+    :dedent: 4
+    :start-after: [START how_to_cloud_dataproc_start_cluster_operator]
+    :end-before: [END how_to_cloud_dataproc_start_cluster_operator]
+
+Stopping a cluster
+---------------------------
+
+To stop a cluster you can use the
+:class:`~airflow.providers.google.cloud.operators.dataproc.DataprocStopClusterOperator`:
+
+.. exampleinclude:: /../../tests/system/providers/google/cloud/dataproc/example_dataproc_cluster_start_stop.py
+    :language: python
+    :dedent: 4
+    :start-after: [START how_to_cloud_dataproc_stop_cluster_operator]
+    :end-before: [END how_to_cloud_dataproc_stop_cluster_operator]
+
 Deleting a cluster
 ------------------
 
 To delete a cluster you can use:
-
 :class:`~airflow.providers.google.cloud.operators.dataproc.DataprocDeleteClusterOperator`.
 
 .. exampleinclude:: /../../tests/system/providers/google/cloud/dataproc/example_dataproc_hive.py
@@ -358,7 +406,7 @@ Create a Batch
 Dataproc supports creating a batch workload.
 
 A batch can be created using:
-:class: ``~airflow.providers.google.cloud.operators.dataproc.DataprocCreateBatchOperator``.
+:class:`~airflow.providers.google.cloud.operators.dataproc.DataprocCreateBatchOperator`.
 
 .. exampleinclude:: /../../tests/system/providers/google/cloud/dataproc/example_dataproc_batch.py
     :language: python
@@ -367,8 +415,8 @@ A batch can be created using:
     :end-before: [END how_to_cloud_dataproc_create_batch_operator]
 
 For creating a batch with Persistent History Server first you should create a Dataproc Cluster
-with specific parameters. Documentation how create cluster you can find here:
-https://cloud.google.com/dataproc/docs/concepts/jobs/history-server#setting_up_a_persistent_history_server
+with specific parameters. Documentation how create cluster you can find
+`here <https://cloud.google.com/dataproc/docs/concepts/jobs/history-server#setting_up_a_persistent_history_server>`__:
 
 .. exampleinclude:: /../../tests/system/providers/google/cloud/dataproc/example_dataproc_batch_persistent.py
     :language: python
@@ -385,7 +433,6 @@ After Cluster was created you should add it to the Batch configuration.
     :end-before: [END how_to_cloud_dataproc_create_batch_operator_with_persistent_history_server]
 
 To check if operation succeeded you can use
-
 :class:`~airflow.providers.google.cloud.sensors.dataproc.DataprocBatchSensor`.
 
 .. exampleinclude:: /../../tests/system/providers/google/cloud/dataproc/example_dataproc_batch.py
@@ -406,7 +453,7 @@ Get a Batch
 -----------
 
 To get a batch you can use:
-:class: ``~airflow.providers.google.cloud.operators.dataproc.DataprocGetBatchOperator``.
+:class:`~airflow.providers.google.cloud.operators.dataproc.DataprocGetBatchOperator`.
 
 .. exampleinclude:: /../../tests/system/providers/google/cloud/dataproc/example_dataproc_batch.py
     :language: python
@@ -418,7 +465,7 @@ List a Batch
 ------------
 
 To get a list of exists batches you can use:
-:class: ``~airflow.providers.google.cloud.operators.dataproc.DataprocListBatchesOperator``.
+:class:`~airflow.providers.google.cloud.operators.dataproc.DataprocListBatchesOperator`.
 
 .. exampleinclude:: /../../tests/system/providers/google/cloud/dataproc/example_dataproc_batch.py
     :language: python
@@ -430,7 +477,7 @@ Delete a Batch
 --------------
 
 To delete a batch you can use:
-:class: ``~airflow.providers.google.cloud.operators.dataproc.DataprocDeleteBatchOperator``.
+:class:`~airflow.providers.google.cloud.operators.dataproc.DataprocDeleteBatchOperator`.
 
 .. exampleinclude:: /../../tests/system/providers/google/cloud/dataproc/example_dataproc_batch.py
     :language: python
@@ -442,7 +489,7 @@ Cancel a Batch Operation
 ------------------------
 
 To cancel a operation you can use:
-:class: ``~airflow.providers.google.cloud.operators.dataproc.DataprocCancelOperationOperator``.
+:class:`~airflow.providers.google.cloud.operators.dataproc.DataprocCancelOperationOperator`.
 
 .. exampleinclude:: /../../tests/system/providers/google/cloud/dataproc/example_dataproc_batch.py
     :language: python

@@ -18,18 +18,23 @@
 from __future__ import annotations
 
 import random
+import time
+from datetime import timedelta
 from unittest import mock
 
 import pytest
 from paramiko.client import SSHClient
 
-from airflow.exceptions import AirflowException
+from airflow.exceptions import AirflowException, AirflowSkipException, AirflowTaskTimeout
 from airflow.models import TaskInstance
 from airflow.providers.ssh.hooks.ssh import SSHHook
 from airflow.providers.ssh.operators.ssh import SSHOperator
 from airflow.utils.timezone import datetime
 from airflow.utils.types import NOTSET
 from tests.test_utils.config import conf_vars
+
+pytestmark = pytest.mark.db_test
+
 
 TEST_DAG_ID = "unit_tests_ssh_test_op"
 TEST_CONN_ID = "conn_id_for_testing"
@@ -49,7 +54,6 @@ class SSHClientSideEffect:
 
 class TestSSHOperator:
     def setup_method(self):
-
         hook = SSHHook(ssh_conn_id="ssh_default")
         hook.no_host_key_check = True
 
@@ -165,11 +169,10 @@ class TestSSHOperator:
             AirflowException, match="SSH operator error: SSH command not specified. Aborting."
         ):
             SSHOperator(
-                task_id="test_4",
+                task_id="test_5",
                 ssh_hook=self.hook,
                 command=None,
             ).execute(None)
-            task_0.execute(None)
 
     @pytest.mark.parametrize(
         "command, get_pty_in, get_pty_out",
@@ -191,15 +194,55 @@ class TestSSHOperator:
         assert task.get_pty == get_pty_out
 
     def test_ssh_client_managed_correctly(self):
-        # Ensure connection gets closed once (via context_manager)
+        # Ensure connection gets closed once (via context_manager) using on_kill
         task = SSHOperator(
             task_id="test",
             ssh_hook=self.hook,
             command="ls",
         )
         task.execute()
+
         self.hook.get_conn.assert_called_once()
         self.hook.get_conn.return_value.__exit__.assert_called_once()
+
+    @pytest.mark.parametrize(
+        "extra_kwargs, actual_exit_code, expected_exc",
+        [
+            ({}, 0, None),
+            ({}, 100, AirflowException),
+            ({}, 101, AirflowException),
+            ({"skip_on_exit_code": None}, 0, None),
+            ({"skip_on_exit_code": None}, 100, AirflowException),
+            ({"skip_on_exit_code": None}, 101, AirflowException),
+            ({"skip_on_exit_code": 100}, 0, None),
+            ({"skip_on_exit_code": 100}, 100, AirflowSkipException),
+            ({"skip_on_exit_code": 100}, 101, AirflowException),
+            ({"skip_on_exit_code": 0}, 0, AirflowSkipException),
+            ({"skip_on_exit_code": [100]}, 0, None),
+            ({"skip_on_exit_code": [100]}, 100, AirflowSkipException),
+            ({"skip_on_exit_code": [100]}, 101, AirflowException),
+            ({"skip_on_exit_code": [100, 102]}, 101, AirflowException),
+            ({"skip_on_exit_code": (100,)}, 0, None),
+            ({"skip_on_exit_code": (100,)}, 100, AirflowSkipException),
+            ({"skip_on_exit_code": (100,)}, 101, AirflowException),
+        ],
+    )
+    def test_skip(self, extra_kwargs, actual_exit_code, expected_exc):
+        command = "not_a_real_command"
+        self.exec_ssh_client_command.return_value = (actual_exit_code, b"", b"")
+
+        operator = SSHOperator(
+            task_id="test",
+            ssh_hook=self.hook,
+            command=command,
+            **extra_kwargs,
+        )
+
+        if expected_exc is None:
+            operator.execute({})
+        else:
+            with pytest.raises(expected_exc):
+                operator.execute({})
 
     def test_command_errored(self):
         # Test that run_ssh_client_command works on invalid commands
@@ -226,3 +269,28 @@ class TestSSHOperator:
         with pytest.raises(AirflowException, match=f"SSH operator error: exit status = {ssh_exit_code}"):
             ti.run()
         assert ti.xcom_pull(task_ids=task.task_id, key="ssh_exit") == ssh_exit_code
+
+    def test_timeout_triggers_on_kill(self, request, dag_maker):
+        def command_sleep_forever(*args, **kwargs):
+            time.sleep(100)  # This will be interrupted by the timeout
+
+        self.exec_ssh_client_command.side_effect = command_sleep_forever
+
+        with dag_maker(dag_id=f"dag_{request.node.name}"):
+            task = SSHOperator(
+                task_id="test_timeout",
+                ssh_hook=self.hook,
+                command="sleep 100",
+                execution_timeout=timedelta(seconds=1),
+            )
+        dr = dag_maker.create_dagrun(run_id="test_timeout")
+        ti = TaskInstance(task=task, run_id=dr.run_id)
+
+        with mock.patch.object(SSHOperator, "on_kill") as mock_on_kill:
+            with pytest.raises(AirflowTaskTimeout):
+                ti.run()
+
+            # Wait a bit to ensure on_kill has time to be called
+            time.sleep(1)
+
+            mock_on_kill.assert_called_once()

@@ -21,10 +21,9 @@ import os
 import shutil
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from azure.core.exceptions import HttpResponseError
-from packaging.version import Version
 
 from airflow.configuration import conf
 from airflow.utils.log.file_task_handler import FileTaskHandler
@@ -33,17 +32,7 @@ from airflow.utils.log.logging_mixin import LoggingMixin
 if TYPE_CHECKING:
     import logging
 
-
-def get_default_delete_local_copy():
-    """Load delete_local_logs conf if Airflow version > 2.6 and return False if not.
-
-    TODO: delete this function when min airflow version >= 2.6
-    """
-    from airflow.version import version
-
-    if Version(version) < Version("2.6"):
-        return False
-    return conf.getboolean("logging", "delete_local_logs")
+    from airflow.models.taskinstance import TaskInstance
 
 
 class WasbTaskHandler(FileTaskHandler, LoggingMixin):
@@ -71,13 +60,13 @@ class WasbTaskHandler(FileTaskHandler, LoggingMixin):
         self.log_relative_path = ""
         self.closed = False
         self.upload_on_close = True
-        self.delete_local_copy = (
-            kwargs["delete_local_copy"] if "delete_local_copy" in kwargs else get_default_delete_local_copy()
+        self.delete_local_copy = kwargs.get(
+            "delete_local_copy", conf.getboolean("logging", "delete_local_logs")
         )
 
     @cached_property
     def hook(self):
-        """Returns WasbHook."""
+        """Return WasbHook."""
         remote_conn_id = conf.get("logging", "REMOTE_LOG_CONN_ID")
         try:
             from airflow.providers.microsoft.azure.hooks.wasb import WasbHook
@@ -93,8 +82,13 @@ class WasbTaskHandler(FileTaskHandler, LoggingMixin):
             )
             return None
 
-    def set_context(self, ti) -> None:
-        super().set_context(ti)
+    def set_context(self, ti: TaskInstance, *, identifier: str | None = None) -> None:
+        # todo: remove-at-min-airflow-version-2.8
+        #   after Airflow 2.8 can always pass `identifier`
+        if getattr(super(), "supports_task_context_logging", False):
+            super().set_context(ti, identifier=identifier)
+        else:
+            super().set_context(ti)
         # Local location and remote location is needed to open and
         # upload local log file to Wasb remote storage.
         if TYPE_CHECKING:
@@ -103,7 +97,7 @@ class WasbTaskHandler(FileTaskHandler, LoggingMixin):
         full_path = self.handler.baseFilename
         self.log_relative_path = Path(full_path).relative_to(self.local_base).as_posix()
         is_trigger_log_context = getattr(ti, "is_trigger_log_context", False)
-        self.upload_on_close = is_trigger_log_context or not ti.raw
+        self.upload_on_close = is_trigger_log_context or not getattr(ti, "raw", None)
 
     def close(self) -> None:
         """Close and upload local log file to remote storage Wasb."""
@@ -136,11 +130,9 @@ class WasbTaskHandler(FileTaskHandler, LoggingMixin):
         messages = []
         logs = []
         worker_log_relative_path = self._render_filename(ti, try_number)
-        # todo: fix this
-        # for some reason this handler was designed such that (1) container name is not configurable
-        # (i.e. it's hardcoded in airflow_local_settings.py) and (2) the "relative path" is actually...
-        # whatever you put in REMOTE_BASE_LOG_FOLDER i.e. it includes the "wasb://" in the blob
-        # name. it's very screwed up but to change it we have to be careful not to break backcompat.
+        # TODO: fix this - "relative path" i.e currently REMOTE_BASE_LOG_FOLDER should start with "wasb"
+        # unlike others with shceme in URL itself to identify the correct handler.
+        # This puts limitations on ways users can name the base_path.
         prefix = os.path.join(self.remote_base, worker_log_relative_path)
         blob_names = []
         try:
@@ -151,7 +143,7 @@ class WasbTaskHandler(FileTaskHandler, LoggingMixin):
             self.log.exception("can't list blobs")
 
         if blob_names:
-            uris = [f"wasb://{self.wasb_container}/{b}" for b in blob_names]
+            uris = [f"https://{self.wasb_container}.blob.core.windows.net/{b}" for b in blob_names]
             messages.extend(["Found remote logs:", *[f"  * {x}" for x in sorted(uris)]])
         else:
             messages.append(f"No logs found in WASB; ti=%s {ti}")
@@ -168,32 +160,6 @@ class WasbTaskHandler(FileTaskHandler, LoggingMixin):
                 )
                 self.log.exception("Could not read blob")
         return messages, logs
-
-    def _read(
-        self, ti, try_number: int, metadata: dict[str, Any] | None = None
-    ) -> tuple[str, dict[str, bool]]:
-        """
-        Read logs of given task instance and try_number from Wasb remote storage.
-
-        If failed, read the log from task instance host machine.
-
-        todo: when min airflow version >= 2.6, remove this method
-
-        :param ti: task instance object
-        :param try_number: task instance try_number to read logs from
-        :param metadata: log metadata,
-                         can be used for steaming log reading and auto-tailing.
-        """
-        if hasattr(super(), "_read_remote_logs"):
-            # from Airflow 2.6, we don't implement the `_read` method.
-            # if parent has _read_remote_logs, we're >= 2.6
-            return super()._read(ti, try_number, metadata)
-
-        # below is backcompat, for airflow < 2.6
-        messages, logs = self._read_remote_logs(ti, try_number, metadata)
-        if not logs:
-            return super()._read(ti, try_number, metadata)
-        return "".join([f"*** {x}\n" for x in messages]) + "\n".join(logs), {"end_of_log": True}
 
     def wasb_log_exists(self, remote_log_location: str) -> bool:
         """
@@ -229,7 +195,7 @@ class WasbTaskHandler(FileTaskHandler, LoggingMixin):
 
     def wasb_write(self, log: str, remote_log_location: str, append: bool = True) -> bool:
         """
-        Writes the log to the remote_log_location. Fails silently if no hook was created.
+        Write the log to the remote_log_location. Fails silently if no hook was created.
 
         :param log: the log to write to the remote_log_location
         :param remote_log_location: the log's location in remote storage

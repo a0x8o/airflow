@@ -22,6 +22,7 @@ import enum
 import functools
 import logging
 import sys
+from fnmatch import fnmatch
 from importlib import import_module
 from typing import TYPE_CHECKING, Any, Pattern, TypeVar, Union, cast
 
@@ -84,7 +85,8 @@ def decode(d: dict[str, Any]) -> tuple[str, int, Any]:
 
 
 def serialize(o: object, depth: int = 0) -> U | None:
-    """Serialize an object into a representation consisting only built-in types.
+    """
+    Serialize an object into a representation consisting only built-in types.
 
     Primitives (int, float, bool, str) are returned as-is. Built-in collections
     are iterated over, where it is assumed that keys in a dict can be represented
@@ -133,18 +135,26 @@ def serialize(o: object, depth: int = 0) -> U | None:
 
     cls = type(o)
     qn = qualname(o)
+    classname = None
+
+    # Serialize namedtuple like tuples
+    # We also override the classname returned by the builtin.py serializer. The classname
+    # has to be "builtins.tuple", so that the deserializer can deserialize the object into tuple.
+    if _is_namedtuple(o):
+        qn = "builtins.tuple"
+        classname = qn
+
+    # if there is a builtin serializer available use that
+    if qn in _serializers:
+        data, serialized_classname, version, is_serialized = _serializers[qn].serialize(o)
+        if is_serialized:
+            return encode(classname or serialized_classname, version, serialize(data, depth + 1))
 
     # custom serializers
     dct = {
         CLASSNAME: qn,
         VERSION: getattr(cls, "__version__", DEFAULT_VERSION),
     }
-
-    # if there is a builtin serializer available use that
-    if qn in _serializers:
-        data, classname, version, is_serialized = _serializers[qn].serialize(o)
-        if is_serialized:
-            return encode(classname, version, serialize(data, depth + 1))
 
     # object / class brings their own
     if hasattr(o, "serialize"):
@@ -159,7 +169,7 @@ def serialize(o: object, depth: int = 0) -> U | None:
 
     # pydantic models are recursive
     if _is_pydantic(cls):
-        data = o.dict()  # type: ignore[attr-defined]
+        data = o.model_dump()  # type: ignore[attr-defined]
         dct[DATA] = serialize(data, depth + 1)
         return dct
 
@@ -173,7 +183,7 @@ def serialize(o: object, depth: int = 0) -> U | None:
     # attr annotated
     if attr.has(cls):
         # Only include attributes which we can pass back to the classes constructor
-        data = attr.asdict(cast(attr.AttrsInstance, o), recurse=True, filter=lambda a, v: a.init)
+        data = attr.asdict(cast(attr.AttrsInstance, o), recurse=False, filter=lambda a, v: a.init)
         dct[DATA] = serialize(data, depth + 1)
         return dct
 
@@ -241,7 +251,6 @@ def deserialize(o: T | None, full=True, type_hint: Any = None) -> object:
     # only return string representation
     if not full:
         return _stringify(classname, version, value)
-
     if not _match(classname) and classname not in _extra_allowed:
         raise ImportError(
             f"{classname} was not found in allow list for deserialization imports. "
@@ -288,11 +297,27 @@ def _convert(old: dict) -> dict:
 
 
 def _match(classname: str) -> bool:
-    return any(p.match(classname) is not None for p in _get_patterns())
+    """Check if the given classname matches a path pattern either using glob format or regexp format."""
+    return _match_glob(classname) or _match_regexp(classname)
+
+
+@functools.lru_cache(maxsize=None)
+def _match_glob(classname: str):
+    """Check if the given classname matches a pattern from allowed_deserialization_classes using glob syntax."""
+    patterns = _get_patterns()
+    return any(fnmatch(classname, p.pattern) for p in patterns)
+
+
+@functools.lru_cache(maxsize=None)
+def _match_regexp(classname: str):
+    """Check if the given classname matches a pattern from allowed_deserialization_classes_regexp using regexp."""
+    patterns = _get_regexp_patterns()
+    return any(p.match(classname) is not None for p in patterns)
 
 
 def _stringify(classname: str, version: int, value: T | None) -> str:
-    """Convert a previously serialized object in a somewhat human-readable format.
+    """
+    Convert a previously serialized object in a somewhat human-readable format.
 
     This function is not designed to be exact, and will not extensively traverse
     the whole tree of an object.
@@ -314,19 +339,23 @@ def _stringify(classname: str, version: int, value: T | None) -> str:
 
 
 def _is_pydantic(cls: Any) -> bool:
-    """Return True if the class is a pydantic model.
+    """
+    Return True if the class is a pydantic model.
 
     Checking is done by attributes as it is significantly faster than
     using isinstance.
     """
-    return (
-        hasattr(cls, "__validators__")
-        and hasattr(cls, "__fields__")
-        and hasattr(cls, "dict")  # Pydantic v1
-        or hasattr(cls, "model_config")
-        and hasattr(cls, "model_fields")
-        and hasattr(cls, "model_fields_set")  # Pydantic v2
-    )
+    return hasattr(cls, "model_config") and hasattr(cls, "model_fields") and hasattr(cls, "model_fields_set")
+
+
+def _is_namedtuple(cls: Any) -> bool:
+    """
+    Return True if the class is a namedtuple.
+
+    Checking is done by attributes as it is significantly faster than
+    using isinstance.
+    """
+    return hasattr(cls, "_asdict") and hasattr(cls, "_fields") and hasattr(cls, "_field_defaults")
 
 
 def _register():
@@ -366,8 +395,12 @@ def _register():
 
 @functools.lru_cache(maxsize=None)
 def _get_patterns() -> list[Pattern]:
-    patterns = conf.get("core", "allowed_deserialization_classes").split()
-    return [re2.compile(re2.sub(r"(\w)\.", r"\1\..", p)) for p in patterns]
+    return [re2.compile(p) for p in conf.get("core", "allowed_deserialization_classes").split()]
+
+
+@functools.lru_cache(maxsize=None)
+def _get_regexp_patterns() -> list[Pattern]:
+    return [re2.compile(p) for p in conf.get("core", "allowed_deserialization_classes_regexp").split()]
 
 
 _register()

@@ -14,12 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""OS Login hooks.
+"""
+OS Login hooks.
 
 .. spelling:word-list::
     ImportSshPublicKeyResponse
     oslogin
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Sequence
@@ -78,7 +80,7 @@ class OSLoginHook(GoogleBaseHook):
         metadata: Sequence[tuple[str, str]] = (),
     ) -> ImportSshPublicKeyResponse:
         """
-        Adds an SSH public key and returns the profile information.
+        Add an SSH public key and returns the profile information.
 
         Default POSIX account information is set when no username and UID exist as part of the login profile.
 

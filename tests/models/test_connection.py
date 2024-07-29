@@ -186,3 +186,90 @@ class TestConnection:
     )
     def test_get_uri(self, connection, expected_uri):
         assert connection.get_uri() == expected_uri
+
+    @pytest.mark.parametrize(
+        "connection, expected_conn_id",
+        [
+            # a valid example of connection id
+            (
+                Connection(
+                    conn_id="12312312312213___12312321",
+                    conn_type="type",
+                    login="user",
+                    password="pass",
+                    host="host",
+                    port=100,
+                    schema="schema",
+                    extra={"param1": "val1", "param2": "val2"},
+                ),
+                "12312312312213___12312321",
+            ),
+            # an invalid example of connection id, which allows potential code execution
+            (
+                Connection(
+                    conn_id="<script>alert(1)</script>",
+                    conn_type="type",
+                    host="protocol://host",
+                    port=100,
+                    schema="schema",
+                    extra={"param1": "val1", "param2": "val2"},
+                ),
+                None,
+            ),
+            # a valid connection as well
+            (
+                Connection(
+                    conn_id="a_valid_conn_id_!!##",
+                    conn_type="type",
+                    login="user",
+                    password="pass",
+                    host="protocol://host",
+                    port=100,
+                    schema="schema",
+                    extra={"param1": "val1", "param2": "val2"},
+                ),
+                "a_valid_conn_id_!!##",
+            ),
+            # a valid connection as well testing dashes
+            (
+                Connection(
+                    conn_id="a_-.11",
+                    conn_type="type",
+                    login="user",
+                    password="pass",
+                    host="protocol://host",
+                    port=100,
+                    schema="schema",
+                    extra={"param1": "val1", "param2": "val2"},
+                ),
+                "a_-.11",
+            ),
+        ],
+    )
+    # Responsible for ensuring that the sanitized connection id
+    # string works as expected.
+    def test_sanitize_conn_id(self, connection, expected_conn_id):
+        assert connection.conn_id == expected_conn_id
+
+    def test_extra_dejson(self):
+        extra = (
+            '{"trust_env": false, "verify": false, "stream": true, "headers":'
+            '{\r\n "Content-Type": "application/json",\r\n  "X-Requested-By": "Airflow"\r\n}}'
+        )
+        connection = Connection(
+            conn_id="pokeapi",
+            conn_type="http",
+            login="user",
+            password="pass",
+            host="https://pokeapi.co/",
+            port=100,
+            schema="https",
+            extra=extra,
+        )
+
+        assert connection.extra_dejson == {
+            "trust_env": False,
+            "verify": False,
+            "stream": True,
+            "headers": {"Content-Type": "application/json", "X-Requested-By": "Airflow"},
+        }

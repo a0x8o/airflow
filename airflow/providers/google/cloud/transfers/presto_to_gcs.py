@@ -144,7 +144,8 @@ class _PrestoToGCSPrestoCursorAdapter:
 
 
 class PrestoToGCSOperator(BaseSQLToGCSOperator):
-    """Copy data from PrestoDB to Google Cloud Storage in JSON, CSV or Parquet format.
+    """
+    Copy data from PrestoDB to Google Cloud Storage in JSON, CSV or Parquet format.
 
     :param presto_conn_id: Reference to a specific Presto hook.
     """
@@ -181,7 +182,7 @@ class PrestoToGCSOperator(BaseSQLToGCSOperator):
         self.presto_conn_id = presto_conn_id
 
     def query(self):
-        """Queries presto and returns a cursor to the results."""
+        """Query presto and returns a cursor to the results."""
         presto = PrestoHook(presto_conn_id=self.presto_conn_id)
         conn = presto.get_conn()
         cursor = conn.cursor()

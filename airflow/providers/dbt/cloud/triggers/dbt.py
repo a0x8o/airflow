@@ -25,7 +25,8 @@ from airflow.triggers.base import BaseTrigger, TriggerEvent
 
 
 class DbtCloudRunJobTrigger(BaseTrigger):
-    """Trigger to make an HTTP call to dbt and get the status for the job.
+    """
+    Trigger to make an HTTP call to dbt and get the status for the job.
 
     This is done with run id in polling interval of time.
 
@@ -52,7 +53,7 @@ class DbtCloudRunJobTrigger(BaseTrigger):
         self.poll_interval = poll_interval
 
     def serialize(self) -> tuple[str, dict[str, Any]]:
-        """Serializes DbtCloudRunJobTrigger arguments and classpath."""
+        """Serialize DbtCloudRunJobTrigger arguments and classpath."""
         return (
             "airflow.providers.dbt.cloud.triggers.dbt.DbtCloudRunJobTrigger",
             {
@@ -78,6 +79,7 @@ class DbtCloudRunJobTrigger(BaseTrigger):
                             "run_id": self.run_id,
                         }
                     )
+                    return
                 await asyncio.sleep(self.poll_interval)
             job_run_status = await hook.get_job_status(self.run_id, self.account_id)
             if job_run_status == DbtCloudJobRunStatus.SUCCESS.value:

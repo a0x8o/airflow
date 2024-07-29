@@ -73,7 +73,7 @@ class TestTriggerer:
             values=values,
             show_only=["templates/triggerer/triggerer-deployment.yaml"],
         )
-        expected_result = revision_history_limit if revision_history_limit else global_revision_history_limit
+        expected_result = revision_history_limit or global_revision_history_limit
         assert jmespath.search("spec.revisionHistoryLimit", docs[0]) == expected_result
 
     def test_disable_wait_for_migration(self):
@@ -95,7 +95,7 @@ class TestTriggerer:
             values={
                 "triggerer": {
                     "extraContainers": [
-                        {"name": "test-container", "image": "test-registry/test-repo:test-tag"}
+                        {"name": "{{ .Chart.Name }}", "image": "test-registry/test-repo:test-tag"}
                     ],
                 },
             },
@@ -103,9 +103,23 @@ class TestTriggerer:
         )
 
         assert {
-            "name": "test-container",
+            "name": "airflow",
             "image": "test-registry/test-repo:test-tag",
         } == jmespath.search("spec.template.spec.containers[-1]", docs[0])
+
+    def test_should_template_extra_containers(self):
+        docs = render_chart(
+            values={
+                "triggerer": {
+                    "extraContainers": [{"name": "{{ .Release.Name }}-test-container"}],
+                },
+            },
+            show_only=["templates/triggerer/triggerer-deployment.yaml"],
+        )
+
+        assert {"name": "release-name-test-container"} == jmespath.search(
+            "spec.template.spec.containers[-1]", docs[0]
+        )
 
     def test_should_add_extra_init_containers(self):
         docs = render_chart(
@@ -123,6 +137,20 @@ class TestTriggerer:
             "name": "test-init-container",
             "image": "test-registry/test-repo:test-tag",
         } == jmespath.search("spec.template.spec.initContainers[-1]", docs[0])
+
+    def test_should_template_extra_init_containers(self):
+        docs = render_chart(
+            values={
+                "triggerer": {
+                    "extraInitContainers": [{"name": "{{ .Release.Name }}-test-init-container"}],
+                },
+            },
+            show_only=["templates/triggerer/triggerer-deployment.yaml"],
+        )
+
+        assert {"name": "release-name-test-init-container"} == jmespath.search(
+            "spec.template.spec.initContainers[-1]", docs[0]
+        )
 
     def test_should_add_extra_volume_and_extra_volume_mount(self):
         docs = render_chart(
@@ -163,7 +191,17 @@ class TestTriggerer:
         docs = render_chart(
             values={
                 "triggerer": {
-                    "env": [{"name": "TEST_ENV_1", "value": "test_env_1"}],
+                    "env": [
+                        {"name": "TEST_ENV_1", "value": "test_env_1"},
+                        {
+                            "name": "TEST_ENV_2",
+                            "valueFrom": {"secretKeyRef": {"name": "my-secret", "key": "my-key"}},
+                        },
+                        {
+                            "name": "TEST_ENV_3",
+                            "valueFrom": {"configMapKeyRef": {"name": "my-config-map", "key": "my-key"}},
+                        },
+                    ],
                 }
             },
             show_only=["templates/triggerer/triggerer-deployment.yaml"],
@@ -172,6 +210,14 @@ class TestTriggerer:
         assert {"name": "TEST_ENV_1", "value": "test_env_1"} in jmespath.search(
             "spec.template.spec.containers[0].env", docs[0]
         )
+        assert {
+            "name": "TEST_ENV_2",
+            "valueFrom": {"secretKeyRef": {"name": "my-secret", "key": "my-key"}},
+        } in jmespath.search("spec.template.spec.containers[0].env", docs[0])
+        assert {
+            "name": "TEST_ENV_3",
+            "valueFrom": {"configMapKeyRef": {"name": "my-config-map", "key": "my-key"}},
+        } in jmespath.search("spec.template.spec.containers[0].env", docs[0])
 
     def test_should_add_extraEnvs_to_wait_for_migration_container(self):
         docs = render_chart(
@@ -592,6 +638,33 @@ class TestTriggerer:
         assert "annotations" in jmespath.search("metadata", docs[0])
         assert jmespath.search("metadata.annotations", docs[0])["test_annotation"] == "test_annotation_value"
 
+    def test_triggerer_template_storage_class_name(self):
+        docs = render_chart(
+            values={"triggerer": {"persistence": {"storageClassName": "{{ .Release.Name }}-storage-class"}}},
+            show_only=["templates/triggerer/triggerer-deployment.yaml"],
+        )
+        assert "release-name-storage-class" == jmespath.search(
+            "spec.volumeClaimTemplates[0].spec.storageClassName", docs[0]
+        )
+
+    def test_persistent_volume_claim_retention_policy(self):
+        docs = render_chart(
+            values={
+                "executor": "CeleryExecutor",
+                "triggerer": {
+                    "persistence": {
+                        "enabled": True,
+                        "persistentVolumeClaimRetentionPolicy": {"whenDeleted": "Delete"},
+                    }
+                },
+            },
+            show_only=["templates/triggerer/triggerer-deployment.yaml"],
+        )
+
+        assert {
+            "whenDeleted": "Delete",
+        } == jmespath.search("spec.persistentVolumeClaimRetentionPolicy", docs[0])
+
 
 class TestTriggererServiceAccount:
     """Tests triggerer service account."""
@@ -621,7 +694,7 @@ class TestTriggererServiceAccount:
         )
         assert jmespath.search("automountServiceAccountToken", docs[0]) is True
 
-    def test_overriden_automount_service_account_token(self):
+    def test_overridden_automount_service_account_token(self):
         docs = render_chart(
             values={
                 "triggerer": {
@@ -691,7 +764,6 @@ class TestTriggererKedaAutoScaler:
         ],
     )
     def test_should_use_keda_query(self, query, expected_query):
-
         docs = render_chart(
             values={
                 "triggerer": {
@@ -702,3 +774,34 @@ class TestTriggererKedaAutoScaler:
             show_only=["templates/triggerer/triggerer-kedaautoscaler.yaml"],
         )
         assert expected_query == jmespath.search("spec.triggers[0].metadata.query", docs[0])
+
+    def test_mysql_db_backend_keda_default_value(self):
+        docs = render_chart(
+            values={
+                "data": {"metadataConnection": {"protocol": "mysql"}},
+                "triggerer": {
+                    "enabled": True,
+                    "keda": {"enabled": True},
+                },
+            },
+            show_only=["templates/triggerer/triggerer-kedaautoscaler.yaml"],
+        )
+
+        assert jmespath.search("spec.triggerers[0].metadata.keda.usePgBouncer", docs[0]) is None
+
+    def test_mysql_db_backend_keda(self):
+        docs = render_chart(
+            values={
+                "data": {"metadataConnection": {"protocol": "mysql"}},
+                "triggerer": {
+                    "enabled": True,
+                    "keda": {"enabled": True},
+                },
+            },
+            show_only=["templates/triggerer/triggerer-kedaautoscaler.yaml"],
+        )
+        assert "1" == jmespath.search("spec.triggers[0].metadata.queryValue", docs[0])
+        assert jmespath.search("spec.triggers[0].metadata.targetQueryValue", docs[0]) is None
+
+        assert "KEDA_DB_CONN" == jmespath.search("spec.triggers[0].metadata.connectionStringFromEnv", docs[0])
+        assert jmespath.search("spec.triggers[0].metadata.connectionFromEnv", docs[0]) is None

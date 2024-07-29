@@ -39,19 +39,20 @@ from airflow.providers.google.cloud.operators.datacatalog import (
 )
 from airflow.providers.google.cloud.operators.gcs import GCSCreateBucketOperator, GCSDeleteBucketOperator
 from airflow.utils.trigger_rule import TriggerRule
+from tests.system.providers.google import DEFAULT_GCP_SYSTEM_TEST_PROJECT_ID
 
 ENV_ID = os.environ.get("SYSTEM_TESTS_ENV_ID")
-PROJECT_ID = os.environ.get("SYSTEM_TESTS_GCP_PROJECT")
+PROJECT_ID = os.environ.get("SYSTEM_TESTS_GCP_PROJECT") or DEFAULT_GCP_SYSTEM_TEST_PROJECT_ID
 
 DAG_ID = "datacatalog_search_catalog"
 
 BUCKET_NAME = f"bucket_{DAG_ID}_{ENV_ID}"
 LOCATION = "us-central1"
-ENTRY_GROUP_ID = f"id_{DAG_ID}_{ENV_ID}"
+ENTRY_GROUP_ID = f"id_{DAG_ID}_{ENV_ID}".replace("-", "_")
 ENTRY_GROUP_NAME = f"name {DAG_ID} {ENV_ID}"
 ENTRY_ID = "python_files"
 ENTRY_NAME = "Wizard"
-TEMPLATE_ID = f"template_id_search_{ENV_ID}"
+TEMPLATE_ID = f"template_id_search_{ENV_ID}".replace("-", "_")
 TAG_TEMPLATE_DISPLAY_NAME = f"Data Catalog {DAG_ID} {ENV_ID}"
 FIELD_NAME_1 = "first"
 
@@ -147,7 +148,9 @@ with DAG(
     # Search
     # [START howto_operator_gcp_datacatalog_search_catalog]
     search_catalog = CloudDataCatalogSearchCatalogOperator(
-        task_id="search_catalog", scope={"include_project_ids": [PROJECT_ID]}, query=f"projectid:{PROJECT_ID}"
+        task_id="search_catalog",
+        scope={"include_project_ids": [PROJECT_ID]},
+        query=f"name:{ENTRY_GROUP_NAME}",
     )
     # [END howto_operator_gcp_datacatalog_search_catalog]
 

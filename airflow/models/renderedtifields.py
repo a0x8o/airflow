@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Save Rendered Template Fields."""
+
 from __future__ import annotations
 
 import os
@@ -35,8 +36,9 @@ from sqlalchemy import (
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import relationship
 
+from airflow.api_internal.internal_api_call import internal_api_call
 from airflow.configuration import conf
-from airflow.models.base import Base, StringID
+from airflow.models.base import StringID, TaskInstanceDependencies
 from airflow.serialization.helpers import serialize_template_field
 from airflow.settings import json
 from airflow.utils.retries import retry_db_transaction
@@ -46,10 +48,24 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
     from sqlalchemy.sql import FromClause
 
-    from airflow.models.taskinstance import TaskInstance
+    from airflow.models import Operator
+    from airflow.models.taskinstance import TaskInstance, TaskInstancePydantic
 
 
-class RenderedTaskInstanceFields(Base):
+def get_serialized_template_fields(task: Operator):
+    """
+    Get and serialize the template fields for a task.
+
+    Used in preparing to store them in RTIF table.
+
+    :param task: Operator instance with rendered template fields
+
+    :meta private:
+    """
+    return {field: serialize_template_field(getattr(task, field), field) for field in task.template_fields}
+
+
+class RenderedTaskInstanceFields(TaskInstanceDependencies):
     """Save Rendered Template Fields."""
 
     __tablename__ = "rendered_task_instance_fields"
@@ -68,7 +84,6 @@ class RenderedTaskInstanceFields(Base):
             "run_id",
             "map_index",
             name="rendered_task_instance_fields_pkey",
-            mssql_clustered=True,
         ),
         ForeignKeyConstraint(
             [dag_id, task_id, run_id, map_index],
@@ -101,7 +116,7 @@ class RenderedTaskInstanceFields(Base):
 
     execution_date = association_proxy("dag_run", "execution_date")
 
-    def __init__(self, ti: TaskInstance, render_templates=True):
+    def __init__(self, ti: TaskInstance, render_templates=True, rendered_fields=None):
         self.dag_id = ti.dag_id
         self.task_id = ti.task_id
         self.run_id = ti.run_id
@@ -109,6 +124,10 @@ class RenderedTaskInstanceFields(Base):
         self.ti = ti
         if render_templates:
             ti.render_templates()
+
+        if TYPE_CHECKING:
+            assert ti.task
+
         self.task = ti.task
         if os.environ.get("AIRFLOW_IS_K8S_EXECUTOR_POD", None):
             # we can safely import it here from provider. In Airflow 2.7.0+ you need to have new version
@@ -116,9 +135,7 @@ class RenderedTaskInstanceFields(Base):
             from airflow.providers.cncf.kubernetes.template_rendering import render_k8s_pod_yaml
 
             self.k8s_pod_yaml = render_k8s_pod_yaml(ti)
-        self.rendered_fields = {
-            field: serialize_template_field(getattr(self.task, field)) for field in self.task.template_fields
-        }
+        self.rendered_fields = rendered_fields or get_serialized_template_fields(task=ti.task)
 
         self._redact()
 
@@ -138,8 +155,27 @@ class RenderedTaskInstanceFields(Base):
             self.rendered_fields[field] = redact(rendered, field)
 
     @classmethod
+    @internal_api_call
     @provide_session
-    def get_templated_fields(cls, ti: TaskInstance, session: Session = NEW_SESSION) -> dict | None:
+    def _update_runtime_evaluated_template_fields(
+        cls, ti: TaskInstance, session: Session = NEW_SESSION
+    ) -> None:
+        """Update rendered task instance fields for cases where runtime evaluated, not templated."""
+        # Note: Need lazy import to break the partly loaded class loop
+        from airflow.models.taskinstance import TaskInstance
+
+        # If called via remote API the DAG needs to be re-loaded
+        TaskInstance.ensure_dag(ti, session=session)
+
+        rtif = RenderedTaskInstanceFields(ti)
+        RenderedTaskInstanceFields.write(rtif, session=session)
+        RenderedTaskInstanceFields.delete_old_records(ti.task_id, ti.dag_id, session=session)
+
+    @classmethod
+    @provide_session
+    def get_templated_fields(
+        cls, ti: TaskInstance | TaskInstancePydantic, session: Session = NEW_SESSION
+    ) -> dict | None:
         """
         Get templated field for a TaskInstance from the RenderedTaskInstanceFields table.
 
@@ -185,7 +221,8 @@ class RenderedTaskInstanceFields(Base):
     @provide_session
     @retry_db_transaction
     def write(self, session: Session = None):
-        """Write instance to database.
+        """
+        Write instance to database.
 
         :param session: SqlAlchemy Session
         """

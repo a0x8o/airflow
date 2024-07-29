@@ -20,14 +20,17 @@ from __future__ import annotations
 import os
 from datetime import datetime
 
+from google.cloud.speech_v1 import RecognitionAudio, RecognitionConfig
+
 from airflow.models.dag import DAG
 from airflow.providers.google.cloud.operators.gcs import GCSCreateBucketOperator, GCSDeleteBucketOperator
 from airflow.providers.google.cloud.operators.speech_to_text import CloudSpeechToTextRecognizeSpeechOperator
 from airflow.providers.google.cloud.operators.text_to_speech import CloudTextToSpeechSynthesizeOperator
 from airflow.utils.trigger_rule import TriggerRule
+from tests.system.providers.google import DEFAULT_GCP_SYSTEM_TEST_PROJECT_ID
 
 ENV_ID = os.environ.get("SYSTEM_TESTS_ENV_ID")
-PROJECT_ID = os.environ.get("SYSTEM_TESTS_GCP_PROJECT")
+PROJECT_ID = os.environ.get("SYSTEM_TESTS_GCP_PROJECT") or DEFAULT_GCP_SYSTEM_TEST_PROJECT_ID
 DAG_ID = "speech_to_text"
 
 BUCKET_NAME = f"bucket_{DAG_ID}_{ENV_ID}"
@@ -43,8 +46,8 @@ AUDIO_CONFIG = {"audio_encoding": "LINEAR16"}
 # [END howto_operator_text_to_speech_api_arguments]
 
 # [START howto_operator_speech_to_text_api_arguments]
-CONFIG = {"encoding": "LINEAR16", "language_code": "en_US"}
-AUDIO = {"uri": f"gs://{BUCKET_NAME}/{FILE_NAME}"}
+CONFIG = RecognitionConfig({"encoding": "LINEAR16", "language_code": "en_US"})
+AUDIO = RecognitionAudio({"uri": f"gs://{BUCKET_NAME}/{FILE_NAME}"})
 # [END howto_operator_speech_to_text_api_arguments]
 
 with DAG(

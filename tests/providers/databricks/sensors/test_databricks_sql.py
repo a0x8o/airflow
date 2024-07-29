@@ -61,6 +61,7 @@ class TestDatabricksSqlSensor:
             catalog=DEFAULT_CATALOG,
             timeout=30,
             poke_interval=15,
+            hook_params={"return_tuple": True},
         )
 
     def test_init(self):
@@ -77,6 +78,7 @@ class TestDatabricksSqlSensor:
         mock_poke.return_value = sensor_poke_result
         assert self.sensor.poke({}) == expected_poke_result
 
+    @pytest.mark.db_test
     def test_unsupported_conn_type(self):
         with pytest.raises(AirflowException):
             self.sensor.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE, ignore_ti_state=True)

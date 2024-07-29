@@ -27,10 +27,16 @@ import pytest
 from airflow.models.dag import DAG
 from airflow.providers.google.cloud.transfers.local_to_gcs import LocalFilesystemToGCSOperator
 
+pytestmark = pytest.mark.db_test
+
 
 class TestFileToGcsOperator:
-
-    _config = {"bucket": "dummy", "mime_type": "application/octet-stream", "gzip": False}
+    _config = {
+        "bucket": "dummy",
+        "mime_type": "application/octet-stream",
+        "gzip": False,
+        "chunk_size": 262144,
+    }
 
     def setup_method(self):
         args = {"owner": "airflow", "start_date": datetime.datetime(2017, 1, 1)}
@@ -60,6 +66,7 @@ class TestFileToGcsOperator:
         assert operator.bucket == self._config["bucket"]
         assert operator.mime_type == self._config["mime_type"]
         assert operator.gzip == self._config["gzip"]
+        assert operator.chunk_size == self._config["chunk_size"]
 
     @mock.patch("airflow.providers.google.cloud.transfers.local_to_gcs.GCSHook", autospec=True)
     def test_execute(self, mock_hook):
@@ -78,8 +85,10 @@ class TestFileToGcsOperator:
             gzip=self._config["gzip"],
             mime_type=self._config["mime_type"],
             object_name="test/test1.csv",
+            chunk_size=self._config["chunk_size"],
         )
 
+    @pytest.mark.db_test
     def test_execute_with_empty_src(self):
         operator = LocalFilesystemToGCSOperator(
             task_id="local_to_sensor",
@@ -108,6 +117,7 @@ class TestFileToGcsOperator:
                 gzip=self._config["gzip"],
                 mime_type=self._config["mime_type"],
                 object_name=object_name,
+                chunk_size=self._config["chunk_size"],
             )
             for filepath, object_name in files_objects
         ]
@@ -129,6 +139,7 @@ class TestFileToGcsOperator:
                 gzip=self._config["gzip"],
                 mime_type=self._config["mime_type"],
                 object_name=object_name,
+                chunk_size=self._config["chunk_size"],
             )
             for filepath, object_name in files_objects
         ]

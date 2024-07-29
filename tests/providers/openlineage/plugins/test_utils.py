@@ -18,32 +18,29 @@ from __future__ import annotations
 
 import datetime
 import json
-import os
 import uuid
 from json import JSONEncoder
 from typing import Any
+from unittest.mock import MagicMock, patch
 
+import pytest
 from attrs import define
 from openlineage.client.utils import RedactMixin
-from pendulum.tz.timezone import Timezone
 from pkg_resources import parse_version
 
 from airflow.models import DAG as AIRFLOW_DAG, DagModel
-from airflow.operators.empty import EmptyOperator
+from airflow.operators.bash import BashOperator
 from airflow.providers.openlineage.utils.utils import (
     InfoJsonEncodable,
     OpenLineageRedactor,
     _is_name_redactable,
-    get_connection,
-    to_json_encodable,
-    url_to_https,
+    get_airflow_run_facet,
+    get_fully_qualified_class_name,
+    is_operator_disabled,
 )
+from airflow.utils import timezone
 from airflow.utils.log.secrets_masker import _secrets_masker
 from airflow.utils.state import State
-
-AIRFLOW_CONN_ID = "test_db"
-AIRFLOW_CONN_URI = "postgres://localhost:5432/testdb"
-SNOWFLAKE_CONN_URI = "snowflake://12345.us-east-1.snowflakecomputing.com/MyTestRole?extra__snowflake__account=12345&extra__snowflake__database=TEST_DB&extra__snowflake__insecure_mode=false&extra__snowflake__region=us-east-1&extra__snowflake__role=MyTestRole&extra__snowflake__warehouse=TEST_WH&extra__snowflake__aws_access_key_id=123456&extra__snowflake__aws_secret_access_key=abcdefg"  # NOQA
 
 
 class SafeStrDict(dict):
@@ -58,25 +55,11 @@ class SafeStrDict(dict):
         return str(dict(castable))
 
 
-def test_get_connection():
-    os.environ["AIRFLOW_CONN_DEFAULT"] = AIRFLOW_CONN_URI
-
-    conn = get_connection("default")
-    assert conn.host == "localhost"
-    assert conn.port == 5432
-    assert conn.conn_type == "postgres"
-    assert conn
-
-
-def test_url_to_https_no_url():
-    assert url_to_https(None) is None
-    assert url_to_https("") is None
-
-
+@pytest.mark.db_test
 def test_get_dagrun_start_end():
     start_date = datetime.datetime(2022, 1, 1)
     end_date = datetime.datetime(2022, 1, 1, hour=2)
-    dag = AIRFLOW_DAG("test", start_date=start_date, end_date=end_date, schedule_interval="@once")
+    dag = AIRFLOW_DAG("test", start_date=start_date, end_date=end_date, schedule="@once")
     AIRFLOW_DAG.bulk_write_to_db([dag])
     dag_model = DagModel.get_dagmodel(dag.dag_id)
     run_id = str(uuid.uuid1())
@@ -84,8 +67,8 @@ def test_get_dagrun_start_end():
         state=State.NONE, run_id=run_id, data_interval=dag.get_next_data_interval(dag_model)
     )
     assert dagrun.data_interval_start is not None
-    start_date_tz = datetime.datetime(2022, 1, 1, tzinfo=Timezone("UTC"))
-    end_date_tz = datetime.datetime(2022, 1, 1, hour=2, tzinfo=Timezone("UTC"))
+    start_date_tz = datetime.datetime(2022, 1, 1, tzinfo=timezone.utc)
+    end_date_tz = datetime.datetime(2022, 1, 1, hour=2, tzinfo=timezone.utc)
     assert dagrun.data_interval_start, dagrun.data_interval_end == (start_date_tz, end_date_tz)
 
 
@@ -103,18 +86,6 @@ def test_parse_version():
     assert parse_version("2.2.4.dev0") < parse_version("2.3.0.dev0")
 
 
-def test_to_json_encodable():
-    dag = AIRFLOW_DAG(
-        dag_id="test_dag", schedule_interval="*/2 * * * *", start_date=datetime.datetime.now(), catchup=False
-    )
-    task = EmptyOperator(task_id="test_task", dag=dag)
-
-    encodable = to_json_encodable(task)
-    encoded = json.dumps(encodable)
-    decoded = json.loads(encoded)
-    assert decoded == encodable
-
-
 def test_safe_dict():
     assert str(SafeStrDict({"a": 1})) == str({"a": 1})
 
@@ -126,6 +97,28 @@ def test_safe_dict():
 
 
 def test_info_json_encodable():
+    class TestInfo(InfoJsonEncodable):
+        excludes = ["exclude_1", "exclude_2", "imastring"]
+        casts = {"iwanttobeint": lambda x: int(x.imastring)}
+        renames = {"_faulty_name": "goody_name"}
+
+    @define
+    class Test:
+        exclude_1: str
+        imastring: str
+        _faulty_name: str
+        donotcare: str
+
+    obj = Test("val", "123", "not_funny", "abc")
+
+    assert json.loads(json.dumps(TestInfo(obj))) == {
+        "iwanttobeint": 123,
+        "goody_name": "not_funny",
+        "donotcare": "abc",
+    }
+
+
+def test_info_json_encodable_without_slots():
     class TestInfo(InfoJsonEncodable):
         excludes = ["exclude_1", "exclude_2", "imastring"]
         casts = {"iwanttobeint": lambda x: int(x.imastring)}
@@ -147,6 +140,32 @@ def test_info_json_encodable():
     }
 
 
+def test_info_json_encodable_list_does_not_flatten():
+    class TestInfo(InfoJsonEncodable):
+        includes = ["alist"]
+
+    @define
+    class Test:
+        alist: list[str]
+
+    obj = Test(["a", "b", "c"])
+
+    assert json.loads(json.dumps(TestInfo(obj))) == {"alist": ["a", "b", "c"]}
+
+
+def test_info_json_encodable_list_does_include_nonexisting():
+    class TestInfo(InfoJsonEncodable):
+        includes = ["exists", "doesnotexist"]
+
+    @define
+    class Test:
+        exists: str
+
+    obj = Test("something")
+
+    assert json.loads(json.dumps(TestInfo(obj))) == {"exists": "something"}
+
+
 def test_is_name_redactable():
     class NotMixin:
         def __init__(self):
@@ -164,6 +183,7 @@ def test_is_name_redactable():
     assert _is_name_redactable("transparent", Mixined())
 
 
+@pytest.mark.enable_redact
 def test_redact_with_exclusions(monkeypatch):
     redactor = OpenLineageRedactor.from_masker(_secrets_masker())
 
@@ -193,7 +213,7 @@ def test_redact_with_exclusions(monkeypatch):
             self.password = "passwd"
             self.transparent = "123"
 
-    @define(slots=False)
+    @define
     class NestedMixined(RedactMixin):
         _skip_redact = ["nested_field"]
         password: str
@@ -204,3 +224,65 @@ def test_redact_with_exclusions(monkeypatch):
     assert redactor.redact({"password": "passwd"}) == {"password": "***"}
     redacted_nested = redactor.redact(NestedMixined("passwd", NestedMixined("passwd", None)))
     assert redacted_nested == NestedMixined("***", NestedMixined("passwd", None))
+
+
+def test_get_fully_qualified_class_name():
+    from airflow.providers.openlineage.plugins.adapter import OpenLineageAdapter
+
+    result = get_fully_qualified_class_name(BashOperator(task_id="test", bash_command="exit 0;"))
+    assert result == "airflow.operators.bash.BashOperator"
+
+    result = get_fully_qualified_class_name(OpenLineageAdapter())
+    assert result == "airflow.providers.openlineage.plugins.adapter.OpenLineageAdapter"
+
+
+@patch("airflow.providers.openlineage.conf.disabled_operators")
+def test_is_operator_disabled(mock_disabled_operators):
+    mock_disabled_operators.return_value = {}
+    op = BashOperator(task_id="test", bash_command="exit 0;")
+    assert is_operator_disabled(op) is False
+
+    mock_disabled_operators.return_value = {"random_string"}
+    assert is_operator_disabled(op) is False
+
+    mock_disabled_operators.return_value = {
+        "airflow.operators.bash.BashOperator",
+        "airflow.operators.python.PythonOperator",
+    }
+    assert is_operator_disabled(op) is True
+
+
+@patch("airflow.providers.openlineage.conf.include_full_task_info")
+def test_includes_full_task_info(mock_include_full_task_info):
+    mock_include_full_task_info.return_value = True
+    # There should be no 'bash_command' in excludes and it's not in includes - so
+    # it's a good choice for checking TaskInfo vs TaskInfoComplete
+    assert (
+        "bash_command"
+        in get_airflow_run_facet(
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            BashOperator(task_id="bash_op", bash_command="sleep 1"),
+            MagicMock(),
+        )["airflow"].task
+    )
+
+
+@patch("airflow.providers.openlineage.conf.include_full_task_info")
+def test_does_not_include_full_task_info(mock_include_full_task_info):
+    from airflow.operators.bash import BashOperator
+
+    mock_include_full_task_info.return_value = False
+    # There should be no 'bash_command' in excludes and it's not in includes - so
+    # it's a good choice for checking TaskInfo vs TaskInfoComplete
+    assert (
+        "bash_command"
+        not in get_airflow_run_facet(
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            BashOperator(task_id="bash_op", bash_command="sleep 1"),
+            MagicMock(),
+        )["airflow"].task
+    )

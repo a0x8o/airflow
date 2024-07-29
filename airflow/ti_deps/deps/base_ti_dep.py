@@ -46,17 +46,21 @@ class BaseTIDep:
     IS_TASK_DEP = False
 
     def __eq__(self, other: Any) -> bool:
+        """Check if two task instance dependencies are equal by comparing their types."""
         return isinstance(self, type(other))
 
     def __hash__(self) -> int:
+        """Compute the hash value based on the task instance dependency type."""
         return hash(type(self))
 
     def __repr__(self) -> str:
+        """Return a string representation of the task instance dependency."""
         return f"<TIDep({self.name})>"
 
     @property
     def name(self) -> str:
-        """The human-readable name for the dependency.
+        """
+        The human-readable name for the dependency.
 
         Use the class name as the default if ``NAME`` is not provided.
         """

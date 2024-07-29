@@ -17,50 +17,33 @@
 # under the License.
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 from airflow.models.dag import DAG
-from airflow.providers.redis.hooks.redis import RedisHook
 from airflow.providers.redis.operators.redis_publish import RedisPublishOperator
 from airflow.utils import timezone
 
 DEFAULT_DATE = timezone.datetime(2017, 1, 1)
 
 
-@pytest.mark.integration("redis")
 class TestRedisPublishOperator:
     def setup_method(self):
         args = {"owner": "airflow", "start_date": DEFAULT_DATE}
 
-        self.dag = DAG("test_redis_dag_id", default_args=args)
+        self.dag = DAG("test_dag_id", default_args=args)
 
         self.mock_context = MagicMock()
-        self.channel = "test"
 
-    def test_execute_hello(self):
+    @patch("airflow.providers.redis.hooks.redis.RedisHook.get_conn")
+    def test_execute_operator(self, mock_redis_conn):
         operator = RedisPublishOperator(
             task_id="test_task",
             dag=self.dag,
-            message="hello",
-            channel=self.channel,
+            channel="test_channel",
+            message="test_message",
             redis_conn_id="redis_default",
         )
-
-        hook = RedisHook(redis_conn_id="redis_default")
-        pubsub = hook.get_conn().pubsub()
-        pubsub.subscribe(self.channel)
-
         operator.execute(self.mock_context)
-        context_calls = []
-        assert self.mock_context["ti"].method_calls == context_calls, "context calls should be same"
 
-        message = pubsub.get_message()
-        assert message["type"] == "subscribe"
-
-        message = pubsub.get_message()
-        assert message["type"] == "message"
-        assert message["data"] == b"hello"
-
-        pubsub.unsubscribe(self.channel)
+        mock_redis_conn.assert_called_once_with()
+        mock_redis_conn().publish.assert_called_once_with(channel="test_channel", message="test_message")

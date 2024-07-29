@@ -25,7 +25,7 @@ from pendulum import DateTime
 from airflow.exceptions import AirflowTimetableInvalid
 from airflow.timetables._cron import CronMixin
 from airflow.timetables.base import DagRunInfo, DataInterval, Timetable
-from airflow.utils.timezone import convert_to_utc
+from airflow.utils.timezone import coerce_datetime, convert_to_utc, utcnow
 
 if TYPE_CHECKING:
     from airflow.timetables.base import TimeRestriction
@@ -34,7 +34,8 @@ Delta = Union[datetime.timedelta, relativedelta]
 
 
 class _DataIntervalTimetable(Timetable):
-    """Basis for timetable implementations that schedule data intervals.
+    """
+    Basis for timetable implementations that schedule data intervals.
 
     This kind of timetable classes create periodic data intervals from an
     underlying schedule representation (e.g. a cron expression, or a timedelta
@@ -42,7 +43,8 @@ class _DataIntervalTimetable(Timetable):
     """
 
     def _skip_to_latest(self, earliest: DateTime | None) -> DateTime:
-        """Bound the earliest time a run can be scheduled.
+        """
+        Bound the earliest time a run can be scheduled.
 
         This is called when ``catchup=False``. See docstring of subclasses for
         exact skipping behaviour of a schedule.
@@ -50,7 +52,8 @@ class _DataIntervalTimetable(Timetable):
         raise NotImplementedError()
 
     def _align_to_next(self, current: DateTime) -> DateTime:
-        """Align given time to the next scheduled time.
+        """
+        Align given time to the next scheduled time.
 
         For fixed schedules (e.g. every midnight); this finds the next time that
         aligns to the declared time, if the given time does not align. If the
@@ -59,7 +62,8 @@ class _DataIntervalTimetable(Timetable):
         raise NotImplementedError()
 
     def _align_to_prev(self, current: DateTime) -> DateTime:
-        """Align given time to the previous scheduled time.
+        """
+        Align given time to the previous scheduled time.
 
         For fixed schedules (e.g. every midnight); this finds the prev time that
         aligns to the declared time, if the given time does not align. If the
@@ -113,7 +117,8 @@ class _DataIntervalTimetable(Timetable):
 
 
 class CronDataIntervalTimetable(CronMixin, _DataIntervalTimetable):
-    """Timetable that schedules data intervals with a cron expression.
+    """
+    Timetable that schedules data intervals with a cron expression.
 
     This corresponds to ``schedule=<cron>``, where ``<cron>`` is either
     a five/six-segment representation, or one of ``cron_presets``.
@@ -137,7 +142,8 @@ class CronDataIntervalTimetable(CronMixin, _DataIntervalTimetable):
         return {"expression": self._expression, "timezone": encode_timezone(self._timezone)}
 
     def _skip_to_latest(self, earliest: DateTime | None) -> DateTime:
-        """Bound the earliest time a run can be scheduled.
+        """
+        Bound the earliest time a run can be scheduled.
 
         The logic is that we move start_date up until one period before, so the
         current time is AFTER the period end, and the job can be created...
@@ -146,7 +152,7 @@ class CronDataIntervalTimetable(CronMixin, _DataIntervalTimetable):
         If the next schedule should start *right now*, we want the data interval
         that start now, not the one that ends now.
         """
-        current_time = DateTime.utcnow()
+        current_time = coerce_datetime(utcnow())
         last_start = self._get_prev(current_time)
         next_start = self._get_next(last_start)
         if next_start == current_time:  # Current time is on interval boundary.
@@ -168,7 +174,8 @@ class CronDataIntervalTimetable(CronMixin, _DataIntervalTimetable):
 
 
 class DeltaDataIntervalTimetable(_DataIntervalTimetable):
-    """Timetable that schedules data intervals with a time delta.
+    """
+    Timetable that schedules data intervals with a time delta.
 
     This corresponds to ``schedule=<delta>``, where ``<delta>`` is
     either a ``datetime.timedelta`` or ``dateutil.relativedelta.relativedelta``
@@ -228,15 +235,38 @@ class DeltaDataIntervalTimetable(_DataIntervalTimetable):
     def _align_to_prev(self, current: DateTime) -> DateTime:
         return current
 
+    @staticmethod
+    def _relativedelta_in_seconds(delta: relativedelta) -> int:
+        return (
+            delta.years * 365 * 24 * 60 * 60
+            + delta.months * 30 * 24 * 60 * 60
+            + delta.days * 24 * 60 * 60
+            + delta.hours * 60 * 60
+            + delta.minutes * 60
+            + delta.seconds
+        )
+
+    def _round(self, dt: DateTime) -> DateTime:
+        """Round the given time to the nearest interval."""
+        if isinstance(self._delta, datetime.timedelta):
+            delta_in_seconds = self._delta.total_seconds()
+        else:
+            delta_in_seconds = self._relativedelta_in_seconds(self._delta)
+        dt_in_seconds = dt.timestamp()
+        rounded_dt = dt_in_seconds - (dt_in_seconds % delta_in_seconds)
+        return DateTime.fromtimestamp(rounded_dt, tz=dt.tzinfo)
+
     def _skip_to_latest(self, earliest: DateTime | None) -> DateTime:
-        """Bound the earliest time a run can be scheduled.
+        """
+        Bound the earliest time a run can be scheduled.
 
         The logic is that we move start_date up until one period before, so the
         current time is AFTER the period end, and the job can be created...
 
         This is slightly different from the cron version at terminal values.
         """
-        new_start = self._get_prev(DateTime.utcnow())
+        round_current_time = self._round(coerce_datetime(utcnow()))
+        new_start = self._get_prev(round_current_time)
         if earliest is None:
             return new_start
         return max(new_start, earliest)

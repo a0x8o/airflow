@@ -29,6 +29,7 @@
 {% endblock %}
 
 {% block head_meta %}
+  <script src="/static/js/toggle_theme.js"></script>
   {{ super() }}
   {% if scheduler_job is defined and (scheduler_job and scheduler_job.is_alive()) %}
     <meta name="is_scheduler_running" content="True">
@@ -52,6 +53,13 @@
         background-color: {{state_color}};
       }
     {% endfor %}
+    .navbar-nav > li > a {
+      color: {{ navbar_text_color }};
+    }
+    .navbar-nav > li > a:hover {
+      background-color:  {{ navbar_hover_color }};
+      color: {{ navbar_text_hover_color }};
+    }
   </style>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='pin_32.png') }}">
 {% endblock %}
@@ -107,7 +115,6 @@
 
 {% block tail_js %}
   {{ super() }}
-
   <script>
     // below variables are used in main.js
     // keep as var, changing to const or let breaks other code

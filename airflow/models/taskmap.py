@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Table to store information about mapped task instances (AIP-42)."""
+
 from __future__ import annotations
 
 import collections.abc
@@ -24,7 +25,7 @@ from typing import TYPE_CHECKING, Any, Collection
 
 from sqlalchemy import CheckConstraint, Column, ForeignKeyConstraint, Integer, String
 
-from airflow.models.base import COLLATION_ARGS, ID_LEN, Base
+from airflow.models.base import COLLATION_ARGS, ID_LEN, TaskInstanceDependencies
 from airflow.utils.sqlalchemy import ExtendedJSON
 
 if TYPE_CHECKING:
@@ -33,7 +34,8 @@ if TYPE_CHECKING:
 
 
 class TaskMapVariant(enum.Enum):
-    """Task map variant.
+    """
+    Task map variant.
 
     Possible values are **dict** (for a key-value mapping) and **list** (for an
     ordered value sequence).
@@ -43,8 +45,9 @@ class TaskMapVariant(enum.Enum):
     LIST = "list"
 
 
-class TaskMap(Base):
-    """Model to track dynamic task-mapping information.
+class TaskMap(TaskInstanceDependencies):
+    """
+    Model to track dynamic task-mapping information.
 
     This is currently only populated by an upstream TaskInstance pushing an
     XCom that's pulled by a downstream for mapping purposes.

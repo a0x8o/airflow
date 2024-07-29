@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Hook for Web HDFS."""
+
 from __future__ import annotations
 
 import logging
@@ -52,7 +53,12 @@ class WebHDFSHook(BaseHook):
     :param proxy_user: The user used to authenticate.
     """
 
-    def __init__(self, webhdfs_conn_id: str = "webhdfs_default", proxy_user: str | None = None):
+    conn_type = "webhdfs"
+    conn_name_attr = "webhdfs_conn_id"
+    default_conn_name = "webhdfs_default"
+    hook_name = "Apache WebHDFS"
+
+    def __init__(self, webhdfs_conn_id: str = default_conn_name, proxy_user: str | None = None):
         super().__init__()
         self.webhdfs_conn_id = webhdfs_conn_id
         self.proxy_user = proxy_user
@@ -156,7 +162,8 @@ class WebHDFSHook(BaseHook):
         self.log.debug("Uploaded file %s to %s", source, destination)
 
     def read_file(self, filename: str) -> bytes:
-        """Read a file from HDFS.
+        """
+        Read a file from HDFS.
 
         :param filename: The path of the file to read.
         :return: File content as a raw string

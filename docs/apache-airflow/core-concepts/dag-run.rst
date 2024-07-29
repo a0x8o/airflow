@@ -44,42 +44,6 @@ There are two possible terminal states for the DAG Run:
 
 DAGs that have a currently running DAG run can be shown on the UI dashboard in the "Running" tab. Similarly, DAGs whose latest DAG run is marked as failed can be found on the "Failed" tab.
 
-Cron Presets
-''''''''''''
-
-You may set your DAG to run on a simple schedule by setting its ``schedule`` argument to either a
-`cron expression <https://en.wikipedia.org/wiki/Cron#CRON_expression>`_, a ``datetime.timedelta`` object,
-or one of the following cron "presets". For more elaborate scheduling requirements, you can implement a :doc:`custom timetable <../authoring-and-scheduling/timetable>`
-
-.. tip::
-    You can use an online editor for CRON expressions such as `Crontab guru <https://crontab.guru/>`_
-
-+----------------+--------------------------------------------------------------------+-----------------+
-| preset         | meaning                                                            | cron            |
-+================+====================================================================+=================+
-| ``None``       | Don't schedule, use for exclusively "externally triggered" DAGs    |                 |
-+----------------+--------------------------------------------------------------------+-----------------+
-| ``@once``      | Schedule once and only once                                        |                 |
-+----------------+--------------------------------------------------------------------+-----------------+
-| ``@continuous``| Run as soon as the previous run finishes                           |                 |
-+----------------+--------------------------------------------------------------------+-----------------+
-| ``@hourly``    | Run once an hour at the end of the hour                            | ``0 * * * *``   |
-+----------------+--------------------------------------------------------------------+-----------------+
-| ``@daily``     | Run once a day at midnight (24:00)                                 | ``0 0 * * *``   |
-+----------------+--------------------------------------------------------------------+-----------------+
-| ``@weekly``    | Run once a week at midnight (24:00) on Sunday                      | ``0 0 * * 0``   |
-+----------------+--------------------------------------------------------------------+-----------------+
-| ``@monthly``   | Run once a month at midnight (24:00) of the first day of the month | ``0 0 1 * *``   |
-+----------------+--------------------------------------------------------------------+-----------------+
-| ``@quarterly`` | Run once a quarter at midnight (24:00) on the first day            | ``0 0 1 */3 *`` |
-+----------------+--------------------------------------------------------------------+-----------------+
-| ``@yearly``    | Run once a year at midnight (24:00) of January 1                   | ``0 0 1 1 *``   |
-+----------------+--------------------------------------------------------------------+-----------------+
-
-Your DAG will be instantiated for each schedule along with a corresponding
-DAG Run entry in the database backend.
-
-
 .. _data-interval:
 
 Data Interval
@@ -199,8 +163,8 @@ Re-run Tasks
 ------------
 Some of the tasks can fail during the scheduled run. Once you have fixed
 the errors after going through the logs, you can re-run the tasks by clearing them for the
-scheduled date. Clearing a task instance doesn't delete the task instance record.
-Instead, it updates ``max_tries`` to ``0`` and sets the current task instance state to ``None``, which causes the task to re-run.
+scheduled date. Clearing a task instance creates a record of the task instance.
+The ``try_number`` of the current task instance is incremented, the ``max_tries`` set to ``0`` and the state set to ``None``, which causes the task to re-run.
 
 Click on the failed task in the Tree or Graph views and then click on **Clear**.
 The executor will re-run it.
@@ -229,6 +193,19 @@ For more options, you can check the help of the `clear command <../cli-and-env-v
 .. code-block:: bash
 
     airflow tasks clear --help
+
+Task Instance History
+---------------------
+When a task instance retries or is cleared, the task instance history is preserved. You can see this history by clicking on the task instance in the Grid view.
+
+.. image:: ../img/task_instance_history.png
+
+The history shows the value of the task instance attributes at the end of the particular run. On the log page, you can also see the logs for each of the task instance tries.
+This can be useful for debugging.
+
+.. image:: ../img/task_instance_history_log.png
+
+Note that related task instance objects like the XComs, rendered template fields, etc., are not preserved in the history. Only the task instance attributes, including the logs, are preserved.
 
 External Triggers
 '''''''''''''''''
@@ -288,7 +265,15 @@ Using CLI
 Using UI
 ^^^^^^^^^^
 
+In the UI the parameters to trigger a DAG can be better represented via ``params`` definition as described in
+:ref:`concepts:params` documentation. Via defined params a proper form for value entry is rendered.
+
+If the DAG does not define ``params`` the form is usually skipped, via the configuration option ``show_trigger_form_if_no_params``
+it is possible to force the display the classic form of a dict-only entry to pass configuration options.
+
 .. image:: ../img/example_passing_conf.png
+
+Please consider to convert such usage to ``params`` as this is the more convenient way and allows also validation of user input.
 
 To Keep in Mind
 ''''''''''''''''

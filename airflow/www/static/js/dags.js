@@ -95,11 +95,6 @@ $("#dag_query").on("keypress", (e) => {
   }
 });
 
-$("#page_size").on("change", function onPageSizeChange() {
-  const pSize = $(this).val();
-  window.location = `${DAGS_INDEX}?page_size=${pSize}`;
-});
-
 $.each($("[id^=toggle]"), function toggleId() {
   const $input = $(this);
   const dagId = $input.data("dag-id");
@@ -130,6 +125,9 @@ $(".typeahead").typeahead({
       },
       success: callback,
     });
+  },
+  displayText(value) {
+    return value.dag_display_name || value.name;
   },
   autoSelect: false,
   afterSelect(value) {
@@ -201,6 +199,12 @@ d3.selectAll(".js-last-run-tooltip").on(
   }
 );
 
+function formatCount(count) {
+  if (count >= 1000000) return `${Math.floor(count / 1000000)}M`;
+  if (count >= 1000) return `${Math.floor(count / 1000)}k`;
+  return count;
+}
+
 function drawDagStats(selector, dagId, states) {
   const g = d3
     .select(`svg#${selector}-${dagId.replace(/\./g, "__dot__")}`)
@@ -249,7 +253,7 @@ function drawDagStats(selector, dagId, states) {
     })
     .attr("fill", "#fff")
     .attr("r", diameter / 2)
-    .attr("title", (d) => d.state || "none")
+    .attr("title", (d) => `${d.state || "none"}: ${d.count}`)
     .on("mouseover", (d) => {
       if (d.count > 0) {
         d3.select(d3.event.currentTarget)
@@ -283,7 +287,7 @@ function drawDagStats(selector, dagId, states) {
     .attr("font-size", 9)
     .attr("y", 3)
     .style("pointer-events", "none")
-    .text((d) => (d.count > 0 ? d.count : ""));
+    .text((d) => (d.count > 0 ? formatCount(d.count) : ""));
 }
 
 function dagStatsHandler(selector, json) {

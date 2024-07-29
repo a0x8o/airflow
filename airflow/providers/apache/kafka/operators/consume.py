@@ -28,7 +28,8 @@ VALID_COMMIT_CADENCE = {"never", "end_of_batch", "end_of_operator"}
 
 
 class ConsumeFromTopicOperator(BaseOperator):
-    """An operator that consumes from Kafka a topic(s) and processing the messages.
+    """
+    An operator that consumes from Kafka a topic(s) and processing the messages.
 
     The operator creates a Kafka consumer that reads a batch of messages from the cluster and processes them
     using the user supplied callable function. The consumer will continue to read in batches until it reaches
@@ -87,7 +88,6 @@ class ConsumeFromTopicOperator(BaseOperator):
         poll_timeout: float = 60,
         **kwargs: Any,
     ) -> None:
-
         super().__init__(**kwargs)
 
         self.topics = topics
@@ -128,7 +128,6 @@ class ConsumeFromTopicOperator(BaseOperator):
             )
 
     def execute(self, context) -> Any:
-
         consumer = KafkaConsumerHook(topics=self.topics, kafka_config_id=self.kafka_config_id).get_consumer()
 
         if isinstance(self.apply_function, str):
@@ -139,7 +138,9 @@ class ConsumeFromTopicOperator(BaseOperator):
 
         if self.apply_function:
             apply_callable = partial(
-                self.apply_function, *self.apply_function_args, **self.apply_function_kwargs  # type: ignore
+                self.apply_function,  # type: ignore
+                *self.apply_function_args,
+                **self.apply_function_kwargs,
             )
 
         if self.apply_function_batch:
@@ -154,7 +155,6 @@ class ConsumeFromTopicOperator(BaseOperator):
         while self.read_to_end or (
             messages_left > 0
         ):  # bool(True > 0) == True in the case where self.max_messages isn't set by the user
-
             if not isinstance(messages_left, bool):
                 batch_size = self.max_batch_size if messages_left > self.max_batch_size else messages_left
             else:

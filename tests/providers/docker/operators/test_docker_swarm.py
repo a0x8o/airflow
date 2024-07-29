@@ -17,6 +17,7 @@
 # under the License.
 from __future__ import annotations
 
+import logging
 from unittest import mock
 
 import pytest
@@ -30,8 +31,7 @@ from airflow.providers.docker.operators.docker_swarm import DockerSwarmOperator
 
 class TestDockerSwarmOperator:
     @mock.patch("airflow.providers.docker.operators.docker_swarm.types")
-    def test_execute(self, types_mock, docker_api_client_patcher):
-
+    def test_execute(self, types_mock, docker_api_client_patcher, caplog):
         mock_obj = mock.Mock()
 
         def _client_tasks_side_effect():
@@ -41,7 +41,11 @@ class TestDockerSwarmOperator:
                 yield [{"Status": {"State": "complete"}}]
 
         def _client_service_logs_effect():
-            yield b"Testing is awesome."
+            service_logs = [
+                b"2024-07-09T19:07:04.587918327Z lineone-one\rlineone-two",
+                b"2024-07-09T19:07:04.587918328Z linetwo",
+            ]
+            return (log for log in service_logs)
 
         client_mock = mock.Mock(spec=APIClient)
         client_mock.create_service.return_value = {"ID": "some_id"}
@@ -73,6 +77,7 @@ class TestDockerSwarmOperator:
             networks=["dummy_network"],
             placement=types.Placement(constraints=["node.labels.region==east"]),
         )
+        caplog.clear()
         operator.execute(None)
 
         types_mock.TaskTemplate.assert_called_once_with(
@@ -85,6 +90,7 @@ class TestDockerSwarmOperator:
         types_mock.ContainerSpec.assert_called_once_with(
             image="ubuntu:latest",
             command="env",
+            args=None,
             user="unittest",
             mounts=[types.Mount(source="/host/path", target="/container/path", type="bind")],
             tty=True,
@@ -99,9 +105,17 @@ class TestDockerSwarmOperator:
             base_url="unix://var/run/docker.sock", tls=False, version="1.19", timeout=DEFAULT_TIMEOUT_SECONDS
         )
 
-        client_mock.service_logs.assert_called_once_with(
-            "some_id", follow=True, stdout=True, stderr=True, is_tty=True
+        client_mock.service_logs.assert_called_with(
+            "some_id", follow=False, stdout=True, stderr=True, is_tty=True, since=0, timestamps=True
         )
+
+        with caplog.at_level(logging.INFO, logger=operator.log.name):
+            service_logs = [
+                "lineone-one\rlineone-two",
+                "linetwo",
+            ]
+            for log_line in service_logs:
+                assert log_line in caplog.messages
 
         csargs, cskwargs = client_mock.create_service.call_args_list[0]
         assert len(csargs) == 1, "create_service called with different number of arguments than expected"
@@ -109,12 +123,11 @@ class TestDockerSwarmOperator:
         assert cskwargs["labels"] == {"name": "airflow__adhoc_airflow__unittest"}
         assert cskwargs["name"].startswith("airflow-")
         assert cskwargs["mode"] == types.ServiceMode(mode="replicated", replicas=3)
-        assert client_mock.tasks.call_count == 5
+        assert client_mock.tasks.call_count == 6
         client_mock.remove_service.assert_called_once_with("some_id")
 
     @mock.patch("airflow.providers.docker.operators.docker_swarm.types")
     def test_auto_remove(self, types_mock, docker_api_client_patcher):
-
         mock_obj = mock.Mock()
 
         client_mock = mock.Mock(spec=APIClient)
@@ -138,7 +151,6 @@ class TestDockerSwarmOperator:
 
     @mock.patch("airflow.providers.docker.operators.docker_swarm.types")
     def test_no_auto_remove(self, types_mock, docker_api_client_patcher):
-
         mock_obj = mock.Mock()
 
         client_mock = mock.Mock(spec=APIClient)
@@ -165,7 +177,6 @@ class TestDockerSwarmOperator:
     @pytest.mark.parametrize("status", ["failed", "shutdown", "rejected", "orphaned", "remove"])
     @mock.patch("airflow.providers.docker.operators.docker_swarm.types")
     def test_non_complete_service_raises_error(self, types_mock, docker_api_client_patcher, status):
-
         mock_obj = mock.Mock()
 
         client_mock = mock.Mock(spec=APIClient)
@@ -213,3 +224,124 @@ class TestDockerSwarmOperator:
         op.on_kill()
         docker_api_client_patcher.return_value.remove_service.assert_not_called()
         mock_service.assert_not_called()
+
+    @mock.patch("airflow.providers.docker.operators.docker_swarm.types")
+    def test_container_resources(self, types_mock, docker_api_client_patcher):
+        mock_obj = mock.Mock()
+
+        client_mock = mock.Mock(spec=APIClient)
+        client_mock.create_service.return_value = {"ID": "some_id"}
+        client_mock.images.return_value = []
+        client_mock.pull.return_value = [b'{"status":"pull log"}']
+        client_mock.tasks.return_value = [{"Status": {"State": "complete"}}]
+        types_mock.TaskTemplate.return_value = mock_obj
+        types_mock.ContainerSpec.return_value = mock_obj
+        types_mock.RestartPolicy.return_value = mock_obj
+        types_mock.Resources.return_value = mock_obj
+
+        docker_api_client_patcher.return_value = client_mock
+
+        operator = DockerSwarmOperator(
+            image="ubuntu:latest",
+            task_id="unittest",
+            auto_remove="success",
+            enable_logging=False,
+            mem_limit="128m",
+            container_resources=types.Resources(
+                cpu_limit=250000000,
+                mem_limit=67108864,
+                cpu_reservation=100000000,
+                mem_reservation=67108864,
+            ),
+        )
+        operator.execute(None)
+
+        types_mock.TaskTemplate.assert_called_once_with(
+            container_spec=mock_obj,
+            restart_policy=mock_obj,
+            resources=types.Resources(
+                cpu_limit=250000000,
+                mem_limit=67108864,
+                cpu_reservation=100000000,
+                mem_reservation=67108864,
+            ),
+            networks=None,
+            placement=None,
+        )
+        types_mock.Resources.assert_not_called()
+
+    @mock.patch("airflow.providers.docker.operators.docker_swarm.types")
+    def test_service_args_str(self, types_mock, docker_api_client_patcher):
+        mock_obj = mock.Mock()
+
+        client_mock = mock.Mock(spec=APIClient)
+        client_mock.create_service.return_value = {"ID": "some_id"}
+        client_mock.images.return_value = []
+        client_mock.pull.return_value = [b'{"status":"pull log"}']
+        client_mock.tasks.return_value = [{"Status": {"State": "complete"}}]
+        types_mock.TaskTemplate.return_value = mock_obj
+        types_mock.ContainerSpec.return_value = mock_obj
+        types_mock.RestartPolicy.return_value = mock_obj
+        types_mock.Resources.return_value = mock_obj
+
+        docker_api_client_patcher.return_value = client_mock
+
+        operator = DockerSwarmOperator(
+            image="ubuntu:latest",
+            command="env",
+            args="--show",
+            task_id="unittest",
+            auto_remove="success",
+            enable_logging=False,
+        )
+        operator.execute(None)
+
+        types_mock.ContainerSpec.assert_called_once_with(
+            image="ubuntu:latest",
+            command="env",
+            args=["--show"],
+            user=None,
+            mounts=[],
+            tty=False,
+            env={"AIRFLOW_TMP_DIR": "/tmp/airflow"},
+            configs=None,
+            secrets=None,
+        )
+
+    @mock.patch("airflow.providers.docker.operators.docker_swarm.types")
+    def test_service_args_list(self, types_mock, docker_api_client_patcher):
+        mock_obj = mock.Mock()
+
+        client_mock = mock.Mock(spec=APIClient)
+        client_mock.create_service.return_value = {"ID": "some_id"}
+        client_mock.images.return_value = []
+        client_mock.pull.return_value = [b'{"status":"pull log"}']
+        client_mock.tasks.return_value = [{"Status": {"State": "complete"}}]
+        types_mock.TaskTemplate.return_value = mock_obj
+        types_mock.ContainerSpec.return_value = mock_obj
+        types_mock.RestartPolicy.return_value = mock_obj
+        types_mock.Resources.return_value = mock_obj
+
+        docker_api_client_patcher.return_value = client_mock
+
+        operator = DockerSwarmOperator(
+            image="ubuntu:latest",
+            command="env",
+            args=["--show"],
+            task_id="unittest",
+            auto_remove="success",
+            enable_logging=False,
+        )
+        operator.execute(None)
+
+        types_mock.ContainerSpec.assert_called_once_with(
+            image="ubuntu:latest",
+            command="env",
+            args=["--show"],
+            user=None,
+            mounts=[],
+            tty=False,
+            env={"AIRFLOW_TMP_DIR": "/tmp/airflow"},
+            configs=None,
+            secrets=None,
+        )

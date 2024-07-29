@@ -86,6 +86,9 @@ function check_db_backend {
         check_service "MSSQL Login Check" "airflow db check" "${max_check}"
     elif [[ ${BACKEND} == "sqlite" ]]; then
         return
+    elif [[ ${BACKEND} == "none" ]]; then
+        echo "${COLOR_YELLOW}WARNING: Using no database backend!${COLOR_RESET}"
+        return
     else
         echo "Unknown backend. Supported values: [postgres,mysql,mssql,sqlite]. Current value: [${BACKEND}]"
         exit 1
@@ -153,6 +156,9 @@ fi
 if [[ ${INTEGRATION_MONGO} == "true" ]]; then
     check_service "MongoDB" "run_nc mongo 27017" 50
 fi
+if [[ ${INTEGRATION_REDIS} == "true" ]]; then
+    check_service "Redis" "run_nc redis 6379" 50
+fi
 if [[ ${INTEGRATION_CELERY} == "true" ]]; then
     check_service "Redis" "run_nc redis 6379" 50
     check_service "RabbitMQ" "run_nc rabbitmq 5672" 50
@@ -174,8 +180,27 @@ if [[ ${INTEGRATION_PINOT} == "true" ]]; then
     CMD="curl --max-time 1 -X GET 'http://pinot:8000/health' -H 'accept: text/plain' | grep OK"
     check_service "Pinot (Broker API)" "${CMD}" 50
 fi
+
+if [[ ${INTEGRATION_QDRANT} == "true" ]]; then
+    check_service "Qdrant" "run_nc qdrant 6333" 50
+    CMD="curl -f -X GET 'http://qdrant:6333/collections'"
+    check_service "Qdrant (Collections API)" "${CMD}" 50
+fi
+
 if [[ ${INTEGRATION_KAFKA} == "true" ]]; then
-    check_service "Kakfa Cluster" "run_nc broker 9092" 50
+    check_service "Kafka Cluster" "run_nc broker 9092" 50
+fi
+
+if [[ ${INTEGRATION_MSSQL} == "true" ]]; then
+    check_service "mssql" "run_nc mssql 1433" 50
+fi
+
+if [[ ${INTEGRATION_DRILL} == "true" ]]; then
+    check_service "drill" "run_nc drill 8047" 50
+fi
+
+if [[ ${INTEGRATION_YDB} == "true" ]]; then
+    check_service "YDB Cluster" "run_nc ydb 2136" 50
 fi
 
 if [[ ${EXIT_CODE} != 0 ]]; then

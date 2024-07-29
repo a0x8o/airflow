@@ -40,21 +40,20 @@ class KafkaBaseHook(BaseHook):
         """Initialize our Base."""
         super().__init__()
         self.kafka_config_id = kafka_config_id
-        self.get_conn
 
-    @staticmethod
-    def get_ui_field_behaviour() -> dict[str, Any]:
+    @classmethod
+    def get_ui_field_behaviour(cls) -> dict[str, Any]:
         """Return custom field behaviour."""
         return {
             "hidden_fields": ["schema", "login", "password", "port", "host"],
             "relabeling": {"extra": "Config Dict"},
             "placeholders": {
-                "extra": '{"bootstrap.servers": "localhost:9092"}',
+                "extra": '{"bootstrap.servers": "localhost:9092", "group.id": "my-group"}',
             },
         }
 
-    def _get_client(self, config):
-        raise NotImplementedError
+    def _get_client(self, config) -> Any:
+        return AdminClient(config)
 
     @cached_property
     def get_conn(self) -> Any:
@@ -74,6 +73,6 @@ class KafkaBaseHook(BaseHook):
             if t:
                 return True, "Connection successful."
         except Exception as e:
-            False, str(e)
+            return False, str(e)
 
         return False, "Failed to establish connection."

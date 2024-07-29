@@ -23,13 +23,9 @@ echo "Starting the tests with those pytest arguments:" "${@}"
 echo
 set +e
 
-pytest "${@}" | python "$( dirname "${BASH_SOURCE[0]}" )/filter_out_warnings.py"
+
+pytest "${@}"
 RES=$?
-
-if [[ -f ${WARNINGS_FILE} ]]; then
-    echo "Number of warnings: $(wc -l "${WARNINGS_FILE}")"
-fi
-
 
 if [[ ${RES} == "139" ]]; then
     echo "${COLOR_YELLOW}Sometimes Pytest fails at exiting with segfault, but all tests actually passed${COLOR_RESET}"
@@ -63,6 +59,25 @@ if [[ ${TEST_TYPE:=} == "Quarantined" ]]; then
         fi
     fi
 fi
+
+if [[ ${CI:="false"} == "true" && ${RES} != "0" && ${USE_AIRFLOW_VERSION=} != "" ]]; then
+    echo
+    echo "${COLOR_YELLOW}Failing compatibility test of providers for for ${USE_AIRFLOW_VERSION} Airflow and you need to make sure it passes for it as well or deal with compatibility.${COLOR_RESET}"
+    echo
+    echo "${COLOR_BLUE}Read more on how to run the test locally and how to deal with Provider's compatibility with older Airflow versions at:${COLOR_RESET}"
+    echo "https://github.com/apache/airflow/blob/main/contributing-docs/testing/unit_tests.rst#running-provider-compatibility-tests"
+    echo
+fi
+
+if [[ ${CI:="false"} == "true" && ${RES} != "0" && ${FORCE_LOWEST_DEPENDENCIES=} == "true" ]]; then
+    echo
+    echo "${COLOR_YELLOW}Failing 'lowest-direct-dependencies' test. You need to make sure to set proper lower bounds in hatch_build.py or corresponding provider.yaml.${COLOR_RESET}"
+    echo
+    echo "${COLOR_BLUE}Read more on how to run the 'lowest-direct-dependencies' locally and how to solve problems:${COLOR_RESET}"
+    echo "https://github.com/apache/airflow/blob/main/contributing-docs/testing/unit_tests.rst#lowest-direct-dependency-resolution-tests"
+    echo
+fi
+
 
 if [[ ${CI:="false"} == "true" || ${CI} == "True" ]]; then
     if [[ ${RES} != "0" ]]; then

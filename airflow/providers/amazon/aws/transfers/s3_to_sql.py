@@ -30,7 +30,8 @@ if TYPE_CHECKING:
 
 
 class S3ToSqlOperator(BaseOperator):
-    """Load Data from S3 into a SQL Database.
+    """
+    Load Data from S3 into a SQL Database.
 
     You need to provide a parser function that takes a filename as an input
     and returns an iterable of rows
@@ -86,7 +87,7 @@ class S3ToSqlOperator(BaseOperator):
         schema: str | None = None,
         sql_conn_id: str = "sql_default",
         sql_hook_params: dict | None = None,
-        aws_conn_id: str = "aws_default",
+        aws_conn_id: str | None = "aws_default",
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -108,7 +109,6 @@ class S3ToSqlOperator(BaseOperator):
         s3_obj = s3_hook.get_key(key=self.s3_key, bucket_name=self.s3_bucket)
 
         with NamedTemporaryFile() as local_tempfile:
-
             s3_obj.download_fileobj(local_tempfile)
             local_tempfile.flush()
             local_tempfile.seek(0)

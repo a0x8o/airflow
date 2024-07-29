@@ -16,14 +16,20 @@
 # under the License.
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from azure.identity import DefaultAzureCredential
 from azure.servicebus import ServiceBusClient, ServiceBusMessage, ServiceBusSender
 from azure.servicebus.management import QueueProperties, ServiceBusAdministrationClient
 
 from airflow.hooks.base import BaseHook
-from airflow.providers.microsoft.azure.utils import get_field
+from airflow.providers.microsoft.azure.utils import (
+    add_managed_identity_connection_widgets,
+    get_field,
+    get_sync_default_azure_credential,
+)
+
+if TYPE_CHECKING:
+    from azure.identity import DefaultAzureCredential
 
 
 class BaseAzureServiceBusHook(BaseHook):
@@ -39,9 +45,10 @@ class BaseAzureServiceBusHook(BaseHook):
     conn_type = "azure_service_bus"
     hook_name = "Azure Service Bus"
 
-    @staticmethod
-    def get_connection_form_widgets() -> dict[str, Any]:
-        """Returns connection widgets to add to connection form."""
+    @classmethod
+    @add_managed_identity_connection_widgets
+    def get_connection_form_widgets(cls) -> dict[str, Any]:
+        """Return connection widgets to add to connection form."""
         from flask_appbuilder.fieldwidgets import BS3TextFieldWidget
         from flask_babel import lazy_gettext
         from wtforms import PasswordField, StringField
@@ -53,9 +60,9 @@ class BaseAzureServiceBusHook(BaseHook):
             "credential": PasswordField(lazy_gettext("Credential"), widget=BS3TextFieldWidget()),
         }
 
-    @staticmethod
-    def get_ui_field_behaviour() -> dict[str, Any]:
-        """Returns custom field behaviour."""
+    @classmethod
+    def get_ui_field_behaviour(cls) -> dict[str, Any]:
+        """Return custom field behaviour."""
         return {
             "hidden_fields": ["port", "host", "extra", "login", "password"],
             "relabeling": {"schema": "Connection String"},
@@ -64,7 +71,7 @@ class BaseAzureServiceBusHook(BaseHook):
                     "<Resource group>.servicebus.windows.net (for Azure AD authenticaltion)"
                 ),
                 "credential": "credential",
-                "schema": "Endpoint=sb://<Resource group>.servicebus.windows.net/;SharedAccessKeyName=<AccessKeyName>;SharedAccessKey=<SharedAccessKey>",  # noqa
+                "schema": "Endpoint=sb://<Resource group>.servicebus.windows.net/;SharedAccessKeyName=<AccessKeyName>;SharedAccessKey=<SharedAccessKey>",
             },
         }
 
@@ -85,7 +92,8 @@ class BaseAzureServiceBusHook(BaseHook):
 
 
 class AdminClientHook(BaseAzureServiceBusHook):
-    """Interact with the ServiceBusAdministrationClient.
+    """
+    Interact with the ServiceBusAdministrationClient.
 
     This can create, update, list, and delete resources of a Service Bus
     namespace. This hook uses the same Azure Service Bus client connection
@@ -93,7 +101,8 @@ class AdminClientHook(BaseAzureServiceBusHook):
     """
 
     def get_conn(self) -> ServiceBusAdministrationClient:
-        """Create a ServiceBusAdministrationClient instance.
+        """
+        Create a ServiceBusAdministrationClient instance.
 
         This uses the connection string in connection details.
         """
@@ -106,7 +115,16 @@ class AdminClientHook(BaseAzureServiceBusHook):
             credential: str | DefaultAzureCredential = self._get_field(extras=extras, field_name="credential")
             fully_qualified_namespace = self._get_field(extras=extras, field_name="fully_qualified_namespace")
             if not credential:
-                credential = DefaultAzureCredential()
+                managed_identity_client_id = self._get_field(
+                    extras=extras, field_name="managed_identity_client_id"
+                )
+                workload_identity_tenant_id = self._get_field(
+                    extras=extras, field_name="workload_identity_tenant_id"
+                )
+                credential = get_sync_default_azure_credential(
+                    managed_identity_client_id=managed_identity_client_id,
+                    workload_identity_tenant_id=workload_identity_tenant_id,
+                )
             client = ServiceBusAdministrationClient(
                 fully_qualified_namespace=fully_qualified_namespace,
                 credential=credential,  # type: ignore[arg-type]
@@ -174,7 +192,8 @@ class AdminClientHook(BaseAzureServiceBusHook):
 
 
 class MessageHook(BaseAzureServiceBusHook):
-    """Interact with ServiceBusClient.
+    """
+    Interact with ServiceBusClient.
 
     This acts as a high level interface for getting ServiceBusSender and ServiceBusReceiver.
     """
@@ -190,7 +209,16 @@ class MessageHook(BaseAzureServiceBusHook):
             credential: str | DefaultAzureCredential = self._get_field(extras=extras, field_name="credential")
             fully_qualified_namespace = self._get_field(extras=extras, field_name="fully_qualified_namespace")
             if not credential:
-                credential = DefaultAzureCredential()
+                managed_identity_client_id = self._get_field(
+                    extras=extras, field_name="managed_identity_client_id"
+                )
+                workload_identity_tenant_id = self._get_field(
+                    extras=extras, field_name="workload_identity_tenant_id"
+                )
+                credential = get_sync_default_azure_credential(
+                    managed_identity_client_id=managed_identity_client_id,
+                    workload_identity_tenant_id=workload_identity_tenant_id,
+                )
             client = ServiceBusClient(
                 fully_qualified_namespace=fully_qualified_namespace,
                 credential=credential,  # type: ignore[arg-type]
@@ -200,7 +228,8 @@ class MessageHook(BaseAzureServiceBusHook):
         return client
 
     def send_message(self, queue_name: str, messages: str | list[str], batch_message_flag: bool = False):
-        """Use ServiceBusClient Send to send message(s) to a Service Bus Queue.
+        """
+        Use ServiceBusClient Send to send message(s) to a Service Bus Queue.
 
         By using ``batch_message_flag``, it enables and send message as batch message.
 
@@ -270,7 +299,8 @@ class MessageHook(BaseAzureServiceBusHook):
         max_message_count: int | None,
         max_wait_time: float | None,
     ):
-        """Receive a batch of subscription message at once.
+        """
+        Receive a batch of subscription message at once.
 
         This approach is optimal if you wish to process multiple messages
         simultaneously, or perform an ad-hoc receive as a single call.

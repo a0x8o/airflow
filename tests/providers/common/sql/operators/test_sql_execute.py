@@ -22,13 +22,22 @@ from unittest import mock
 from unittest.mock import MagicMock
 
 import pytest
-from openlineage.client.facet import SchemaDatasetFacet, SchemaField, SqlJobFacet
-from openlineage.client.run import Dataset
 
 from airflow.models import Connection
+from airflow.providers.common.compat.openlineage.facet import (
+    Dataset,
+    SchemaDatasetFacet,
+    SchemaDatasetFacetFields,
+    SQLJobFacet,
+)
 from airflow.providers.common.sql.hooks.sql import DbApiHook, fetch_all_handler
 from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
 from airflow.providers.openlineage.extractors.base import OperatorLineage
+from tests.test_utils.compat import AIRFLOW_V_2_8_PLUS
+
+pytestmark = [
+    pytest.mark.skipif(not AIRFLOW_V_2_8_PLUS, reason="Tests for Airflow 2.8.0+ only"),
+]
 
 DATE = "2017-04-20"
 TASK_ID = "sql-operator"
@@ -51,45 +60,45 @@ class Row2(NamedTuple):
             "select * from dummy",
             True,
             True,
-            [Row(id=1, value="value1"), Row(id=2, value="value2")],
+            [Row(id="1", value="value1"), Row(id="2", value="value2")],
             [[("id",), ("value",)]],
-            [Row(id=1, value="value1"), Row(id=2, value="value2")],
+            [Row(id="1", value="value1"), Row(id="2", value="value2")],
             id="Scalar: Single SQL statement, return_last, split statement",
         ),
         pytest.param(
             "select * from dummy;select * from dummy2",
             True,
             True,
-            [Row(id=1, value="value1"), Row(id=2, value="value2")],
+            [Row(id="1", value="value1"), Row(id="2", value="value2")],
             [[("id",), ("value",)]],
-            [Row(id=1, value="value1"), Row(id=2, value="value2")],
+            [Row(id="1", value="value1"), Row(id="2", value="value2")],
             id="Scalar: Multiple SQL statements, return_last, split statement",
         ),
         pytest.param(
             "select * from dummy",
             False,
             False,
-            [Row(id=1, value="value1"), Row(id=2, value="value2")],
+            [Row(id="1", value="value1"), Row(id="2", value="value2")],
             [[("id",), ("value",)]],
-            [Row(id=1, value="value1"), Row(id=2, value="value2")],
+            [Row(id="1", value="value1"), Row(id="2", value="value2")],
             id="Scalar: Single SQL statements, no return_last (doesn't matter), no split statement",
         ),
         pytest.param(
             "select * from dummy",
             True,
             False,
-            [Row(id=1, value="value1"), Row(id=2, value="value2")],
+            [Row(id="1", value="value1"), Row(id="2", value="value2")],
             [[("id",), ("value",)]],
-            [Row(id=1, value="value1"), Row(id=2, value="value2")],
+            [Row(id="1", value="value1"), Row(id="2", value="value2")],
             id="Scalar: Single SQL statements, return_last (doesn't matter), no split statement",
         ),
         pytest.param(
             ["select * from dummy"],
             False,
             False,
-            [[Row(id=1, value="value1"), Row(id=2, value="value2")]],
+            [[Row(id="1", value="value1"), Row(id="2", value="value2")]],
             [[("id",), ("value",)]],
-            [[Row(id=1, value="value1"), Row(id=2, value="value2")]],
+            [[Row(id="1", value="value1"), Row(id="2", value="value2")]],
             id="Non-Scalar: Single SQL statements in list, no return_last, no split statement",
         ),
         pytest.param(
@@ -97,13 +106,13 @@ class Row2(NamedTuple):
             False,
             False,
             [
-                [Row(id=1, value="value1"), Row(id=2, value="value2")],
-                [Row2(id2=1, value2="value1"), Row2(id2=2, value2="value2")],
+                [Row(id="1", value="value1"), Row(id="2", value="value2")],
+                [Row2(id2="1", value2="value1"), Row2(id2="2", value2="value2")],
             ],
             [[("id",), ("value",)], [("id2",), ("value2",)]],
             [
-                [Row(id=1, value="value1"), Row(id=2, value="value2")],
-                [Row2(id2=1, value2="value1"), Row2(id2=2, value2="value2")],
+                [Row(id="1", value="value1"), Row(id="2", value="value2")],
+                [Row2(id2="1", value2="value1"), Row2(id2="2", value2="value2")],
             ],
             id="Non-Scalar: Multiple SQL statements in list, no return_last (no matter), no split statement",
         ),
@@ -112,13 +121,13 @@ class Row2(NamedTuple):
             True,
             False,
             [
-                [Row(id=1, value="value1"), Row(id=2, value="value2")],
-                [Row2(id2=1, value2="value1"), Row2(id2=2, value2="value2")],
+                [Row(id="1", value="value1"), Row(id="2", value="value2")],
+                [Row2(id2="1", value2="value1"), Row2(id2="2", value2="value2")],
             ],
             [[("id",), ("value",)], [("id2",), ("value2",)]],
             [
-                [Row(id=1, value="value1"), Row(id=2, value="value2")],
-                [Row2(id2=1, value2="value1"), Row2(id2=2, value2="value2")],
+                [Row(id="1", value="value1"), Row(id="2", value="value2")],
+                [Row2(id2="1", value2="value1"), Row2(id2="2", value2="value2")],
             ],
             id="Non-Scalar: Multiple SQL statements in list, return_last (no matter), no split statement",
         ),
@@ -166,45 +175,45 @@ def test_exec_success(sql, return_last, split_statement, hook_results, hook_desc
             "select * from dummy",
             True,
             True,
-            [Row(id=1, value="value1"), Row(id=2, value="value2")],
+            [Row(id="1", value="value1"), Row(id="2", value="value2")],
             [[("id",), ("value",)]],
-            ([("id",), ("value",)], [Row(id=1, value="value1"), Row(id=2, value="value2")]),
+            ([("id",), ("value",)], [Row(id="1", value="value1"), Row(id="2", value="value2")]),
             id="Scalar: Single SQL statement, return_last, split statement",
         ),
         pytest.param(
             "select * from dummy;select * from dummy2",
             True,
             True,
-            [Row(id=1, value="value1"), Row(id=2, value="value2")],
+            [Row(id="1", value="value1"), Row(id="2", value="value2")],
             [[("id",), ("value",)]],
-            ([("id",), ("value",)], [Row(id=1, value="value1"), Row(id=2, value="value2")]),
+            ([("id",), ("value",)], [Row(id="1", value="value1"), Row(id="2", value="value2")]),
             id="Scalar: Multiple SQL statements, return_last, split statement",
         ),
         pytest.param(
             "select * from dummy",
             False,
             False,
-            [Row(id=1, value="value1"), Row(id=2, value="value2")],
+            [Row(id="1", value="value1"), Row(id="2", value="value2")],
             [[("id",), ("value",)]],
-            ([("id",), ("value",)], [Row(id=1, value="value1"), Row(id=2, value="value2")]),
+            ([("id",), ("value",)], [Row(id="1", value="value1"), Row(id="2", value="value2")]),
             id="Scalar: Single SQL statements, no return_last (doesn't matter), no split statement",
         ),
         pytest.param(
             "select * from dummy",
             True,
             False,
-            [Row(id=1, value="value1"), Row(id=2, value="value2")],
+            [Row(id="1", value="value1"), Row(id="2", value="value2")],
             [[("id",), ("value",)]],
-            ([("id",), ("value",)], [Row(id=1, value="value1"), Row(id=2, value="value2")]),
+            ([("id",), ("value",)], [Row(id="1", value="value1"), Row(id="2", value="value2")]),
             id="Scalar: Single SQL statements, return_last (doesn't matter), no split statement",
         ),
         pytest.param(
             ["select * from dummy"],
             False,
             False,
-            [[Row(id=1, value="value1"), Row(id=2, value="value2")]],
+            [[Row(id="1", value="value1"), Row(id="2", value="value2")]],
             [[("id",), ("value",)]],
-            [([("id",), ("value",)], [Row(id=1, value="value1"), Row(id=2, value="value2")])],
+            [([("id",), ("value",)], [Row(id="1", value="value1"), Row(id="2", value="value2")])],
             id="Non-Scalar: Single SQL statements in list, no return_last, no split statement",
         ),
         pytest.param(
@@ -212,13 +221,13 @@ def test_exec_success(sql, return_last, split_statement, hook_results, hook_desc
             False,
             False,
             [
-                [Row(id=1, value="value1"), Row(id=2, value="value2")],
-                [Row2(id2=1, value2="value1"), Row2(id2=2, value2="value2")],
+                [Row(id="1", value="value1"), Row(id="2", value="value2")],
+                [Row2(id2="1", value2="value1"), Row2(id2="2", value2="value2")],
             ],
             [[("id",), ("value",)], [("id2",), ("value2",)]],
             [
-                ([("id",), ("value",)], [Row(id=1, value="value1"), Row(id=2, value="value2")]),
-                ([("id2",), ("value2",)], [Row2(id2=1, value2="value1"), Row2(id2=2, value2="value2")]),
+                ([("id",), ("value",)], [Row(id="1", value="value1"), Row(id="2", value="value2")]),
+                ([("id2",), ("value2",)], [Row2(id2="1", value2="value1"), Row2(id2="2", value2="value2")]),
             ],
             id="Non-Scalar: Multiple SQL statements in list, no return_last (no matter), no split statement",
         ),
@@ -227,13 +236,13 @@ def test_exec_success(sql, return_last, split_statement, hook_results, hook_desc
             True,
             False,
             [
-                [Row(id=1, value="value1"), Row(id=2, value="value2")],
-                [Row2(id2=1, value2="value1"), Row2(id2=2, value2="value2")],
+                [Row(id="1", value="value1"), Row(id="2", value="value2")],
+                [Row2(id2="1", value2="value1"), Row2(id2="2", value2="value2")],
             ],
             [[("id",), ("value",)], [("id2",), ("value2",)]],
             [
-                ([("id",), ("value",)], [Row(id=1, value="value1"), Row(id=2, value="value2")]),
-                ([("id2",), ("value2",)], [Row2(id2=1, value2="value1"), Row2(id2=2, value2="value2")]),
+                ([("id",), ("value",)], [Row(id="1", value="value1"), Row(id="2", value="value2")]),
+                ([("id2",), ("value2",)], [Row2(id2="1", value2="value1"), Row2(id2="2", value2="value2")]),
             ],
             id="Non-Scalar: Multiple SQL statements in list, return_last (no matter), no split statement",
         ),
@@ -335,16 +344,16 @@ FORGOT TO COMMENT"""
             facets={
                 "schema": SchemaDatasetFacet(
                     fields=[
-                        SchemaField(name="order_day_of_week", type="varchar"),
-                        SchemaField(name="order_placed_on", type="timestamp"),
-                        SchemaField(name="orders_placed", type="int4"),
+                        SchemaDatasetFacetFields(name="order_day_of_week", type="varchar"),
+                        SchemaDatasetFacetFields(name="order_placed_on", type="timestamp"),
+                        SchemaDatasetFacetFields(name="orders_placed", type="int4"),
                     ]
                 )
             },
         )
     ]
 
-    assert lineage.job_facets == {"sql": SqlJobFacet(query=sql)}
+    assert lineage.job_facets == {"sql": SQLJobFacet(query=sql)}
 
     assert lineage.run_facets["extractionError"].failedTasks == 1
 

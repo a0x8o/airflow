@@ -33,16 +33,23 @@ Create a job
 Before you create a job in Cloud Run, you need to define it.
 For more information about the Job object fields, visit `Google Cloud Run Job description <https://cloud.google.com/run/docs/reference/rpc/google.cloud.run.v2#google.cloud.run.v2.Job>`__
 
-A simple job configuration can look as follows:
+A simple job configuration can be created with a Job object:
 
 .. exampleinclude:: /../../tests/system/providers/google/cloud/cloud_run/example_cloud_run.py
     :language: python
     :dedent: 0
-    :start-after: [START howto_operator_cloud_run_job_creation]
-    :end-before: [END howto_operator_cloud_run_job_creation]
+    :start-after: [START howto_cloud_run_job_instance_creation]
+    :end-before: [END howto_cloud_run_job_instance_creation]
 
+or with a Python dictionary:
 
-With this configuration we can create the job:
+.. exampleinclude:: /../../tests/system/providers/google/cloud/cloud_run/example_cloud_run.py
+    :language: python
+    :dedent: 0
+    :start-after: [START howto_cloud_run_job_dict_creation]
+    :end-before: [END howto_cloud_run_job_dict_creation]
+
+You can create a Cloud Run Job with any of these configurations :
 :class:`~airflow.providers.google.cloud.operators.cloud_run.CloudRunCreateJobOperator`
 
 .. exampleinclude:: /../../tests/system/providers/google/cloud/cloud_run/example_cloud_run.py
@@ -77,6 +84,15 @@ or you can define the same operator in the deferrable mode:
     :start-after: [START howto_operator_cloud_run_execute_job_deferrable_mode]
     :end-before: [END howto_operator_cloud_run_execute_job_deferrable_mode]
 
+You can also specify overrides that allow you to give a new entrypoint command to the job and more:
+
+:class:`~airflow.providers.google.cloud.operators.cloud_run.CloudRunExecuteJobOperator`
+
+.. exampleinclude:: /../../tests/system/providers/google/cloud/cloud_run/example_cloud_run.py
+    :language: python
+    :dedent: 4
+    :start-after: [START howto_operator_cloud_run_execute_job_with_overrides]
+    :end-before: [END howto_operator_cloud_run_execute_job_with_overrides]
 
 
 Update a job

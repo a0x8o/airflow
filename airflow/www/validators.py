@@ -22,11 +22,13 @@ from json import JSONDecodeError
 
 from wtforms.validators import EqualTo, ValidationError
 
+from airflow.models.connection import CONN_ID_MAX_LEN, sanitize_conn_id
 from airflow.utils import helpers
 
 
 class GreaterEqualThan(EqualTo):
-    """Compares the values of two fields.
+    """
+    Compares the values of two fields.
 
     :param fieldname:
         The name of the other field to compare to.
@@ -62,7 +64,8 @@ class GreaterEqualThan(EqualTo):
 
 
 class ValidJson:
-    """Validates data is valid JSON.
+    """
+    Validates data is valid JSON.
 
     :param message:
         Error message to raise in case of a validation error.
@@ -85,7 +88,7 @@ class ValidKey:
     Validates values that will be used as keys.
 
     :param max_length:
-        The maximum length of the given key
+        The maximum allowed length of the given key
     """
 
     def __init__(self, max_length=200):
@@ -100,7 +103,8 @@ class ValidKey:
 
 
 class ReadOnly:
-    """Adds readonly flag to a field.
+    """
+    Adds readonly flag to a field.
 
     When using this you normally will need to override the form's populate_obj method,
     so field.populate_obj is not called for read-only fields.
@@ -108,3 +112,28 @@ class ReadOnly:
 
     def __call__(self, form, field):
         field.flags.readonly = True
+
+
+class ValidConnID:
+    """
+    Validates the connection ID adheres to the desired format.
+
+    :param max_length:
+        The maximum allowed length of the given Connection ID.
+    """
+
+    message = (
+        "Connection ID must be alphanumeric characters plus dashes, dots, hashes, colons, semicolons, "
+        "underscores, exclamation marks, and parentheses"
+    )
+
+    def __init__(
+        self,
+        max_length: int = CONN_ID_MAX_LEN,
+    ):
+        self.max_length = max_length
+
+    def __call__(self, form, field):
+        if field.data:
+            if sanitize_conn_id(field.data, self.max_length) is None:
+                raise ValidationError(f"{self.message} for 1 and up to {self.max_length} matches")

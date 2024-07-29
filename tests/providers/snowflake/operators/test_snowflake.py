@@ -26,10 +26,10 @@ from airflow.exceptions import AirflowException, TaskDeferred
 from airflow.models.dag import DAG
 from airflow.models.dagrun import DagRun
 from airflow.models.taskinstance import TaskInstance
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
 from airflow.providers.snowflake.operators.snowflake import (
     SnowflakeCheckOperator,
     SnowflakeIntervalCheckOperator,
-    SnowflakeOperator,
     SnowflakeSqlApiOperator,
     SnowflakeValueCheckOperator,
 )
@@ -54,6 +54,7 @@ SQL_MULTIPLE_STMTS = (
 SINGLE_STMT = "select i from user_test order by i;"
 
 
+@pytest.mark.db_test
 class TestSnowflakeOperator:
     def setup_method(self):
         args = {"owner": "airflow", "start_date": DEFAULT_DATE}
@@ -67,7 +68,9 @@ class TestSnowflakeOperator:
             dummy VARCHAR(50)
         );
         """
-        operator = SnowflakeOperator(task_id="basic_snowflake", sql=sql, dag=self.dag, do_xcom_push=False)
+        operator = SQLExecuteQueryOperator(
+            task_id="basic_snowflake", sql=sql, dag=self.dag, do_xcom_push=False, conn_id="snowflake_default"
+        )
         # do_xcom_push=False because otherwise the XCom test will fail due to the mocking (it actually works)
         operator.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE, ignore_ti_state=True)
 
@@ -76,16 +79,18 @@ class TestSnowflakeOperatorForParams:
     @mock.patch("airflow.providers.common.sql.operators.sql.BaseSQLOperator.__init__")
     def test_overwrite_params(self, mock_base_op):
         sql = "Select * from test_table"
-        SnowflakeOperator(
+        SQLExecuteQueryOperator(
             sql=sql,
             task_id="snowflake_params_check",
-            snowflake_conn_id="snowflake_default",
-            warehouse="test_warehouse",
-            database="test_database",
-            role="test_role",
-            schema="test_schema",
-            authenticator="oath",
-            session_parameters={"QUERY_TAG": "test_tag"},
+            conn_id="snowflake_default",
+            hook_params={
+                "warehouse": "test_warehouse",
+                "database": "test_database",
+                "role": "test_role",
+                "schema": "test_schema",
+                "authenticator": "oath",
+                "session_parameters": {"QUERY_TAG": "test_tag"},
+            },
         )
         mock_base_op.assert_called_once_with(
             conn_id="snowflake_default",
@@ -252,7 +257,9 @@ class TestSnowflakeSqlApiOperator:
 
     @pytest.mark.parametrize("mock_sql, statement_count", [(SQL_MULTIPLE_STMTS, 4), (SINGLE_STMT, 1)])
     @mock.patch("airflow.providers.snowflake.hooks.snowflake_sql_api.SnowflakeSqlApiHook.execute_query")
-    def test_snowflake_sql_api_execute_operator_async(self, mock_db_hook, mock_sql, statement_count):
+    def test_snowflake_sql_api_execute_operator_async(
+        self, mock_execute_query, mock_sql, statement_count, mock_get_sql_api_query_status
+    ):
         """
         Asserts that a task is deferred and an SnowflakeSqlApiTrigger will be fired
         when the SnowflakeSqlApiOperator is executed.
@@ -264,6 +271,9 @@ class TestSnowflakeSqlApiOperator:
             statement_count=statement_count,
             deferrable=True,
         )
+
+        mock_execute_query.return_value = ["uuid1"]
+        mock_get_sql_api_query_status.side_effect = [{"status": "running"}]
 
         with pytest.raises(TaskDeferred) as exc:
             operator.execute(create_context(operator))
@@ -310,3 +320,63 @@ class TestSnowflakeSqlApiOperator:
         with mock.patch.object(operator.log, "info") as mock_log_info:
             operator.execute_complete(context=None, event=mock_event)
         mock_log_info.assert_called_with("%s completed successfully.", TASK_ID)
+
+    @mock.patch("airflow.providers.snowflake.operators.snowflake.SnowflakeSqlApiOperator.defer")
+    def test_snowflake_sql_api_execute_operator_failed_before_defer(
+        self, mock_defer, mock_execute_query, mock_get_sql_api_query_status
+    ):
+        """Asserts that a task is not deferred when its failed"""
+
+        operator = SnowflakeSqlApiOperator(
+            task_id=TASK_ID,
+            snowflake_conn_id="snowflake_default",
+            sql=SQL_MULTIPLE_STMTS,
+            statement_count=4,
+            do_xcom_push=False,
+            deferrable=True,
+        )
+        mock_execute_query.return_value = ["uuid1"]
+        mock_get_sql_api_query_status.side_effect = [{"status": "error"}]
+        with pytest.raises(AirflowException):
+            operator.execute(create_context(operator))
+        assert not mock_defer.called
+
+    @mock.patch("airflow.providers.snowflake.operators.snowflake.SnowflakeSqlApiOperator.defer")
+    def test_snowflake_sql_api_execute_operator_succeeded_before_defer(
+        self, mock_defer, mock_execute_query, mock_get_sql_api_query_status
+    ):
+        """Asserts that a task is not deferred when its succeeded"""
+
+        operator = SnowflakeSqlApiOperator(
+            task_id=TASK_ID,
+            snowflake_conn_id="snowflake_default",
+            sql=SQL_MULTIPLE_STMTS,
+            statement_count=4,
+            do_xcom_push=False,
+            deferrable=True,
+        )
+        mock_execute_query.return_value = ["uuid1"]
+        mock_get_sql_api_query_status.side_effect = [{"status": "success"}]
+        operator.execute(create_context(operator))
+
+        assert not mock_defer.called
+
+    @mock.patch("airflow.providers.snowflake.operators.snowflake.SnowflakeSqlApiOperator.defer")
+    def test_snowflake_sql_api_execute_operator_running_before_defer(
+        self, mock_defer, mock_execute_query, mock_get_sql_api_query_status
+    ):
+        """Asserts that a task is deferred when its running"""
+
+        operator = SnowflakeSqlApiOperator(
+            task_id=TASK_ID,
+            snowflake_conn_id="snowflake_default",
+            sql=SQL_MULTIPLE_STMTS,
+            statement_count=4,
+            do_xcom_push=False,
+            deferrable=True,
+        )
+        mock_execute_query.return_value = ["uuid1"]
+        mock_get_sql_api_query_status.side_effect = [{"status": "running"}]
+        operator.execute(create_context(operator))
+
+        assert mock_defer.called

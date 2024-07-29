@@ -20,8 +20,9 @@ import json
 from unittest import mock
 
 import pytest
-from moto import mock_secretsmanager
+from moto import mock_aws
 
+from airflow.exceptions import AirflowProviderDeprecationWarning
 from airflow.providers.amazon.aws.secrets.secrets_manager import SecretsManagerBackend
 
 
@@ -32,7 +33,7 @@ class TestSecretsManagerBackend:
         conn = SecretsManagerBackend().get_connection("fake_conn")
         assert conn.host == "host"
 
-    @mock_secretsmanager
+    @mock_aws
     def test_get_conn_value_full_url_mode(self):
         secret_id = "airflow/connections/test_postgres"
         create_param = {
@@ -53,7 +54,7 @@ class TestSecretsManagerBackend:
             (False, "is%20url%20encoded", "not%2520idempotent"),
         ],
     )
-    @mock_secretsmanager
+    @mock_aws
     def test_get_connection_broken_field_mode_url_encoding(self, are_secret_values_urlencoded, login, host):
         secret_id = "airflow/connections/test_postgres"
         create_param = {
@@ -69,9 +70,13 @@ class TestSecretsManagerBackend:
             ),
         }
 
-        secrets_manager_backend = SecretsManagerBackend(
-            are_secret_values_urlencoded=are_secret_values_urlencoded
-        )
+        with pytest.warns(
+            AirflowProviderDeprecationWarning,
+            match=r"The `secret_values_are_urlencoded` is deprecated. This kwarg only exists to assist in migrating away from URL-encoding secret values for JSON secrets. To remove this warning, make sure your JSON secrets are \*NOT\* URL-encoded, and then remove this kwarg from backend_kwargs.",
+        ):
+            secrets_manager_backend = SecretsManagerBackend(
+                are_secret_values_urlencoded=are_secret_values_urlencoded
+            )
         secrets_manager_backend.client.create_secret(**create_param)
 
         conn = secrets_manager_backend.get_connection(conn_id="test_postgres")
@@ -82,7 +87,7 @@ class TestSecretsManagerBackend:
         assert conn.conn_id == "test_postgres"
         assert conn.extra_dejson["foo"] == "bar"
 
-    @mock_secretsmanager
+    @mock_aws
     def test_get_connection_broken_field_mode_extra_allows_nested_json(self):
         secret_id = "airflow/connections/test_postgres"
         create_param = {
@@ -98,13 +103,17 @@ class TestSecretsManagerBackend:
             ),
         }
 
-        secrets_manager_backend = SecretsManagerBackend(full_url_mode=False)
+        with pytest.warns(
+            AirflowProviderDeprecationWarning,
+            match="The `full_url_mode` kwarg is deprecated. Going forward, the `SecretsManagerBackend` will support both URL-encoded and JSON-encoded secrets at the same time. The encoding of the secret will be determined automatically.",
+        ):
+            secrets_manager_backend = SecretsManagerBackend(full_url_mode=False)
         secrets_manager_backend.client.create_secret(**create_param)
 
         conn = secrets_manager_backend.get_connection(conn_id="test_postgres")
         assert conn.extra_dejson["foo"] == "bar"
 
-    @mock_secretsmanager
+    @mock_aws
     def test_get_conn_value_broken_field_mode(self):
         secret_id = "airflow/connections/test_postgres"
         create_param = {
@@ -115,14 +124,18 @@ class TestSecretsManagerBackend:
             ),
         }
 
-        secrets_manager_backend = SecretsManagerBackend(full_url_mode=False)
+        with pytest.warns(
+            AirflowProviderDeprecationWarning,
+            match="The `full_url_mode` kwarg is deprecated. Going forward, the `SecretsManagerBackend` will support both URL-encoded and JSON-encoded secrets at the same time. The encoding of the secret will be determined automatically.",
+        ):
+            secrets_manager_backend = SecretsManagerBackend(full_url_mode=False)
         secrets_manager_backend.client.create_secret(**create_param)
 
         conn = secrets_manager_backend.get_connection(conn_id="test_postgres")
         returned_uri = conn.get_uri()
         assert "postgres://airflow:airflow@host:5432/airflow" == returned_uri
 
-    @mock_secretsmanager
+    @mock_aws
     def test_get_conn_value_broken_field_mode_extra_words_added(self):
         secret_id = "airflow/connections/test_postgres"
         create_param = {
@@ -133,16 +146,20 @@ class TestSecretsManagerBackend:
             ),
         }
 
-        secrets_manager_backend = SecretsManagerBackend(
-            full_url_mode=False, extra_conn_words={"user": ["usuario"]}
-        )
+        with pytest.warns(
+            AirflowProviderDeprecationWarning,
+            match="The `full_url_mode` kwarg is deprecated. Going forward, the `SecretsManagerBackend` will support both URL-encoded and JSON-encoded secrets at the same time. The encoding of the secret will be determined automatically.",
+        ):
+            secrets_manager_backend = SecretsManagerBackend(
+                full_url_mode=False, extra_conn_words={"user": ["usuario"]}
+            )
         secrets_manager_backend.client.create_secret(**create_param)
 
         conn = secrets_manager_backend.get_connection(conn_id="test_postgres")
         returned_uri = conn.get_uri()
         assert "postgres://airflow:airflow@host:5432/airflow" == returned_uri
 
-    @mock_secretsmanager
+    @mock_aws
     def test_get_conn_value_non_existent_key(self):
         """
         Test that if the key with connection ID is not present,
@@ -162,9 +179,8 @@ class TestSecretsManagerBackend:
         assert secrets_manager_backend.get_conn_value(conn_id=conn_id) is None
         assert secrets_manager_backend.get_connection(conn_id=conn_id) is None
 
-    @mock_secretsmanager
+    @mock_aws
     def test_get_variable(self):
-
         secret_id = "airflow/variables/hello"
         create_param = {"Name": secret_id, "SecretString": "world"}
 
@@ -174,7 +190,7 @@ class TestSecretsManagerBackend:
         returned_uri = secrets_manager_backend.get_variable("hello")
         assert "world" == returned_uri
 
-    @mock_secretsmanager
+    @mock_aws
     def test_get_variable_non_existent_key(self):
         """
         Test that if Variable key is not present,
@@ -188,7 +204,7 @@ class TestSecretsManagerBackend:
 
         assert secrets_manager_backend.get_variable("test_mysql") is None
 
-    @mock_secretsmanager
+    @mock_aws
     def test_get_config_non_existent_key(self):
         """
         Test that if Config key is not present,

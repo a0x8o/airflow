@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import warnings
 from functools import cached_property
 from pathlib import Path
@@ -33,6 +32,8 @@ from airflow.configuration import conf
 from airflow.exceptions import RemovedInAirflow3Warning
 from airflow.security import permissions
 from airflow.utils.yaml import safe_load
+from airflow.www.constants import SWAGGER_BUNDLE, SWAGGER_ENABLED
+from airflow.www.extensions.init_auth_manager import get_auth_manager
 
 if TYPE_CHECKING:
     from flask import Flask
@@ -127,6 +128,9 @@ def init_appbuilder_views(app):
     # add_view_no_menu to change item position.
     # I added link in extensions.init_appbuilder_links.init_appbuilder_links
     appbuilder.add_view_no_menu(views.RedocView)
+    # Development views
+    appbuilder.add_view_no_menu(views.DevView)
+    appbuilder.add_view_no_menu(views.DocsView)
 
 
 def init_plugins(app):
@@ -140,8 +144,13 @@ def init_plugins(app):
     for view in plugins_manager.flask_appbuilder_views:
         name = view.get("name")
         if name:
+            filtered_view_kwargs = {k: v for k, v in view.items() if k not in ["view"]}
             log.debug("Adding view %s with menu", name)
-            appbuilder.add_view(view["view"], name, category=view["category"])
+            baseview = view.get("view")
+            if baseview:
+                appbuilder.add_view(baseview, **filtered_view_kwargs)
+            else:
+                log.error("'view' key is missing for the named view: %s", name)
         else:
             # if 'name' key is missing, intent is to add view without menu
             log.debug("Adding view %s without menu", str(type(view["view"])))
@@ -186,7 +195,8 @@ def set_cors_headers_on_response(response):
 
 
 class _LazyResolution:
-    """OpenAPI endpoint that lazily resolves the function on first use.
+    """
+    OpenAPI endpoint that lazily resolves the function on first use.
 
     This is a stand-in replacement for ``connexion.Resolution`` that implements
     its public attributes ``function`` and ``operation_id``, but the function
@@ -203,7 +213,8 @@ class _LazyResolution:
 
 
 class _LazyResolver(Resolver):
-    """OpenAPI endpoint resolver that loads lazily on first use.
+    """
+    OpenAPI endpoint resolver that loads lazily on first use.
 
     This re-implements ``connexion.Resolver.resolve()`` to not eagerly resolve
     the endpoint function (and thus avoid importing it in the process), but only
@@ -217,7 +228,8 @@ class _LazyResolver(Resolver):
 
 
 class _CustomErrorRequestBodyValidator(RequestBodyValidator):
-    """Custom request body validator that overrides error messages.
+    """
+    Custom request body validator that overrides error messages.
 
     By default, Connextion emits a very generic *None is not of type 'object'*
     error when receiving an empty request body (with the view specifying the
@@ -230,15 +242,16 @@ class _CustomErrorRequestBodyValidator(RequestBodyValidator):
         return super().validate_schema(data, url)
 
 
-def init_api_connexion(app: Flask) -> None:
-    """Initialize Stable API."""
-    base_path = "/api/v1"
+base_paths: list[str] = []  # contains the list of base paths that have api endpoints
 
+
+def init_api_error_handlers(app: Flask) -> None:
+    """Add error handlers for 404 and 405 errors for existing API paths."""
     from airflow.www import views
 
     @app.errorhandler(404)
     def _handle_api_not_found(ex):
-        if request.path.startswith(base_path):
+        if any([request.path.startswith(p) for p in base_paths]):
             # 404 errors are never handled on the blueprint level
             # unless raised from a view func so actual 404 errors,
             # i.e. "no route for it" defined, need to be handled
@@ -249,10 +262,18 @@ def init_api_connexion(app: Flask) -> None:
 
     @app.errorhandler(405)
     def _handle_method_not_allowed(ex):
-        if request.path.startswith(base_path):
+        if any([request.path.startswith(p) for p in base_paths]):
             return common_error_handler(ex)
         else:
             return views.method_not_allowed(ex)
+
+    app.register_error_handler(ProblemException, common_error_handler)
+
+
+def init_api_connexion(app: Flask) -> None:
+    """Initialize Stable API."""
+    base_path = "/api/v1"
+    base_paths.append(base_path)
 
     with ROOT_APP_DIR.joinpath("api_connexion", "openapi", "v1.yaml").open() as f:
         specification = safe_load(f)
@@ -260,10 +281,7 @@ def init_api_connexion(app: Flask) -> None:
         specification=specification,
         resolver=_LazyResolver(),
         base_path=base_path,
-        options={
-            "swagger_ui": conf.getboolean("webserver", "enable_swagger_ui", fallback=True),
-            "swagger_path": os.fspath(ROOT_APP_DIR.joinpath("www", "static", "dist", "swagger-ui")),
-        },
+        options={"swagger_ui": SWAGGER_ENABLED, "swagger_path": SWAGGER_BUNDLE.__fspath__()},
         strict_validation=True,
         validate_responses=True,
         validator_map={"body": _CustomErrorRequestBodyValidator},
@@ -271,7 +289,6 @@ def init_api_connexion(app: Flask) -> None:
     api_bp.after_request(set_cors_headers_on_response)
 
     app.register_blueprint(api_bp)
-    app.register_error_handler(ProblemException, common_error_handler)
     app.extensions["csrf"].exempt(api_bp)
 
 
@@ -280,12 +297,13 @@ def init_api_internal(app: Flask, standalone_api: bool = False) -> None:
     if not standalone_api and not conf.getboolean("webserver", "run_internal_api", fallback=False):
         return
 
+    base_paths.append("/internal_api/v1")
     with ROOT_APP_DIR.joinpath("api_internal", "openapi", "internal_api_v1.yaml").open() as f:
         specification = safe_load(f)
     api_bp = FlaskApi(
         specification=specification,
         base_path="/internal_api/v1",
-        options={"swagger_ui": conf.getboolean("webserver", "enable_swagger_ui", fallback=True)},
+        options={"swagger_ui": SWAGGER_ENABLED, "swagger_path": SWAGGER_BUNDLE.__fspath__()},
         strict_validation=True,
         validate_responses=True,
     ).blueprint
@@ -307,6 +325,18 @@ def init_api_experimental(app):
         "Please note that the experimental API do not have access control. "
         "The authenticated user has full access.",
         RemovedInAirflow3Warning,
+        stacklevel=2,
     )
+    base_paths.append("/api/experimental")
     app.register_blueprint(endpoints.api_experimental, url_prefix="/api/experimental")
     app.extensions["csrf"].exempt(endpoints.api_experimental)
+
+
+def init_api_auth_provider(app):
+    """Initialize the API offered by the auth manager."""
+    auth_mgr = get_auth_manager()
+    blueprint = auth_mgr.get_api_endpoints()
+    if blueprint:
+        base_paths.append(blueprint.url_prefix)
+        app.register_blueprint(blueprint)
+        app.extensions["csrf"].exempt(blueprint)

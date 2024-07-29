@@ -16,6 +16,7 @@
 # under the License.
 from __future__ import annotations
 
+from datetime import datetime
 from typing import NamedTuple
 
 from marshmallow import Schema, fields
@@ -25,6 +26,7 @@ from airflow.api_connexion.schemas.common_schema import JsonObjectField
 from airflow.models.dagrun import DagRun
 from airflow.models.dataset import (
     DagScheduleDatasetReference,
+    DatasetAliasModel,
     DatasetEvent,
     DatasetModel,
     TaskOutletDatasetReference,
@@ -58,6 +60,18 @@ class DagScheduleDatasetReferenceSchema(SQLAlchemySchema):
     updated_at = auto_field()
 
 
+class DatasetAliasSchema(SQLAlchemySchema):
+    """DatasetAlias DB schema."""
+
+    class Meta:
+        """Meta."""
+
+        model = DatasetAliasModel
+
+    id = auto_field()
+    name = auto_field()
+
+
 class DatasetSchema(SQLAlchemySchema):
     """Dataset DB schema."""
 
@@ -73,6 +87,7 @@ class DatasetSchema(SQLAlchemySchema):
     updated_at = auto_field()
     producing_tasks = fields.List(fields.Nested(TaskOutletDatasetReferenceSchema))
     consuming_dags = fields.List(fields.Nested(DagScheduleDatasetReferenceSchema))
+    aliases = fields.List(fields.Nested(DatasetAliasSchema))
 
 
 class DatasetCollection(NamedTuple):
@@ -146,5 +161,47 @@ class DatasetEventCollectionSchema(Schema):
     total_entries = fields.Int()
 
 
+class CreateDatasetEventSchema(Schema):
+    """Create Dataset Event Schema."""
+
+    dataset_uri = fields.String()
+    extra = JsonObjectField()
+
+
 dataset_event_schema = DatasetEventSchema()
 dataset_event_collection_schema = DatasetEventCollectionSchema()
+create_dataset_event_schema = CreateDatasetEventSchema()
+
+
+class QueuedEvent(NamedTuple):
+    """QueuedEvent."""
+
+    uri: str
+    dag_id: str
+    created_at: datetime
+
+
+class QueuedEventSchema(Schema):
+    """QueuedEvent schema."""
+
+    uri = fields.String()
+    dag_id = fields.String()
+    created_at = fields.DateTime()
+
+
+class QueuedEventCollection(NamedTuple):
+    """List of QueuedEvent with meta."""
+
+    queued_events: list[QueuedEvent]
+    total_entries: int
+
+
+class QueuedEventCollectionSchema(Schema):
+    """QueuedEvent Collection Schema."""
+
+    queued_events = fields.List(fields.Nested(QueuedEventSchema))
+    total_entries = fields.Int()
+
+
+queued_event_schema = QueuedEventSchema()
+queued_event_collection_schema = QueuedEventCollectionSchema()

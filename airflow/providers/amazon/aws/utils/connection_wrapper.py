@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any
 
 from botocore import UNSIGNED
 from botocore.config import Config
+from deprecated import deprecated
 
 from airflow.exceptions import AirflowException, AirflowProviderDeprecationWarning
 from airflow.providers.amazon.aws.utils import trim_none_values
@@ -38,7 +39,8 @@ if TYPE_CHECKING:
 
 @dataclass
 class _ConnectionMetadata:
-    """Connection metadata data-class.
+    """
+    Connection metadata data-class.
 
     This class implements main :ref:`~airflow.models.connection.Connection` attributes
     and use in AwsConnectionWrapper for avoid circular imports.
@@ -75,7 +77,8 @@ class _ConnectionMetadata:
 
 @dataclass
 class AwsConnectionWrapper(LoggingMixin):
-    """AWS Connection Wrapper class helper.
+    """
+    AWS Connection Wrapper class helper.
 
     Use for validate and resolve AWS Connection parameters.
 
@@ -130,7 +133,8 @@ class AwsConnectionWrapper(LoggingMixin):
         return f"AWS Connection (conn_id={self.conn_id!r}, conn_type={self.conn_type!r})"
 
     def get_service_config(self, service_name: str) -> dict[str, Any]:
-        """Get AWS Service related config dictionary.
+        """
+        Get AWS Service related config dictionary.
 
         :param service_name: Name of botocore/boto3 service.
         """
@@ -165,7 +169,8 @@ class AwsConnectionWrapper(LoggingMixin):
 
         return service_config.get("endpoint_url", global_endpoint_url)
 
-    def __post_init__(self, conn: Connection):
+    def __post_init__(self, conn: Connection | AwsConnectionWrapper | _ConnectionMetadata | None) -> None:
+        """Initialize the AwsConnectionWrapper object after instantiation."""
         if isinstance(conn, type(self)):
             # For every field with init=False we copy reference value from original wrapper
             # For every field with init=True we use init values if it not equal default
@@ -191,6 +196,9 @@ class AwsConnectionWrapper(LoggingMixin):
             return
         elif not conn:
             return
+
+        if TYPE_CHECKING:
+            assert isinstance(conn, (Connection, _ConnectionMetadata))
 
         # Assign attributes from AWS Connection
         self.conn_id = conn.conn_id
@@ -342,6 +350,7 @@ class AwsConnectionWrapper(LoggingMixin):
         )
 
     def __bool__(self):
+        """Return the truth value of the AwsConnectionWrapper instance."""
         return self.conn_id is not NOTSET
 
     def _get_credentials(
@@ -357,7 +366,8 @@ class AwsConnectionWrapper(LoggingMixin):
         session_kwargs: dict[str, Any] | None = None,
         **kwargs,
     ) -> tuple[str | None, str | None, str | None]:
-        """Get AWS credentials from connection login/password and extra.
+        """
+        Get AWS credentials from connection login/password and extra.
 
         ``aws_access_key_id`` and ``aws_secret_access_key`` order:
 
@@ -462,10 +472,18 @@ class AwsConnectionWrapper(LoggingMixin):
         return role_arn, assume_role_method, assume_role_kwargs
 
 
+@deprecated(
+    reason=(
+        "Use local credentials file is never documented and well tested. "
+        "Obtain credentials by this way deprecated and will be removed in a future releases."
+    ),
+    category=AirflowProviderDeprecationWarning,
+)
 def _parse_s3_config(
     config_file_name: str, config_format: str | None = "boto", profile: str | None = None
 ) -> tuple[str | None, str | None]:
-    """Parse a config file for S3 credentials.
+    """
+    Parse a config file for S3 credentials.
 
     Can currently parse boto, s3cmd.conf and AWS SDK config formats.
 
@@ -474,13 +492,6 @@ def _parse_s3_config(
         Defaults to "boto"
     :param profile: profile name in AWS type config file
     """
-    warnings.warn(
-        "Use local credentials file is never documented and well tested. "
-        "Obtain credentials by this way deprecated and will be removed in a future releases.",
-        AirflowProviderDeprecationWarning,
-        stacklevel=4,
-    )
-
     import configparser
 
     config = configparser.ConfigParser()

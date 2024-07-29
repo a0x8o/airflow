@@ -27,7 +27,7 @@ import type { SelectionProps } from "src/dag/useSelection";
 import { getStatusBackgroundColor, hoverDelay } from "src/utils";
 import Tooltip from "src/components/Tooltip";
 
-import InstanceTooltip from "./InstanceTooltip";
+import InstanceTooltip from "src/components/InstanceTooltip";
 
 export const boxSize = 10;
 export const boxSizePx = `${boxSize}px`;
@@ -56,7 +56,7 @@ export const StatusWithNotes = ({
 };
 
 interface SimpleStatusProps extends BoxProps {
-  state: TaskState;
+  state: TaskState | undefined;
 }
 export const SimpleStatus = ({ state, ...rest }: SimpleStatusProps) => (
   <Box
@@ -65,6 +65,11 @@ export const SimpleStatus = ({ state, ...rest }: SimpleStatusProps) => (
     background={state && stateColors[state] ? stateColors[state] : "white"}
     borderRadius="2px"
     borderWidth={state ? 0 : 1}
+    display="flex"
+    flexDirection="column"
+    justifyContent="center"
+    alignItems="center"
+    style={{ marginTop: "auto", marginBottom: "auto" }}
     {...rest}
   />
 );

@@ -36,6 +36,7 @@ Helm Chart for Apache Airflow
     using-additional-containers
     customizing-workers
     Installing from sources<installing-helm-chart-from-sources>
+    Extending the Chart<extending-the-chart>
 
 .. toctree::
     :hidden:
@@ -58,7 +59,7 @@ deployment on a `Kubernetes <http://kubernetes.io>`__ cluster using the
 Requirements
 ------------
 
--  Kubernetes 1.23+ cluster
+-  Kubernetes 1.26+ cluster
 -  Helm 3.0+
 -  PV provisioner support in the underlying infrastructure (optionally)
 
@@ -67,9 +68,9 @@ Features
 
 * Supported executors: ``LocalExecutor``, ``CeleryExecutor``, ``KubernetesExecutor``, ``LocalKubernetesExecutor``, ``CeleryKubernetesExecutor``
 * Supported Airflow version: ``1.10+``, ``2.0+``
-* Supported database backend: ``PostgresSQL``, ``MySQL``
+* Supported database backend: ``PostgreSQL``, ``MySQL``
 * Autoscaling for ``CeleryExecutor`` provided by KEDA
-* PostgreSQL and PgBouncer with a battle-tested configuration
+* ``PostgreSQL`` and ``PgBouncer`` with a battle-tested configuration
 * Monitoring:
 
    * StatsD/Prometheus metrics for Airflow
@@ -154,8 +155,25 @@ To run database migrations with Argo CD automatically, you will need to add:
 
 This will run database migrations every time there is a ``Sync`` event in Argo CD. While it is not ideal to run the migrations on every sync, it is a trade-off that allows them to be run automatically.
 
-If you use the Celery(Kubernetes)Executor with the built-in Redis, it is recommended that you set up a static Redis password either by supplying ``redis.passwordSecretName`` and ``redis.data.brokerUrlSecretName`` or ``redis.password``.
+If you use the Celery(Kubernetes)Executor with the built-in Redis, it is recommended that you set up a static Redis password either by supplying ``redis.passwordSecretName`` and ``data.brokerUrlSecretName`` or ``redis.password``.
 
+By default, Helm hooks are also enabled for ``extraSecrets`` or ``extraConfigMaps``. When using the above CI/CD tools, you might encounter issues due to these default hooks.
+
+To avoid potential problems, it is recommended to disable these hooks by setting ``useHelmHooks=false`` as shown in the following examples:
+
+.. code-block:: yaml
+
+    extraSecrets:
+      '{{ .Release.Name }}-example':
+        useHelmHooks: false
+        data: |
+          AIRFLOW_VAR_HELLO_MESSAGE: "Hi!"
+
+    extraConfigMaps:
+      '{{ .Release.Name }}-example':
+        useHelmHooks: false
+        data: |
+          AIRFLOW_VAR_HELLO_MESSAGE: "Hi!"
 
 Naming Conventions
 ------------------

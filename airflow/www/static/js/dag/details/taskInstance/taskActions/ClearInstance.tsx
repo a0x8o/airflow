@@ -38,6 +38,7 @@ import keyboardShortcutIdentifier from "src/dag/keyboardShortcutIdentifier";
 import ActionButton from "./ActionButton";
 import ActionModal from "./ActionModal";
 
+const canEditTaskInstance = getMetaValue("can_edit_taskinstance") === "True";
 const canEdit = getMetaValue("can_edit") === "True";
 const dagId = getMetaValue("dag_id");
 
@@ -102,6 +103,7 @@ const ClearModal = ({
       recursive,
       failed,
       mapIndexes,
+      enabled: isOpen,
     });
 
   const { mutateAsync: clearTask, isLoading } = useClearTask({
@@ -247,7 +249,7 @@ const ClearInstance = ({
       <Button
         title={clearLabel}
         aria-label={clearLabel}
-        isDisabled={!canEdit}
+        isDisabled={!canEdit || !canEditTaskInstance}
         colorScheme="blue"
         onClick={onOpen}
         {...otherProps}
@@ -255,7 +257,7 @@ const ClearInstance = ({
         Clear task
       </Button>
       {/* Only mount modal if user can edit */}
-      {canEdit && (
+      {canEdit && canEditTaskInstance && (
         <ClearModal
           runId={runId}
           taskId={taskId}

@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import logging
 import os
 import zipfile
@@ -32,6 +33,8 @@ from airflow.configuration import conf
 from airflow.exceptions import RemovedInAirflow3Warning
 
 log = logging.getLogger(__name__)
+
+MODIFIED_DAG_MODULE_NAME = "unusual_prefix_{path_hash}_{module_name}"
 
 
 class _IgnoreRule(Protocol):
@@ -155,13 +158,11 @@ ZIP_REGEX = re2.compile(rf"((.*\.zip){re2.escape(os.sep)})?(.*)")
 
 
 @overload
-def correct_maybe_zipped(fileloc: None) -> None:
-    ...
+def correct_maybe_zipped(fileloc: None) -> None: ...
 
 
 @overload
-def correct_maybe_zipped(fileloc: str | Path) -> str | Path:
-    ...
+def correct_maybe_zipped(fileloc: str | Path) -> str | Path: ...
 
 
 def correct_maybe_zipped(fileloc: None | str | Path) -> None | str | Path:
@@ -199,7 +200,8 @@ def _find_path_from_directory(
     ignore_file_name: str,
     ignore_rule_type: type[_IgnoreRule],
 ) -> Generator[str, None, None]:
-    """Recursively search the base path and return the list of file paths that should not be ignored.
+    """
+    Recursively search the base path and return the list of file paths that should not be ignored.
 
     :param base_dir_path: the base path to be searched
     :param ignore_file_name: the file name containing regular expressions for files that should be ignored.
@@ -255,7 +257,8 @@ def find_path_from_directory(
     ignore_file_name: str,
     ignore_file_syntax: str = conf.get_mandatory_value("core", "DAG_IGNORE_FILE_SYNTAX", fallback="regexp"),
 ) -> Generator[str, None, None]:
-    """Recursively search the base path for a list of file paths that should not be ignored.
+    """
+    Recursively search the base path for a list of file paths that should not be ignored.
 
     :param base_dir_path: the base path to be searched
     :param ignore_file_name: the file name in which specifies the patterns of files/dirs to be ignored
@@ -276,7 +279,8 @@ def list_py_file_paths(
     safe_mode: bool = conf.getboolean("core", "DAG_DISCOVERY_SAFE_MODE", fallback=True),
     include_examples: bool | None = None,
 ) -> list[str]:
-    """Traverse a directory and look for Python files.
+    """
+    Traverse a directory and look for Python files.
 
     :param directory: the directory to traverse
     :param safe_mode: whether to use a heuristic to determine whether a file
@@ -379,3 +383,12 @@ def iter_airflow_imports(file_path: str) -> Generator[str, None, None]:
     for m in _find_imported_modules(parsed):
         if m.startswith("airflow."):
             yield m
+
+
+def get_unique_dag_module_name(file_path: str) -> str:
+    """Return a unique module name in the format unusual_prefix_{sha1 of module's file path}_{original module name}."""
+    if isinstance(file_path, str):
+        path_hash = hashlib.sha1(file_path.encode("utf-8")).hexdigest()
+        org_mod_name = Path(file_path).stem
+        return MODIFIED_DAG_MODULE_NAME.format(path_hash=path_hash, module_name=org_mod_name)
+    raise ValueError("file_path should be a string to generate unique module name")

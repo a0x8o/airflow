@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+import warnings
 from enum import Enum
 from functools import cached_property, wraps
 from inspect import signature
@@ -39,10 +40,12 @@ if TYPE_CHECKING:
 
     from airflow.models import Connection
 
+DBT_CAUSE_MAX_LENGTH = 255
+
 
 def fallback_to_default_account(func: Callable) -> Callable:
     """
-    Decorator which provides a fallback value for ``account_id``.
+    Provide a fallback value for ``account_id``.
 
     If the ``account_id`` is None or not passed to the decorated function,
     the value will be taken from the configured dbt Cloud Airflow Connection.
@@ -109,11 +112,12 @@ class DbtCloudJobRunStatus(Enum):
     SUCCESS = 10
     ERROR = 20
     CANCELLED = 30
+    NON_TERMINAL_STATUSES = (QUEUED, STARTING, RUNNING)
     TERMINAL_STATUSES = (SUCCESS, ERROR, CANCELLED)
 
     @classmethod
     def check_is_valid(cls, statuses: int | Sequence[int] | set[int]):
-        """Validates input statuses are a known value."""
+        """Validate input statuses are a known value."""
         if isinstance(statuses, (Sequence, Set)):
             for status in statuses:
                 cls(status)
@@ -122,7 +126,7 @@ class DbtCloudJobRunStatus(Enum):
 
     @classmethod
     def is_terminal(cls, status: int) -> bool:
-        """Checks if the input status is that of a terminal type."""
+        """Check if the input status is that of a terminal type."""
         cls.check_is_valid(statuses=status)
 
         return status in cls.TERMINAL_STATUSES.value
@@ -137,7 +141,7 @@ T = TypeVar("T", bound=Any)
 
 def provide_account_id(func: T) -> T:
     """
-    Decorator which provides a fallback value for ``account_id``.
+    Provide a fallback value for ``account_id``.
 
     If the ``account_id`` is None or not passed to the decorated function,
     the value will be taken from the configured dbt Cloud Airflow Connection.
@@ -164,7 +168,7 @@ def provide_account_id(func: T) -> T:
 
 class DbtCloudHook(HttpHook):
     """
-    Interact with dbt Cloud using the V2 API.
+    Interact with dbt Cloud using the V2 (V3 if supported) API.
 
     :param dbt_cloud_conn_id: The ID of the :ref:`dbt Cloud connection <howto/connection:dbt-cloud>`.
     """
@@ -174,9 +178,9 @@ class DbtCloudHook(HttpHook):
     conn_type = "dbt_cloud"
     hook_name = "dbt Cloud"
 
-    @staticmethod
-    def get_ui_field_behaviour() -> dict[str, Any]:
-        """Builds custom field behavior for the dbt Cloud connection form in the Airflow UI."""
+    @classmethod
+    def get_ui_field_behaviour(cls) -> dict[str, Any]:
+        """Build custom field behavior for the dbt Cloud connection form in the Airflow UI."""
         return {
             "hidden_fields": ["schema", "port", "extra"],
             "relabeling": {"login": "Account ID", "password": "API Token", "host": "Tenant"},
@@ -193,7 +197,7 @@ class DbtCloudHook(HttpHook):
 
     @staticmethod
     def get_request_url_params(
-        tenant: str, endpoint: str, include_related: list[str] | None = None
+        tenant: str, endpoint: str, include_related: list[str] | None = None, *, api_version: str = "v2"
     ) -> tuple[str, dict[str, Any]]:
         """
         Form URL from base url and endpoint url.
@@ -206,7 +210,7 @@ class DbtCloudHook(HttpHook):
         data: dict[str, Any] = {}
         if include_related:
             data = {"include_related": include_related}
-        url = f"https://{tenant}/api/v2/accounts/{endpoint or ''}"
+        url = f"https://{tenant}/api/{api_version}/accounts/{endpoint or ''}"
         return url, data
 
     async def get_headers_tenants_from_connection(self) -> tuple[dict[str, Any], str]:
@@ -224,7 +228,7 @@ class DbtCloudHook(HttpHook):
         self, run_id: int, account_id: int | None = None, include_related: list[str] | None = None
     ) -> Any:
         """
-        Uses Http async call to retrieve metadata for a specific run of a dbt Cloud job.
+        Use Http async call to retrieve metadata for a specific run of a dbt Cloud job.
 
         :param run_id: The ID of a dbt Cloud job run.
         :param account_id: Optional. The ID of a dbt Cloud account.
@@ -247,7 +251,7 @@ class DbtCloudHook(HttpHook):
         self, run_id: int, account_id: int | None = None, include_related: list[str] | None = None
     ) -> int:
         """
-        Retrieves the status for a specific run of a dbt Cloud job.
+        Retrieve the status for a specific run of a dbt Cloud job.
 
         :param run_id: The ID of a dbt Cloud job run.
         :param account_id: Optional. The ID of a dbt Cloud account.
@@ -269,7 +273,7 @@ class DbtCloudHook(HttpHook):
 
     def get_conn(self, *args, **kwargs) -> Session:
         tenant = self._get_tenant_domain(self.connection)
-        self.base_url = f"https://{tenant}/api/v2/accounts/"
+        self.base_url = f"https://{tenant}/"
 
         session = Session()
         session.auth = self.auth_type(self.connection.password)
@@ -297,27 +301,30 @@ class DbtCloudHook(HttpHook):
 
     def _run_and_get_response(
         self,
+        *,
         method: str = "GET",
         endpoint: str | None = None,
         payload: str | dict[str, Any] | None = None,
         paginate: bool = False,
+        api_version: str = "v2",
     ) -> Any:
         self.method = method
+        full_endpoint = f"api/{api_version}/accounts/{endpoint}" if endpoint else None
 
         if paginate:
             if isinstance(payload, str):
                 raise ValueError("Payload cannot be a string to paginate a response.")
 
-            if endpoint:
-                return self._paginate(endpoint=endpoint, payload=payload)
-            else:
-                raise ValueError("An endpoint is needed to paginate a response.")
+            if full_endpoint:
+                return self._paginate(endpoint=full_endpoint, payload=payload)
 
-        return self.run(endpoint=endpoint, data=payload)
+            raise ValueError("An endpoint is needed to paginate a response.")
+
+        return self.run(endpoint=full_endpoint, data=payload)
 
     def list_accounts(self) -> list[Response]:
         """
-        Retrieves all of the dbt Cloud accounts the configured API token is authorized to access.
+        Retrieve all of the dbt Cloud accounts the configured API token is authorized to access.
 
         :return: List of request responses.
         """
@@ -326,7 +333,7 @@ class DbtCloudHook(HttpHook):
     @fallback_to_default_account
     def get_account(self, account_id: int | None = None) -> Response:
         """
-        Retrieves metadata for a specific dbt Cloud account.
+        Retrieve metadata for a specific dbt Cloud account.
 
         :param account_id: Optional. The ID of a dbt Cloud account.
         :return: The request response.
@@ -336,23 +343,23 @@ class DbtCloudHook(HttpHook):
     @fallback_to_default_account
     def list_projects(self, account_id: int | None = None) -> list[Response]:
         """
-        Retrieves metadata for all projects tied to a specified dbt Cloud account.
+        Retrieve metadata for all projects tied to a specified dbt Cloud account.
 
         :param account_id: Optional. The ID of a dbt Cloud account.
         :return: List of request responses.
         """
-        return self._run_and_get_response(endpoint=f"{account_id}/projects/", paginate=True)
+        return self._run_and_get_response(endpoint=f"{account_id}/projects/", paginate=True, api_version="v3")
 
     @fallback_to_default_account
     def get_project(self, project_id: int, account_id: int | None = None) -> Response:
         """
-        Retrieves metadata for a specific project.
+        Retrieve metadata for a specific project.
 
         :param project_id: The ID of a dbt Cloud project.
         :param account_id: Optional. The ID of a dbt Cloud account.
         :return: The request response.
         """
-        return self._run_and_get_response(endpoint=f"{account_id}/projects/{project_id}/")
+        return self._run_and_get_response(endpoint=f"{account_id}/projects/{project_id}/", api_version="v3")
 
     @fallback_to_default_account
     def list_jobs(
@@ -362,7 +369,7 @@ class DbtCloudHook(HttpHook):
         project_id: int | None = None,
     ) -> list[Response]:
         """
-        Retrieves metadata for all jobs tied to a specified dbt Cloud account.
+        Retrieve metadata for all jobs tied to a specified dbt Cloud account.
 
         If a ``project_id`` is supplied, only jobs pertaining to this project will be retrieved.
 
@@ -381,7 +388,7 @@ class DbtCloudHook(HttpHook):
     @fallback_to_default_account
     def get_job(self, job_id: int, account_id: int | None = None) -> Response:
         """
-        Retrieves metadata for a specific job.
+        Retrieve metadata for a specific job.
 
         :param job_id: The ID of a dbt Cloud job.
         :param account_id: Optional. The ID of a dbt Cloud account.
@@ -397,6 +404,7 @@ class DbtCloudHook(HttpHook):
         account_id: int | None = None,
         steps_override: list[str] | None = None,
         schema_override: str | None = None,
+        retry_from_failure: bool = False,
         additional_run_config: dict[str, Any] | None = None,
     ) -> Response:
         """
@@ -409,12 +417,24 @@ class DbtCloudHook(HttpHook):
             instead of those configured in dbt Cloud.
         :param schema_override: Optional. Override the destination schema in the configured target for this
             job.
+        :param retry_from_failure: Optional. If set to True and the previous job run has failed, the job
+            will be triggered using the "rerun" endpoint. This parameter cannot be used alongside
+            steps_override, schema_override, or additional_run_config.
         :param additional_run_config: Optional. Any additional parameters that should be included in the API
             request when triggering the job.
         :return: The request response.
         """
         if additional_run_config is None:
             additional_run_config = {}
+
+        if cause is not None and len(cause) > DBT_CAUSE_MAX_LENGTH:
+            warnings.warn(
+                f"Cause `{cause}` exceeds limit of {DBT_CAUSE_MAX_LENGTH}"
+                f" characters and will be truncated.",
+                UserWarning,
+                stacklevel=2,
+            )
+            cause = cause[:DBT_CAUSE_MAX_LENGTH]
 
         payload = {
             "cause": cause,
@@ -423,6 +443,24 @@ class DbtCloudHook(HttpHook):
         }
         payload.update(additional_run_config)
 
+        if retry_from_failure:
+            latest_run = self.get_job_runs(
+                account_id=account_id,
+                payload={
+                    "job_definition_id": job_id,
+                    "order_by": "-created_at",
+                    "limit": 1,
+                },
+            ).json()["data"]
+            if latest_run and latest_run[0]["status"] == DbtCloudJobRunStatus.ERROR.value:
+                if steps_override is not None or schema_override is not None or additional_run_config != {}:
+                    warnings.warn(
+                        "steps_override, schema_override, or additional_run_config will be ignored when"
+                        " retry_from_failure is True and previous job run has failed.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                return self.retry_failed_job_run(job_id, account_id)
         return self._run_and_get_response(
             method="POST",
             endpoint=f"{account_id}/jobs/{job_id}/run/",
@@ -438,7 +476,7 @@ class DbtCloudHook(HttpHook):
         order_by: str | None = None,
     ) -> list[Response]:
         """
-        Retrieves metadata for all dbt Cloud job runs for an account.
+        Retrieve metadata for all dbt Cloud job runs for an account.
 
         If a ``job_definition_id`` is supplied, only metadata for runs of that specific job are pulled.
 
@@ -461,11 +499,25 @@ class DbtCloudHook(HttpHook):
         )
 
     @fallback_to_default_account
+    def get_job_runs(self, account_id: int | None = None, payload: dict[str, Any] | None = None) -> Response:
+        """
+        Retrieve metadata for a specific run of a dbt Cloud job.
+
+        :param account_id: Optional. The ID of a dbt Cloud account.
+        :param paylod: Optional. Query Parameters
+        :return: The request response.
+        """
+        return self._run_and_get_response(
+            endpoint=f"{account_id}/runs/",
+            payload=payload,
+        )
+
+    @fallback_to_default_account
     def get_job_run(
         self, run_id: int, account_id: int | None = None, include_related: list[str] | None = None
     ) -> Response:
         """
-        Retrieves metadata for a specific run of a dbt Cloud job.
+        Retrieve metadata for a specific run of a dbt Cloud job.
 
         :param run_id: The ID of a dbt Cloud job run.
         :param account_id: Optional. The ID of a dbt Cloud account.
@@ -480,7 +532,7 @@ class DbtCloudHook(HttpHook):
 
     def get_job_run_status(self, run_id: int, account_id: int | None = None) -> int:
         """
-        Retrieves the status for a specific run of a dbt Cloud job.
+        Retrieve the status for a specific run of a dbt Cloud job.
 
         :param run_id: The ID of a dbt Cloud job run.
         :param account_id: Optional. The ID of a dbt Cloud account.
@@ -504,7 +556,7 @@ class DbtCloudHook(HttpHook):
         timeout: int = 60 * 60 * 24 * 7,
     ) -> bool:
         """
-        Waits for a dbt Cloud job run to match an expected status.
+        Wait for a dbt Cloud job run to match an expected status.
 
         :param run_id: The ID of a dbt Cloud job run.
         :param account_id: Optional. The ID of a dbt Cloud account.
@@ -555,7 +607,7 @@ class DbtCloudHook(HttpHook):
         self, run_id: int, account_id: int | None = None, step: int | None = None
     ) -> list[Response]:
         """
-        Retrieves a list of the available artifact files generated for a completed run of a dbt Cloud job.
+        Retrieve a list of the available artifact files generated for a completed run of a dbt Cloud job.
 
         By default, this returns artifacts from the last step in the run. To
         list artifacts from other steps in the run, use the ``step`` parameter.
@@ -576,7 +628,7 @@ class DbtCloudHook(HttpHook):
         self, run_id: int, path: str, account_id: int | None = None, step: int | None = None
     ) -> Response:
         """
-        Retrieves a list of the available artifact files generated for a completed run of a dbt Cloud job.
+        Retrieve a list of the available artifact files generated for a completed run of a dbt Cloud job.
 
         By default, this returns artifacts from the last step in the run. To
         list artifacts from other steps in the run, use the ``step`` parameter.
@@ -604,7 +656,7 @@ class DbtCloudHook(HttpHook):
         step: int | None = None,
     ):
         """
-        Retrieves a list of chosen artifact files generated for a step in completed run of a dbt Cloud job.
+        Retrieve a list of chosen artifact files generated for a step in completed run of a dbt Cloud job.
 
         By default, this returns artifacts from the last step in the run.
         This takes advantage of the asynchronous calls to speed up the retrieval.
@@ -631,6 +683,17 @@ class DbtCloudHook(HttpHook):
         }
         results = await asyncio.gather(*tasks.values())
         return {filename: result.json() for filename, result in zip(tasks.keys(), results)}
+
+    @fallback_to_default_account
+    def retry_failed_job_run(self, job_id: int, account_id: int | None = None) -> Response:
+        """
+        Retry a failed run for a job from the point of failure, if the run failed. Otherwise, trigger a new run.
+
+        :param job_id: The ID of a dbt Cloud job.
+        :param account_id: Optional. The ID of a dbt Cloud account.
+        :return: The request response.
+        """
+        return self._run_and_get_response(method="POST", endpoint=f"{account_id}/jobs/{job_id}/rerun/")
 
     def test_connection(self) -> tuple[bool, str]:
         """Test dbt Cloud connection."""

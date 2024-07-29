@@ -28,6 +28,177 @@
 Changelog
 ---------
 
+3.9.0
+.....
+
+Features
+~~~~~~~~
+
+* ``Add 'retry_from_failure' parameter to DbtCloudRunJobOperator (#38868)``
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fix 'DbtCloudRunJobOperator' to Use Correct Status Parameters for 'reuse_existing_run' (#40048)``
+
+3.8.1
+.....
+
+.. warning::
+  You need to take action on this note only if you are running Airflow>=2.10.0
+  In Airflow 2.10.0, we fix the way try_number works, so that it no longer returns different values depending
+  on task instance state.  Importantly, after the task is done, it no longer shows current_try + 1.
+  Thus we patch this provider to fix try_number references so they no longer adjust for the old, bad behavior.
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Scheduler to handle incrementing of try_number (#39336)``
+* ``Validate dbt 'cause' field to be less than 255 characters (#38896)``
+
+Misc
+~~~~
+
+* ``Faster 'airflow_version' imports (#39552)``
+* ``Simplify 'airflow_version' imports (#39497)``
+* ``Add (optional) dependency between dbt-cloud and openlineage providers (#39366)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Reapply templates for all providers (#39554)``
+
+
+
+3.8.0
+.....
+
+.. note::
+  This release of provider is only available for Airflow 2.7+ as explained in the
+  `Apache Airflow providers support policy <https://github.com/apache/airflow/blob/main/PROVIDERS.rst#minimum-supported-version-of-airflow-for-community-managed-providers>`_.
+
+Bug Fixes
+~~~~~~~~~
+
+* ``fix(dbt): fix wrong payload set when reuse_existing_run set to True in DbtCloudRunJobOperator (#39271)``
+
+Misc
+~~~~
+
+* ``Bump minimum Airflow version in providers to Airflow 2.7.0 (#39240)``
+* ``migrate to dbt v3 api for project endpoints (#39214)``
+
+3.7.1
+.....
+
+Bug Fixes
+~~~~~~~~~
+
+* ``fix: disabled_for_operators now stops whole event emission (#38033)``
+* ``fix(dbt): add return statement to yield within a while loop in triggers (#38395)``
+
+3.7.0
+.....
+
+Features
+~~~~~~~~
+
+* ``feat(providers/dbt): add reuse_existing_run for allowing DbtCloudRunJobOperator to reuse existing run (#37474)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Add comment about versions updated by release manager (#37488)``
+
+3.6.1
+.....
+
+Misc
+~~~~
+
+* ``Bump aiohttp min version to avoid CVE-2024-23829 and CVE-2024-23334 (#37110)``
+* ``feat: Switch all class, functions, methods deprecations to decorators (#36876)``
+
+3.6.0
+.....
+
+Features
+~~~~~~~~
+
+* ``feat: Add dag_id when generating OpenLineage run_id for task instance. (#36659)``
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Fix stacklevel in warnings.warn into the providers (#36831)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Prepare docs 1st wave of Providers January 2024 (#36640)``
+   * ``Speed up autocompletion of Breeze by simplifying provider state (#36499)``
+   * ``Prepare docs 2nd wave of Providers January 2024 (#36945)``
+
+3.5.1
+.....
+
+Bug Fixes
+~~~~~~~~~
+
+* ``Follow BaseHook connection fields method signature in child classes (#36086)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+
+3.5.0
+.....
+
+.. note::
+  This release of provider is only available for Airflow 2.6+ as explained in the
+  `Apache Airflow providers support policy <https://github.com/apache/airflow/blob/main/PROVIDERS.rst#minimum-supported-version-of-airflow-for-community-managed-providers>`_.
+
+Misc
+~~~~
+
+* ``Bump minimum Airflow version in providers to Airflow 2.6.0 (#36017)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Update information about links into the provider.yaml files (#35837)``
+
+3.4.1
+.....
+
+Bug Fixes
+~~~~~~~~~
+
+* ``added cancelled handling in DbtCloudRunJobOperator deferred (#35597)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Use reproducible builds for provider packages (#35693)``
+   * ``Fix and reapply templates for provider documentation (#35686)``
+   * ``Prepare docs 3rd wave of Providers October 2023 - FIX (#35233)``
+   * ``Prepare docs 1st wave of Providers November 2023 (#35537)``
+   * ``Prepare docs 3rd wave of Providers October 2023 (#35187)``
+   * ``Pre-upgrade 'ruff==0.0.292' changes in providers (#35053)``
+   * ``D401 Support - Providers: DaskExecutor to Github (Inclusive) (#34935)``
+
+3.4.0
+.....
+
+.. note::
+  This release of provider is only available for Airflow 2.5+ as explained in the
+  `Apache Airflow providers support policy <https://github.com/apache/airflow/blob/main/PROVIDERS.rst#minimum-supported-version-of-airflow-for-community-managed-providers>`_.
+
+Misc
+~~~~
+
+* ``Bump min airflow version of providers (#34728)``
+* ``Remove useless print from dbt operator (#34322)``
+
+.. Below changes are excluded from the changelog. Move them to
+   appropriate section above if needed. Do not delete the lines(!):
+   * ``Refactor usage of str() in providers (#34320)``
+
+
 3.3.0
 .....
 

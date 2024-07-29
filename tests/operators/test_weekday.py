@@ -34,6 +34,8 @@ from airflow.utils.session import create_session
 from airflow.utils.state import State
 from airflow.utils.weekday import WeekDay
 
+pytestmark = pytest.mark.db_test
+
 DEFAULT_DATE = timezone.datetime(2020, 2, 5)  # Wednesday
 INTERVAL = datetime.timedelta(hours=12)
 TEST_CASE_BRANCH_FOLLOW_TRUE = {
@@ -118,6 +120,7 @@ class TestBranchDayOfWeekOperator:
             start_date=timezone.utcnow(),
             execution_date=DEFAULT_DATE,
             state=State.RUNNING,
+            data_interval=(DEFAULT_DATE, DEFAULT_DATE),
         )
 
         branch_op.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE)
@@ -154,6 +157,7 @@ class TestBranchDayOfWeekOperator:
             start_date=timezone.utcnow(),
             execution_date=DEFAULT_DATE,
             state=State.RUNNING,
+            data_interval=(DEFAULT_DATE, DEFAULT_DATE),
         )
 
         branch_op.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE)
@@ -188,6 +192,7 @@ class TestBranchDayOfWeekOperator:
             start_date=timezone.utcnow(),
             execution_date=DEFAULT_DATE,
             state=State.RUNNING,
+            data_interval=(DEFAULT_DATE, DEFAULT_DATE),
         )
 
         branch_op.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE)
@@ -267,6 +272,7 @@ class TestBranchDayOfWeekOperator:
             start_date=timezone.utcnow(),
             execution_date=DEFAULT_DATE,
             state=State.RUNNING,
+            data_interval=(DEFAULT_DATE, DEFAULT_DATE),
         )
 
         branch_op.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE)

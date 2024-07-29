@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """DAG Cycle tester."""
+
 from __future__ import annotations
 
 from collections import defaultdict, deque
@@ -48,7 +49,8 @@ def test_cycle(dag: DAG) -> None:
 
 
 def check_cycle(dag: DAG) -> None:
-    """Check to see if there are any cycles in the DAG.
+    """
+    Check to see if there are any cycles in the DAG.
 
     :raises AirflowDagCycleException: If cycle is found in the DAG.
     """

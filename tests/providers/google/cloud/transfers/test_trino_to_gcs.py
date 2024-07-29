@@ -17,10 +17,7 @@
 # under the License.
 from __future__ import annotations
 
-import unittest
 from unittest.mock import patch
-
-import pytest
 
 from airflow.providers.google.cloud.transfers.trino_to_gcs import TrinoToGCSOperator
 
@@ -47,8 +44,7 @@ SCHEMA_FILENAME = "schema_test.json"
 SCHEMA_JSON = b'[{"name": "some_num", "type": "INT64"}, {"name": "some_str", "type": "STRING"}]'
 
 
-@pytest.mark.integration("trino")
-class TestTrinoToGCSOperator(unittest.TestCase):
+class TestTrinoToGCSOperator:
     def test_init(self):
         """Test TrinoToGCSOperator instance is properly initialized."""
         op = TrinoToGCSOperator(
@@ -105,7 +101,6 @@ class TestTrinoToGCSOperator(unittest.TestCase):
 
         mock_trino_hook.assert_called_once_with(trino_conn_id=TRINO_CONN_ID)
         mock_gcs_hook.assert_called_once_with(
-            delegate_to=None,
             gcp_conn_id=GCP_CONN_ID,
             impersonation_chain=IMPERSONATION_CHAIN,
         )
@@ -242,7 +237,6 @@ class TestTrinoToGCSOperator(unittest.TestCase):
 
         mock_trino_hook.assert_called_once_with(trino_conn_id=TRINO_CONN_ID)
         mock_gcs_hook.assert_called_once_with(
-            delegate_to=None,
             gcp_conn_id=GCP_CONN_ID,
             impersonation_chain=IMPERSONATION_CHAIN,
         )

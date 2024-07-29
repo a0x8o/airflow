@@ -65,7 +65,7 @@ class TestFlowerDeployment:
             values=values,
             show_only=["templates/flower/flower-deployment.yaml"],
         )
-        expected_result = revision_history_limit if revision_history_limit else global_revision_history_limit
+        expected_result = revision_history_limit or global_revision_history_limit
         assert jmespath.search("spec.revisionHistoryLimit", docs[0]) == expected_result
 
     @pytest.mark.parametrize(
@@ -252,7 +252,7 @@ class TestFlowerDeployment:
                 "flower": {
                     "enabled": True,
                     "extraContainers": [
-                        {"name": "test-container", "image": "test-registry/test-repo:test-tag"}
+                        {"name": "{{ .Chart.Name }}", "image": "test-registry/test-repo:test-tag"}
                     ],
                 },
             },
@@ -260,7 +260,7 @@ class TestFlowerDeployment:
         )
 
         assert {
-            "name": "test-container",
+            "name": "airflow",
             "image": "test-registry/test-repo:test-tag",
         } == jmespath.search("spec.template.spec.containers[-1]", docs[0])
 
@@ -305,7 +305,17 @@ class TestFlowerDeployment:
             values={
                 "flower": {
                     "enabled": True,
-                    "env": [{"name": "TEST_ENV_1", "value": "test_env_1"}],
+                    "env": [
+                        {"name": "TEST_ENV_1", "value": "test_env_1"},
+                        {
+                            "name": "TEST_ENV_2",
+                            "valueFrom": {"secretKeyRef": {"name": "my-secret", "key": "my-key"}},
+                        },
+                        {
+                            "name": "TEST_ENV_3",
+                            "valueFrom": {"configMapKeyRef": {"name": "my-config-map", "key": "my-key"}},
+                        },
+                    ],
                 }
             },
             show_only=["templates/flower/flower-deployment.yaml"],
@@ -314,6 +324,14 @@ class TestFlowerDeployment:
         assert {"name": "TEST_ENV_1", "value": "test_env_1"} in jmespath.search(
             "spec.template.spec.containers[0].env", docs[0]
         )
+        assert {
+            "name": "TEST_ENV_2",
+            "valueFrom": {"secretKeyRef": {"name": "my-secret", "key": "my-key"}},
+        } in jmespath.search("spec.template.spec.containers[0].env", docs[0])
+        assert {
+            "name": "TEST_ENV_3",
+            "valueFrom": {"configMapKeyRef": {"name": "my-config-map", "key": "my-key"}},
+        } in jmespath.search("spec.template.spec.containers[0].env", docs[0])
 
     def test_should_add_component_specific_labels(self):
         docs = render_chart(
@@ -362,6 +380,30 @@ class TestFlowerDeployment:
         )
         assert "annotations" in jmespath.search("metadata", docs[0])
         assert jmespath.search("metadata.annotations", docs[0])["test_annotation"] == "test_annotation_value"
+
+    @pytest.mark.parametrize("probe", ["livenessProbe", "readinessProbe"])
+    def test_probe_values_are_configurable(self, probe):
+        docs = render_chart(
+            values={
+                "flower": {
+                    "enabled": True,
+                    probe: {
+                        "initialDelaySeconds": 111,
+                        "timeoutSeconds": 222,
+                        "failureThreshold": 333,
+                        "periodSeconds": 444,
+                    },
+                },
+            },
+            show_only=["templates/flower/flower-deployment.yaml"],
+        )
+
+        assert 111 == jmespath.search(
+            f"spec.template.spec.containers[0].{probe}.initialDelaySeconds", docs[0]
+        )
+        assert 222 == jmespath.search(f"spec.template.spec.containers[0].{probe}.timeoutSeconds", docs[0])
+        assert 333 == jmespath.search(f"spec.template.spec.containers[0].{probe}.failureThreshold", docs[0])
+        assert 444 == jmespath.search(f"spec.template.spec.containers[0].{probe}.periodSeconds", docs[0])
 
 
 class TestFlowerService:
@@ -603,7 +645,7 @@ class TestFlowerServiceAccount:
         )
         assert jmespath.search("automountServiceAccountToken", docs[0]) is True
 
-    def test_overriden_automount_service_account_token(self):
+    def test_overridden_automount_service_account_token(self):
         docs = render_chart(
             values={
                 "flower": {

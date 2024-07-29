@@ -76,6 +76,7 @@ class Param:
                 "The use of non-json-serializable params is deprecated and will be removed in "
                 "a future release",
                 RemovedInAirflow3Warning,
+                stacklevel=1,
             )
 
     @staticmethod
@@ -91,11 +92,13 @@ class Param:
             f"The use of non-RFC3339 datetime: {value!r} is deprecated "
             "and will be removed in a future release",
             RemovedInAirflow3Warning,
+            stacklevel=1,
         )
         if timezone.is_naive(iso8601_value):
             warnings.warn(
                 "The use naive datetime is deprecated and will be removed in a future release",
                 RemovedInAirflow3Warning,
+                stacklevel=1,
             )
         return value
 
@@ -118,7 +121,7 @@ class Param:
 
         if value is not NOTSET:
             self._warn_if_not_json(value)
-        final_val = value if value is not NOTSET else self.value
+        final_val = self.value if value is NOTSET else value
         if isinstance(final_val, ArgNotSet):
             if suppress_exception:
                 return None
@@ -294,7 +297,8 @@ class ParamsDict(MutableMapping[str, Any]):
 
 
 class DagParam(ResolveMixin):
-    """DAG run parameter reference.
+    """
+    DAG run parameter reference.
 
     This binds a simple Param object to a name within a DAG instance, so that it
     can be resolved during the runtime via the ``{{ context }}`` dictionary. The
@@ -325,7 +329,7 @@ class DagParam(ResolveMixin):
     def iter_references(self) -> Iterable[tuple[Operator, str]]:
         return ()
 
-    def resolve(self, context: Context) -> Any:
+    def resolve(self, context: Context, *, include_xcom: bool = True) -> Any:
         """Pull DagParam value from DagRun context. This method is run during ``op.execute()``."""
         with contextlib.suppress(KeyError):
             return context["dag_run"].conf[self._name]

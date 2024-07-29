@@ -29,6 +29,9 @@ const configTestConnection = getMetaValue("config_test_connection")
 const restApiEnabled = getMetaValue("rest_api_enabled") === "True";
 const connectionTestUrl = getMetaValue("test_url");
 
+// Define editor var which may get populated if extra field exists on the connection
+let editor;
+
 function decode(str) {
   return new DOMParser().parseFromString(str, "text/html").documentElement
     .textContent;
@@ -330,6 +333,11 @@ $(document).ready(() => {
   $("#test-connection").on("click", (e) => {
     e.preventDefault();
     hideAlert();
+    // save the contents of the CodeMirror editor to the textArea if it is populated
+    // (i.e., connection type has extra field)
+    if (Object.prototype.hasOwnProperty.call(editor, "save")) {
+      editor.save();
+    }
     $.ajax({
       url: connectionTestUrl,
       type: "post",
@@ -354,18 +362,26 @@ $(document).ready(() => {
   // Initialize the form by setting a connection type.
   changeConnType(connTypeElem.value);
 
-  // Change conn.extra TextArea widget to CodeMirror
-  const textArea = document.getElementById("extra");
-  const editor = CodeMirror.fromTextArea(textArea, {
-    mode: { name: "javascript", json: true },
-    gutters: ["CodeMirror-lint-markers"],
-    lineWrapping: true,
-    lint: true,
-  });
+  // Get all textarea elements
+  const textAreas = document.getElementsByTagName("textarea");
 
-  // beautify JSON
-  const jsonData = editor.getValue();
-  const data = JSON.parse(jsonData);
-  const formattedData = JSON.stringify(data, null, 2);
-  editor.setValue(formattedData);
+  Array.from(textAreas).forEach((textArea) => {
+    if (textArea.id !== "description" && !$(textArea).is(":hidden")) {
+      // Change TextArea widget to CodeMirror
+      editor = CodeMirror.fromTextArea(textArea, {
+        mode: { name: "javascript", json: true },
+        gutters: ["CodeMirror-lint-markers"],
+        lineWrapping: true,
+        lint: true,
+      });
+
+      // beautify JSON but only if it is not equal to default value of empty string
+      const jsonData = editor.getValue();
+      if (jsonData !== "") {
+        const data = JSON.parse(jsonData);
+        const formattedData = JSON.stringify(data, null, 2);
+        editor.setValue(formattedData);
+      }
+    }
+  });
 });

@@ -18,18 +18,29 @@
 from __future__ import annotations
 
 import datetime as dt
-from typing import overload
+from importlib import metadata
+from typing import TYPE_CHECKING, overload
 
 import pendulum
 from dateutil.relativedelta import relativedelta
+from packaging import version
 from pendulum.datetime import DateTime
 
-# UTC time zone as a tzinfo instance.
-utc = pendulum.tz.timezone("UTC")
+if TYPE_CHECKING:
+    from pendulum.tz.timezone import FixedTimezone, Timezone
+
+    from airflow.typing_compat import Literal
+
+_PENDULUM3 = version.parse(metadata.version("pendulum")).major == 3
+# UTC Timezone as a tzinfo instance. Actual value depends on pendulum version:
+# - Timezone("UTC") in pendulum 3
+# - FixedTimezone(0, "UTC") in pendulum 2
+utc = pendulum.UTC
 
 
 def is_localized(value):
-    """Determine if a given datetime.datetime is aware.
+    """
+    Determine if a given datetime.datetime is aware.
 
     The concept is defined in Python documentation. Assuming the tzinfo is
     either None or a proper ``datetime.tzinfo`` instance, ``value.utcoffset()``
@@ -41,7 +52,8 @@ def is_localized(value):
 
 
 def is_naive(value):
-    """Determine if a given datetime.datetime is naive.
+    """
+    Determine if a given datetime.datetime is naive.
 
     The concept is defined in Python documentation. Assuming the tzinfo is
     either None or a proper ``datetime.tzinfo`` instance, ``value.utcoffset()``
@@ -54,13 +66,7 @@ def is_naive(value):
 
 def utcnow() -> dt.datetime:
     """Get the current date and time in UTC."""
-    # pendulum utcnow() is not used as that sets a TimezoneInfo object
-    # instead of a Timezone. This is not picklable and also creates issues
-    # when using replace()
-    result = dt.datetime.utcnow()
-    result = result.replace(tzinfo=utc)
-
-    return result
+    return dt.datetime.now(tz=utc)
 
 
 def utc_epoch() -> dt.datetime:
@@ -75,17 +81,16 @@ def utc_epoch() -> dt.datetime:
 
 
 @overload
-def convert_to_utc(value: None) -> None:
-    ...
+def convert_to_utc(value: None) -> None: ...
 
 
 @overload
-def convert_to_utc(value: dt.datetime) -> DateTime:
-    ...
+def convert_to_utc(value: dt.datetime) -> DateTime: ...
 
 
 def convert_to_utc(value: dt.datetime | None) -> DateTime | None:
-    """Create a datetime with the default timezone added if none is associated.
+    """
+    Create a datetime with the default timezone added if none is associated.
 
     :param value: datetime
     :return: datetime with tzinfo
@@ -102,18 +107,15 @@ def convert_to_utc(value: dt.datetime | None) -> DateTime | None:
 
 
 @overload
-def make_aware(value: None, timezone: dt.tzinfo | None = None) -> None:
-    ...
+def make_aware(value: None, timezone: dt.tzinfo | None = None) -> None: ...
 
 
 @overload
-def make_aware(value: DateTime, timezone: dt.tzinfo | None = None) -> DateTime:
-    ...
+def make_aware(value: DateTime, timezone: dt.tzinfo | None = None) -> DateTime: ...
 
 
 @overload
-def make_aware(value: dt.datetime, timezone: dt.tzinfo | None = None) -> dt.datetime:
-    ...
+def make_aware(value: dt.datetime, timezone: dt.tzinfo | None = None) -> dt.datetime: ...
 
 
 def make_aware(value: dt.datetime | None, timezone: dt.tzinfo | None = None) -> dt.datetime | None:
@@ -135,12 +137,10 @@ def make_aware(value: dt.datetime | None, timezone: dt.tzinfo | None = None) -> 
     # Check that we won't overwrite the timezone of an aware datetime.
     if is_localized(value):
         raise ValueError(f"make_aware expects a naive datetime, got {value}")
-    if hasattr(value, "fold"):
-        # In case of python 3.6 we want to do the same that pendulum does for python3.5
-        # i.e in case we move clock back we want to schedule the run at the time of the second
-        # instance of the same clock time rather than the first one.
-        # Fold parameter has no impact in other cases so we can safely set it to 1 here
-        value = value.replace(fold=1)
+    # In case we move clock back we want to schedule the run at the time of the second
+    # instance of the same clock time rather than the first one.
+    # Fold parameter has no impact in other cases, so we can safely set it to 1 here
+    value = value.replace(fold=1)
     localized = getattr(timezone, "localize", None)
     if localized is not None:
         # This method is available for pytz time zones
@@ -208,22 +208,20 @@ def parse(string: str, timezone=None, *, strict=False) -> DateTime:
 
 
 @overload
-def coerce_datetime(v: None, tz: dt.tzinfo | None = None) -> None:
-    ...
+def coerce_datetime(v: None, tz: dt.tzinfo | None = None) -> None: ...
 
 
 @overload
-def coerce_datetime(v: DateTime, tz: dt.tzinfo | None = None) -> DateTime:
-    ...
+def coerce_datetime(v: DateTime, tz: dt.tzinfo | None = None) -> DateTime: ...
 
 
 @overload
-def coerce_datetime(v: dt.datetime, tz: dt.tzinfo | None = None) -> DateTime:
-    ...
+def coerce_datetime(v: dt.datetime, tz: dt.tzinfo | None = None) -> DateTime: ...
 
 
 def coerce_datetime(v: dt.datetime | None, tz: dt.tzinfo | None = None) -> DateTime | None:
-    """Convert ``v`` into a timezone-aware ``pendulum.DateTime``.
+    """
+    Convert ``v`` into a timezone-aware ``pendulum.DateTime``.
 
     * If ``v`` is *None*, *None* is returned.
     * If ``v`` is a naive datetime, it is converted to an aware Pendulum DateTime.
@@ -273,3 +271,51 @@ def td_format(td_object: None | dt.timedelta | float | int) -> str | None:
     if not joined:
         return "<1s"
     return joined
+
+
+def parse_timezone(name: str | int) -> FixedTimezone | Timezone:
+    """
+    Parse timezone and return one of the pendulum Timezone.
+
+    Provide the same interface as ``pendulum.timezone(name)``
+
+    :param name: Either IANA timezone or offset to UTC in seconds.
+
+    :meta private:
+    """
+    if _PENDULUM3:
+        # This only presented in pendulum 3 and code do not reached into the pendulum 2
+        return pendulum.timezone(name)  # type: ignore[operator]
+    # In pendulum 2 this refers to the function, in pendulum 3 refers to the module
+    return pendulum.tz.timezone(name)  # type: ignore[operator]
+
+
+def local_timezone() -> FixedTimezone | Timezone:
+    """
+    Return local timezone.
+
+    Provide the same interface as ``pendulum.tz.local_timezone()``
+
+    :meta private:
+    """
+    return pendulum.tz.local_timezone()
+
+
+def from_timestamp(
+    timestamp: int | float, tz: str | FixedTimezone | Timezone | Literal["local"] = utc
+) -> DateTime:
+    """
+    Parse timestamp and return DateTime in a given time zone.
+
+    :param timestamp: epoch time in seconds.
+    :param tz: In which timezone should return a resulting object.
+        Could be either one of pendulum timezone, IANA timezone or `local` literal.
+
+    :meta private:
+    """
+    result = coerce_datetime(dt.datetime.fromtimestamp(timestamp, tz=utc))
+    if tz != utc or tz != "UTC":
+        if isinstance(tz, str) and tz.lower() == "local":
+            tz = local_timezone()
+        result = result.in_timezone(tz)
+    return result

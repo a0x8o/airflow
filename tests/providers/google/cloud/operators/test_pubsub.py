@@ -41,6 +41,9 @@ TEST_MESSAGES = [
     {"data": b"Knock, knock"},
     {"attributes": {"foo": ""}},
 ]
+TEST_MESSAGES_ORDERING_KEY = [
+    {"data": b"Hello, World!", "attributes": {"ordering_key": "key"}},
+]
 
 
 class TestPubSubTopicCreateOperator:
@@ -59,6 +62,8 @@ class TestPubSubTopicCreateOperator:
             labels=None,
             message_storage_policy=None,
             kms_key_name=None,
+            schema_settings=None,
+            message_retention_duration=None,
             retry=DEFAULT,
             timeout=None,
             metadata=(),
@@ -79,6 +84,8 @@ class TestPubSubTopicCreateOperator:
             labels=None,
             message_storage_policy=None,
             kms_key_name=None,
+            schema_settings=None,
+            message_retention_duration=None,
             retry=DEFAULT,
             timeout=None,
             metadata=(),
@@ -229,6 +236,21 @@ class TestPubSubPublishOperator:
         operator.execute(None)
         mock_hook.return_value.publish.assert_called_once_with(
             project_id=TEST_PROJECT, topic=TEST_TOPIC, messages=TEST_MESSAGES
+        )
+
+    @mock.patch("airflow.providers.google.cloud.operators.pubsub.PubSubHook")
+    def test_publish_with_ordering_key(self, mock_hook):
+        operator = PubSubPublishMessageOperator(
+            task_id=TASK_ID,
+            project_id=TEST_PROJECT,
+            topic=TEST_TOPIC,
+            messages=TEST_MESSAGES_ORDERING_KEY,
+            enable_message_ordering=True,
+        )
+
+        operator.execute(None)
+        mock_hook.return_value.publish.assert_called_once_with(
+            project_id=TEST_PROJECT, topic=TEST_TOPIC, messages=TEST_MESSAGES_ORDERING_KEY
         )
 
 

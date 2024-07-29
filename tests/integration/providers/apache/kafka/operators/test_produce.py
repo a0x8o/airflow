@@ -41,6 +41,7 @@ class TestProduceToTopic:
     """
 
     def setup_method(self):
+        GROUP = "operator.producer.test.integration.test_1"
         db.merge_conn(
             Connection(
                 conn_id="kafka_default",
@@ -50,13 +51,13 @@ class TestProduceToTopic:
                         "socket.timeout.ms": 10,
                         "message.timeout.ms": 10,
                         "bootstrap.servers": "broker:29092",
+                        "group.id": GROUP,
                     }
                 ),
             )
         )
 
     def test_producer_operator_test_1(self):
-
         GROUP = "operator.producer.test.integration.test_1"
         TOPIC = "operator.producer.test.integration.test_1"
 
@@ -84,7 +85,6 @@ class TestProduceToTopic:
         assert msg[0].value() == b"1"
 
     def test_producer_operator_test_2(self):
-
         GROUP = "operator.producer.test.integration.test_2"
         TOPIC = "operator.producer.test.integration.test_2"
 

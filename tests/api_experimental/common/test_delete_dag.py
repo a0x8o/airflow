@@ -23,7 +23,6 @@ from airflow.api.common.delete_dag import delete_dag
 from airflow.exceptions import AirflowException, DagNotFound
 from airflow.models.dag import DAG, DagModel
 from airflow.models.dagrun import DagRun as DR
-from airflow.models.errors import ImportError as IE
 from airflow.models.log import Log
 from airflow.models.taskfail import TaskFail
 from airflow.models.taskinstance import TaskInstance as TI
@@ -33,7 +32,10 @@ from airflow.utils import timezone
 from airflow.utils.session import create_session
 from airflow.utils.state import State
 from airflow.utils.types import DagRunType
+from tests.test_utils.compat import ParseImportError as IE
 from tests.test_utils.db import clear_db_dags, clear_db_runs
+
+pytestmark = pytest.mark.db_test
 
 
 class TestDeleteDAGCatchError:
@@ -97,7 +99,8 @@ class TestDeleteDAGSuccessfulDelete:
             session.add(TaskFail(ti=ti))
             session.add(
                 TR(
-                    task=ti.task,
+                    task_id=ti.task_id,
+                    dag_id=ti.dag_id,
                     run_id=ti.run_id,
                     start_date=test_date,
                     end_date=test_date,
@@ -162,7 +165,6 @@ class TestDeleteDAGSuccessfulDelete:
         self.check_dag_models_removed(expect_logs=0)
 
     def test_delete_dag_preserves_other_dags(self):
-
         self.setup_dag_models()
 
         with create_session() as session:

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import warnings
 from datetime import timedelta
+from os.path import isabs
 
 from flask import Flask
 from flask_appbuilder import SQLA
@@ -36,6 +37,7 @@ from airflow.settings import _ENABLE_AIP_44
 from airflow.utils.json import AirflowJsonProvider
 from airflow.www.extensions.init_appbuilder import init_appbuilder
 from airflow.www.extensions.init_appbuilder_links import init_appbuilder_links
+from airflow.www.extensions.init_auth_manager import get_auth_manager
 from airflow.www.extensions.init_cache import init_cache
 from airflow.www.extensions.init_dagbag import init_dagbag
 from airflow.www.extensions.init_jinja_globals import init_jinja_globals
@@ -43,12 +45,15 @@ from airflow.www.extensions.init_manifest_files import configure_manifest_files
 from airflow.www.extensions.init_robots import init_robots
 from airflow.www.extensions.init_security import (
     init_api_experimental_auth,
+    init_cache_control,
     init_check_user_active,
     init_xframe_protection,
 )
 from airflow.www.extensions.init_session import init_airflow_session_interface
 from airflow.www.extensions.init_views import (
+    init_api_auth_provider,
     init_api_connexion,
+    init_api_error_handlers,
     init_api_experimental,
     init_api_internal,
     init_appbuilder_views,
@@ -65,22 +70,14 @@ app: Flask | None = None
 csrf = CSRFProtect()
 
 
-def sync_appbuilder_roles(flask_app):
-    """Sync appbuilder roles to DB."""
-    # Garbage collect old permissions/views after they have been modified.
-    # Otherwise, when the name of a view or menu is changed, the framework
-    # will add the new Views and Menus names to the backend, but will not
-    # delete the old ones.
-    if conf.getboolean("webserver", "UPDATE_FAB_PERMS"):
-        flask_app.appbuilder.sm.sync_roles()
-
-
 def create_app(config=None, testing=False):
     """Create a new instance of Airflow WWW app."""
     flask_app = Flask(__name__)
     flask_app.secret_key = conf.get("webserver", "SECRET_KEY")
 
     flask_app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(minutes=settings.get_session_lifetime_config())
+
+    flask_app.config["MAX_CONTENT_LENGTH"] = conf.getfloat("webserver", "allowed_payload_size") * 1024 * 1024
 
     webserver_config = conf.get_mandatory_value("webserver", "config_file")
     # Enable customizations in webserver_config.py to be applied via Flask.current_app.
@@ -91,6 +88,9 @@ def create_app(config=None, testing=False):
     flask_app.config["SQLALCHEMY_DATABASE_URI"] = conf.get("database", "SQL_ALCHEMY_CONN")
 
     instance_name = conf.get(section="webserver", key="instance_name", fallback="Airflow")
+    require_confirmation_dag_change = conf.getboolean(
+        section="webserver", key="require_confirmation_dag_change", fallback=False
+    )
     instance_name_has_markup = conf.getboolean(
         section="webserver", key="instance_name_has_markup", fallback=False
     )
@@ -98,9 +98,10 @@ def create_app(config=None, testing=False):
         instance_name = Markup(instance_name).striptags()
 
     flask_app.config["APP_NAME"] = instance_name
+    flask_app.config["REQUIRE_CONFIRMATION_DAG_CHANGE"] = require_confirmation_dag_change
 
     url = make_url(flask_app.config["SQLALCHEMY_DATABASE_URI"])
-    if url.drivername == "sqlite" and url.database and not url.database.startswith("/"):
+    if url.drivername == "sqlite" and url.database and not isabs(url.database):
         raise AirflowConfigException(
             f'Cannot use relative path: `{conf.get("database", "SQL_ALCHEMY_CONN")}` to connect to sqlite. '
             "Please use absolute path such as `sqlite:////tmp/airflow.db`."
@@ -117,9 +118,14 @@ def create_app(config=None, testing=False):
             "Old deprecated value found for `cookie_samesite` option in `[webserver]` section. "
             "Using `Lax` instead. Change the value to `Lax` in airflow.cfg to remove this warning.",
             RemovedInAirflow3Warning,
+            stacklevel=2,
         )
         cookie_samesite_config = "Lax"
     flask_app.config["SESSION_COOKIE_SAMESITE"] = cookie_samesite_config
+
+    # Above Flask 2.0.x, default value of SEND_FILE_MAX_AGE_DEFAULT changed 12 hours to None.
+    # for static file caching, it needs to set value explicitly.
+    flask_app.config["SEND_FILE_MAX_AGE_DEFAULT"] = timedelta(seconds=43200)
 
     if config:
         flask_app.config.from_mapping(config)
@@ -131,7 +137,8 @@ def create_app(config=None, testing=False):
     flask_app.json_provider_class = AirflowJsonProvider
     flask_app.json = AirflowJsonProvider(flask_app)
 
-    InternalApiConfig.force_database_direct_access()
+    if conf.getboolean("core", "database_access_isolation", fallback=False):
+        InternalApiConfig.set_use_database_access("Gunicorn worker initialization")
 
     csrf.init_app(flask_app)
 
@@ -169,11 +176,14 @@ def create_app(config=None, testing=False):
                 raise RuntimeError("The AIP_44 is not enabled so you cannot use it.")
             init_api_internal(flask_app)
         init_api_experimental(flask_app)
+        init_api_auth_provider(flask_app)
+        init_api_error_handlers(flask_app)  # needs to be after all api inits to let them add their path first
 
-        sync_appbuilder_roles(flask_app)
+        get_auth_manager().init()
 
         init_jinja_globals(flask_app)
         init_xframe_protection(flask_app)
+        init_cache_control(flask_app)
         init_airflow_session_interface(flask_app)
         init_check_user_active(flask_app)
     return flask_app
@@ -188,6 +198,6 @@ def cached_app(config=None, testing=False):
 
 
 def purge_cached_app():
-    """Removes the cached version of the app in global state."""
+    """Remove the cached version of the app in global state."""
     global app
     app = None

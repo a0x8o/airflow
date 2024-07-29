@@ -62,38 +62,38 @@
     Detailed list of commits <commits>
 
 
-Package apache-airflow-providers-vertica
+apache-airflow-providers-vertica package
 ------------------------------------------------------
 
 `Vertica <https://www.vertica.com/>`__
 
 
-Release: 3.5.2
+Release: 3.8.2
 
 Provider package
 ----------------
 
-This is a provider package for ``vertica`` provider. All classes for this provider package
-are in ``airflow.providers.vertica`` python package.
+This package is for the ``vertica`` provider.
+All classes for this package are included in the ``airflow.providers.vertica`` python package.
 
 Installation
 ------------
 
-You can install this package on top of an existing Airflow 2 installation (see ``Requirements`` below)
-for the minimum Airflow version supported) via
-``pip install apache-airflow-providers-vertica``
+You can install this package on top of an existing Airflow 2 installation via
+``pip install apache-airflow-providers-vertica``.
+For the minimum Airflow version supported, see ``Requirements`` below.
 
 Requirements
 ------------
 
-The minimum Apache Airflow version supported by this provider package is ``2.4.0``.
+The minimum Apache Airflow version supported by this provider package is ``2.7.0``.
 
 =======================================  ==================
 PIP package                              Version required
 =======================================  ==================
-``apache-airflow``                       ``>=2.4.0``
+``apache-airflow``                       ``>=2.7.0``
 ``apache-airflow-providers-common-sql``  ``>=1.3.1``
-``vertica-python``                       ``>=0.5.1``
+``vertica-python``                       ``>=0.6.0``
 =======================================  ==================
 
 Cross provider package dependencies
@@ -121,5 +121,5 @@ Downloading official packages
 You can download officially released packages and verify their checksums and signatures from the
 `Official Apache Download site <https://downloads.apache.org/airflow/providers/>`_
 
-* `The apache-airflow-providers-vertica 3.5.2 sdist package <https://downloads.apache.org/airflow/providers/apache-airflow-providers-vertica-3.5.2.tar.gz>`_ (`asc <https://downloads.apache.org/airflow/providers/apache-airflow-providers-vertica-3.5.2.tar.gz.asc>`__, `sha512 <https://downloads.apache.org/airflow/providers/apache-airflow-providers-vertica-3.5.2.tar.gz.sha512>`__)
-* `The apache-airflow-providers-vertica 3.5.2 wheel package <https://downloads.apache.org/airflow/providers/apache_airflow_providers_vertica-3.5.2-py3-none-any.whl>`_ (`asc <https://downloads.apache.org/airflow/providers/apache_airflow_providers_vertica-3.5.2-py3-none-any.whl.asc>`__, `sha512 <https://downloads.apache.org/airflow/providers/apache_airflow_providers_vertica-3.5.2-py3-none-any.whl.sha512>`__)
+* `The apache-airflow-providers-vertica 3.8.2 sdist package <https://downloads.apache.org/airflow/providers/apache_airflow_providers_vertica-3.8.2.tar.gz>`_ (`asc <https://downloads.apache.org/airflow/providers/apache_airflow_providers_vertica-3.8.2.tar.gz.asc>`__, `sha512 <https://downloads.apache.org/airflow/providers/apache_airflow_providers_vertica-3.8.2.tar.gz.sha512>`__)
+* `The apache-airflow-providers-vertica 3.8.2 wheel package <https://downloads.apache.org/airflow/providers/apache_airflow_providers_vertica-3.8.2-py3-none-any.whl>`_ (`asc <https://downloads.apache.org/airflow/providers/apache_airflow_providers_vertica-3.8.2-py3-none-any.whl.asc>`__, `sha512 <https://downloads.apache.org/airflow/providers/apache_airflow_providers_vertica-3.8.2-py3-none-any.whl.sha512>`__)

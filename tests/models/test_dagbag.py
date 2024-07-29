@@ -22,10 +22,10 @@ import os
 import pathlib
 import sys
 import textwrap
+import warnings
 import zipfile
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-from typing import Iterator
 from unittest import mock
 from unittest.mock import patch
 
@@ -36,7 +36,7 @@ from sqlalchemy.exc import OperationalError
 
 import airflow.example_dags
 from airflow import settings
-from airflow.exceptions import SerializationError
+from airflow.exceptions import RemovedInAirflow3Warning, SerializationError
 from airflow.models.dag import DAG, DagModel
 from airflow.models.dagbag import DagBag
 from airflow.models.serialized_dag import SerializedDagModel
@@ -49,6 +49,8 @@ from tests.models import TEST_DAGS_FOLDER
 from tests.test_utils import db
 from tests.test_utils.asserts import assert_queries_count
 from tests.test_utils.config import conf_vars
+
+pytestmark = pytest.mark.db_test
 
 example_dags_folder = pathlib.Path(airflow.example_dags.__path__[0])  # type: ignore[attr-defined]
 
@@ -162,7 +164,7 @@ class TestDagBag:
             def my_flow():
                 pass
 
-            my_dag = my_flow()  # noqa
+            my_dag = my_flow()  # noqa: F841
 
         source_lines = [line[12:] for line in inspect.getsource(create_dag).splitlines(keepends=True)[1:]]
         path1 = tmp_path / "testfile1"
@@ -171,7 +173,8 @@ class TestDagBag:
         path2.write_text("".join(source_lines))
 
         found_1 = dagbag.process_file(os.fspath(path1))
-        assert len(found_1) == 1 and found_1[0].dag_id == "my_flow"
+        assert len(found_1) == 1
+        assert found_1[0].dag_id == "my_flow"
         assert dagbag.import_errors == {}
         dags_in_bag = dagbag.dags
 
@@ -260,16 +263,16 @@ class TestDagBag:
         ):
             dagbag.process_file(os.path.join(TEST_DAGS_FOLDER, "test_default_views.py"))
 
-    @pytest.fixture()
+    @pytest.fixture
     def invalid_cron_dag(self) -> str:
         return os.path.join(TEST_DAGS_FOLDER, "test_invalid_cron.py")
 
-    @pytest.fixture()
-    def invalid_cron_zipped_dag(self, invalid_cron_dag: str, tmp_path: pathlib.Path) -> Iterator[str]:
+    @pytest.fixture
+    def invalid_cron_zipped_dag(self, invalid_cron_dag: str, tmp_path: pathlib.Path) -> str:
         zipped = tmp_path / "test_zip_invalid_cron.zip"
         with zipfile.ZipFile(zipped, "w") as zf:
             zf.write(invalid_cron_dag, os.path.basename(invalid_cron_dag))
-        yield os.fspath(zipped)
+        return os.fspath(zipped)
 
     @pytest.mark.parametrize("invalid_dag_name", ["invalid_cron_dag", "invalid_cron_zipped_dag"])
     def test_process_file_cron_validity_check(
@@ -284,9 +287,14 @@ class TestDagBag:
 
     def test_process_file_invalid_param_check(self, tmp_path):
         """
-        test if an invalid param in the dag param can be identified
+        test if an invalid param in the dags can be identified
         """
-        invalid_dag_files = ["test_invalid_param.py"]
+        invalid_dag_files = [
+            "test_invalid_param.py",
+            "test_invalid_param2.py",
+            "test_invalid_param3.py",
+            "test_invalid_param4.py",
+        ]
         dagbag = DagBag(dag_folder=os.fspath(tmp_path), include_examples=False)
 
         assert len(dagbag.import_errors) == 0
@@ -294,6 +302,22 @@ class TestDagBag:
             dagbag.process_file(os.path.join(TEST_DAGS_FOLDER, file))
         assert len(dagbag.import_errors) == len(invalid_dag_files)
         assert len(dagbag.dags) == 0
+
+    def test_process_file_valid_param_check(self, tmp_path):
+        """
+        test if valid params in the dags param can be validated (positive test)
+        """
+        valid_dag_files = [
+            "test_valid_param.py",
+            "test_valid_param2.py",
+        ]
+        dagbag = DagBag(dag_folder=os.fspath(tmp_path), include_examples=False)
+
+        assert len(dagbag.import_errors) == 0
+        for file in valid_dag_files:
+            dagbag.process_file(os.path.join(TEST_DAGS_FOLDER, file))
+        assert len(dagbag.import_errors) == 0
+        assert len(dagbag.dags) == len(valid_dag_files)
 
     @patch.object(DagModel, "get_current")
     def test_get_dag_without_refresh(self, mock_dagmodel):
@@ -362,15 +386,15 @@ class TestDagBag:
         found = dagbag.process_file(str(TEST_DAGS_FOLDER / "test_invalid_dup_task.py"))
         assert [] == found
 
-    @pytest.fixture()
-    def zip_with_valid_dag_and_dup_tasks(self, tmp_path: pathlib.Path) -> Iterator[str]:
+    @pytest.fixture
+    def zip_with_valid_dag_and_dup_tasks(self, tmp_path: pathlib.Path) -> str:
         failing_dag_file = TEST_DAGS_FOLDER / "test_invalid_dup_task.py"
         working_dag_file = TEST_DAGS_FOLDER / "test_example_bash_operator.py"
         zipped = tmp_path / "test_zip_invalid_dup_task.zip"
         with zipfile.ZipFile(zipped, "w") as zf:
             zf.write(failing_dag_file, failing_dag_file.name)
             zf.write(working_dag_file, working_dag_file.name)
-        yield os.fspath(zipped)
+        return os.fspath(zipped)
 
     def test_dag_registration_with_failure_zipped(self, zip_with_valid_dag_and_dup_tasks):
         dagbag = DagBag(dag_folder=os.devnull, include_examples=False)
@@ -741,7 +765,11 @@ class TestDagBag:
 
             return dag
 
-        test_dag = nested_subdag_cycle()
+        with pytest.warns(
+            RemovedInAirflow3Warning,
+            match="This class is deprecated. Please use `airflow.utils.task_group.TaskGroup`.",
+        ):
+            test_dag = nested_subdag_cycle()
         # coherence check to make sure DAG.subdag is still functioning properly
         assert len(test_dag.subdags) == 6
 
@@ -865,7 +893,9 @@ class TestDagBag:
         # and the session was roll-backed before even reaching 'SerializedDagModel.write_dag'
         mock_s10n_write_dag.assert_has_calls(
             [
-                mock.call(mock_dag, min_update_interval=mock.ANY, session=mock_session),
+                mock.call(
+                    mock_dag, min_update_interval=mock.ANY, processor_subdir=None, session=mock_session
+                ),
             ]
         )
 
@@ -1120,3 +1150,43 @@ class TestDagBag:
         # test that dagbag.dags is not empty if collect_dags is True
         dagbag = DagBag(dag_folder=TEST_DAGS_FOLDER, include_examples=False)
         assert dagbag.dags
+
+    def test_dabgag_captured_warnings(self):
+        dag_file = os.path.join(TEST_DAGS_FOLDER, "test_dag_warnings.py")
+        dagbag = DagBag(dag_folder=dag_file, include_examples=False, collect_dags=False)
+        assert dag_file not in dagbag.captured_warnings
+
+        dagbag.collect_dags(dag_folder=dagbag.dag_folder, include_examples=False, only_if_updated=False)
+        assert len(dagbag.dag_ids) == 1
+        assert dag_file in dagbag.captured_warnings
+        captured_warnings = dagbag.captured_warnings[dag_file]
+        assert len(captured_warnings) == 2
+        assert dagbag.dagbag_stats[0].warning_num == 2
+
+        assert captured_warnings[0] == (f"{dag_file}:47: DeprecationWarning: Deprecated Parameter")
+        assert captured_warnings[1] == f"{dag_file}:49: UserWarning: Some Warning"
+
+        with warnings.catch_warnings():
+            # Disable capture DeprecationWarning, and it should be reflected in captured warnings
+            warnings.simplefilter("ignore", DeprecationWarning)
+            dagbag.collect_dags(dag_folder=dagbag.dag_folder, include_examples=False, only_if_updated=False)
+            assert dag_file in dagbag.captured_warnings
+            assert len(dagbag.captured_warnings[dag_file]) == 1
+            assert dagbag.dagbag_stats[0].warning_num == 1
+
+            # Disable all warnings, no captured warnings expected
+            warnings.simplefilter("ignore")
+            dagbag.collect_dags(dag_folder=dagbag.dag_folder, include_examples=False, only_if_updated=False)
+            assert dag_file not in dagbag.captured_warnings
+            assert dagbag.dagbag_stats[0].warning_num == 0
+
+    def test_dabgag_captured_warnings_zip(self):
+        dag_file = os.path.join(TEST_DAGS_FOLDER, "test_dag_warnings.zip")
+        in_zip_dag_file = f"{dag_file}/test_dag_warnings.py"
+        dagbag = DagBag(dag_folder=dag_file, include_examples=False)
+        assert len(dagbag.dag_ids) == 1
+        assert dag_file in dagbag.captured_warnings
+        captured_warnings = dagbag.captured_warnings[dag_file]
+        assert len(captured_warnings) == 2
+        assert captured_warnings[0] == (f"{in_zip_dag_file}:47: DeprecationWarning: Deprecated Parameter")
+        assert captured_warnings[1] == f"{in_zip_dag_file}:49: UserWarning: Some Warning"

@@ -16,11 +16,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """This module contains Google Ad hook."""
+
 from __future__ import annotations
 
 from functools import cached_property
 from tempfile import NamedTemporaryFile
-from typing import IO, TYPE_CHECKING, Any
+from typing import IO, TYPE_CHECKING, Any, Literal
 
 from google.ads.googleads.client import GoogleAdsClient
 from google.ads.googleads.errors import GoogleAdsException
@@ -31,48 +32,76 @@ from airflow.hooks.base import BaseHook
 from airflow.providers.google.common.hooks.base_google import get_field
 
 if TYPE_CHECKING:
-    from google.ads.googleads.v14.services.services.customer_service import CustomerServiceClient
-    from google.ads.googleads.v14.services.services.google_ads_service import GoogleAdsServiceClient
-    from google.ads.googleads.v14.services.types.google_ads_service import GoogleAdsRow
+    from google.ads.googleads.v17.services.services.customer_service import CustomerServiceClient
+    from google.ads.googleads.v17.services.services.google_ads_service import GoogleAdsServiceClient
+    from google.ads.googleads.v17.services.types.google_ads_service import GoogleAdsRow
     from google.api_core.page_iterator import GRPCIterator
 
 
 class GoogleAdsHook(BaseHook):
-    """Interact with Google Ads API.
+    """
+    Interact with Google Ads API.
 
-    This hook requires two connections:
+    This hook offers two flows of authentication.
 
-    - gcp_conn_id - provides service account details (like any other GCP connection)
-    - google_ads_conn_id - which contains information from Google Ads config.yaml file
-        in the ``extras``. Example of the ``extras``:
+    1. OAuth Service Account Flow (requires two connections)
 
-        .. code-block:: json
+        - gcp_conn_id - provides service account details (like any other GCP connection)
+        - google_ads_conn_id - which contains information from Google Ads config.yaml file
+            in the ``extras``. Example of the ``extras``:
 
-            {
-                "google_ads_client": {
-                    "developer_token": "{{ INSERT_TOKEN }}",
-                    "json_key_file_path": null,
-                    "impersonated_email": "{{ INSERT_IMPERSONATED_EMAIL }}"
+            .. code-block:: json
+
+                {
+                    "google_ads_client": {
+                        "developer_token": "{{ INSERT_TOKEN }}",
+                        "json_key_file_path": null,
+                        "impersonated_email": "{{ INSERT_IMPERSONATED_EMAIL }}"
+                    }
                 }
-            }
 
-        The ``json_key_file_path`` is resolved by the hook using credentials from gcp_conn_id.
-        https://developers.google.com/google-ads/api/docs/client-libs/python/oauth-service
+            The ``json_key_file_path`` is resolved by the hook using credentials from gcp_conn_id.
+            https://developers.google.com/google-ads/api/docs/client-libs/python/oauth-service
 
-    .. seealso::
-        For more information on how Google Ads authentication flow works take a look at:
-        https://developers.google.com/google-ads/api/docs/client-libs/python/oauth-service
+        .. seealso::
+            For more information on how Google Ads authentication flow works take a look at:
+            https://developers.google.com/google-ads/api/docs/client-libs/python/oauth-service
 
-    .. seealso::
-        For more information on the Google Ads API, take a look at the API docs:
-        https://developers.google.com/google-ads/api/docs/start
+        .. seealso::
+            For more information on the Google Ads API, take a look at the API docs:
+            https://developers.google.com/google-ads/api/docs/start
+
+    2. Developer token from API center flow (only requires google_ads_conn_id)
+
+        - google_ads_conn_id - which contains developer token, refresh token, client_id and client_secret
+            in the ``extras``. Example of the ``extras``:
+
+            .. code-block:: json
+
+                {
+                    "google_ads_client": {
+                        "developer_token": "{{ INSERT_DEVELOPER_TOKEN }}",
+                        "refresh_token": "{{ INSERT_REFRESH_TOKEN }}",
+                        "client_id": "{{ INSERT_CLIENT_ID }}",
+                        "client_secret": "{{ INSERT_CLIENT_SECRET }}",
+                        "use_proto_plus": "{{ True or False }}",
+                    }
+                }
+
+        .. seealso::
+            For more information on how to obtain a developer token look at:
+            https://developers.google.com/google-ads/api/docs/get-started/dev-token
+
+        .. seealso::
+            For more information about use_proto_plus option see the Protobuf Messages guide:
+            https://developers.google.com/google-ads/api/docs/client-libs/python/protobuf-messages
 
     :param gcp_conn_id: The connection ID with the service account details.
     :param google_ads_conn_id: The connection ID with the details of Google Ads config.yaml file.
     :param api_version: The Google Ads API version to use.
     """
 
-    default_api_version = "v14"
+    default_api_version = "v17"
 
     def __init__(
         self,
@@ -85,11 +114,13 @@ class GoogleAdsHook(BaseHook):
         self.gcp_conn_id = gcp_conn_id
         self.google_ads_conn_id = google_ads_conn_id
         self.google_ads_config: dict[str, Any] = {}
+        self.authentication_method: Literal["service_account", "developer_token"] = "service_account"
 
     def search(
         self, client_ids: list[str], query: str, page_size: int = 10000, **kwargs
     ) -> list[GoogleAdsRow]:
-        """Pull data from the Google Ads API.
+        """
+        Pull data from the Google Ads API.
 
         Native protobuf message instances are returned (those seen in versions
         prior to 10.0.0 of the google-ads library).
@@ -114,7 +145,8 @@ class GoogleAdsHook(BaseHook):
     def search_proto_plus(
         self, client_ids: list[str], query: str, page_size: int = 10000, **kwargs
     ) -> list[GoogleAdsRow]:
-        """Pull data from the Google Ads API.
+        """
+        Pull data from the Google Ads API.
 
         Instances of proto-plus-python message are returned, which behave more
         like conventional Python objects.
@@ -127,7 +159,8 @@ class GoogleAdsHook(BaseHook):
         return self._search(client_ids, query, page_size, **kwargs)
 
     def list_accessible_customers(self) -> list[str]:
-        """List resource names of customers.
+        """
+        List resource names of customers.
 
         The resulting list of customers is based on your OAuth credentials. The
         request returns a list of all accounts that you are able to act upon
@@ -162,7 +195,10 @@ class GoogleAdsHook(BaseHook):
     def _get_client(self) -> GoogleAdsClient:
         with NamedTemporaryFile("w", suffix=".json") as secrets_temp:
             self._get_config()
-            self._update_config_with_secret(secrets_temp)
+            self._determine_authentication_method()
+            self._update_config_with_secret(
+                secrets_temp
+            ) if self.authentication_method == "service_account" else None
             try:
                 client = GoogleAdsClient.load_from_dict(self.google_ads_config)
                 return client
@@ -175,7 +211,9 @@ class GoogleAdsHook(BaseHook):
         """Connect and authenticate with the Google Ads API using a service account."""
         with NamedTemporaryFile("w", suffix=".json") as secrets_temp:
             self._get_config()
-            self._update_config_with_secret(secrets_temp)
+            self._determine_authentication_method()
+            if self.authentication_method == "service_account":
+                self._update_config_with_secret(secrets_temp)
             try:
                 client = GoogleAdsClient.load_from_dict(self.google_ads_config)
                 return client.get_service("CustomerService", version=self.api_version)
@@ -184,7 +222,8 @@ class GoogleAdsHook(BaseHook):
                 raise
 
     def _get_config(self) -> None:
-        """Set up Google Ads config from Connection.
+        """
+        Set up Google Ads config from Connection.
 
         This pulls the connections from db, and uses it to set up
         ``google_ads_config``.
@@ -195,8 +234,25 @@ class GoogleAdsHook(BaseHook):
 
         self.google_ads_config = conn.extra_dejson["google_ads_client"]
 
+    def _determine_authentication_method(self) -> None:
+        """Determine authentication method based on google_ads_config."""
+        if self.google_ads_config.get("json_key_file_path") and self.google_ads_config.get(
+            "impersonated_email"
+        ):
+            self.authentication_method = "service_account"
+        elif (
+            self.google_ads_config.get("refresh_token")
+            and self.google_ads_config.get("client_id")
+            and self.google_ads_config.get("client_secret")
+            and self.google_ads_config.get("use_proto_plus")
+        ):
+            self.authentication_method = "developer_token"
+        else:
+            raise AirflowException("Authentication method could not be determined")
+
     def _update_config_with_secret(self, secrets_temp: IO[str]) -> None:
-        """Set up Google Cloud config secret from Connection.
+        """
+        Set up Google Cloud config secret from Connection.
 
         This pulls the connection, saves the contents to a temp file, and point
         the config to the path containing the secret. Note that the secret must
@@ -214,7 +270,8 @@ class GoogleAdsHook(BaseHook):
     def _search(
         self, client_ids: list[str], query: str, page_size: int = 10000, **kwargs
     ) -> list[GoogleAdsRow]:
-        """Pull data from the Google Ads API.
+        """
+        Pull data from the Google Ads API.
 
         :param client_ids: Google Ads client ID(s) to query the API for.
         :param query: Google Ads Query Language query.
@@ -236,7 +293,8 @@ class GoogleAdsHook(BaseHook):
         return self._extract_rows(iterators)
 
     def _extract_rows(self, iterators: list[GRPCIterator]) -> list[GoogleAdsRow]:
-        """Convert Google Page Iterator (GRPCIterator) objects to Google Ads Rows.
+        """
+        Convert Google Page Iterator (GRPCIterator) objects to Google Ads Rows.
 
         :param iterators: List of Google Page Iterator (GRPCIterator) objects
         :return: API response for all clients in the form of Google Ads Row object(s)

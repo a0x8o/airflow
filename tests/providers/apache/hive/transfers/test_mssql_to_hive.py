@@ -19,23 +19,16 @@ from __future__ import annotations
 
 from unittest.mock import Mock, PropertyMock, patch
 
-import pytest
+import pymssql
 
-try:
-    import pymssql
-
-    from airflow.providers.apache.hive.transfers.mssql_to_hive import MsSqlToHiveOperator
-except ImportError:
-    pytest.skip("MSSQL not available", allow_module_level=True)
+from airflow.providers.apache.hive.transfers.mssql_to_hive import MsSqlToHiveOperator
 
 
-@pytest.mark.backend("mssql")
 class TestMsSqlToHiveTransfer:
     def setup_method(self):
         self.kwargs = dict(sql="sql", hive_table="table", task_id="test_mssql_to_hive", dag=None)
 
     def test_type_map_binary(self):
-
         mapped_type = MsSqlToHiveOperator(**self.kwargs).type_map(pymssql.BINARY.value)
 
         assert mapped_type == "INT"

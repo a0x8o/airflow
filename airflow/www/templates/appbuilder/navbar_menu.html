@@ -17,12 +17,24 @@
  under the License.
 #}
 
+{% set external_menu_url_prefixes = [
+  'https://github.com',
+  'https://airflow.apache.org',
+  'http://apache-airflow-docs.s3-website.eu-central-1.amazonaws.com']
+%}
+
 {% macro menu_item(item) %}
-  <a href="{{item.get_url()}}">{{_(item.label)}}</a>
+  {% set url = item.get_url() %}
+  {% set prefix = "/".join(url.split("/")[:3]) %}
+  {% if prefix in external_menu_url_prefixes %}
+      <a href="{{ url }}" target="_blank" rel="noopener noreferrer">{{ item.label }}</a>
+  {% else %}
+      <a href="{{ url }}">{{ item.label }}</a>
+  {% endif %}
 {% endmacro %}
 
-{% for item1 in menu.get_list() %}
-  {% if item1 | is_menu_visible %}
+{% for item1 in auth_manager.filter_permitted_menu_items(menu.get_list()) %}
+  {% if item1 %}
     {% if item1.childs %}
       <li class="dropdown">
         <a class="dropdown-toggle" href="javascript:void(0)">
@@ -34,7 +46,7 @@
                 {% if not loop.last %}
                   <li class="divider"></li>
                 {% endif %}
-              {% elif item2 | is_menu_visible %}
+              {% elif item2 %}
                 <li>{{ menu_item(item2) }}</li>
               {% endif %}
             {% endif %}

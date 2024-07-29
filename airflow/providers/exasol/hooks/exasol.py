@@ -32,7 +32,8 @@ T = TypeVar("T")
 
 
 class ExasolHook(DbApiHook):
-    """Interact with Exasol.
+    """
+    Interact with Exasol.
 
     You can specify the pyexasol ``compression``, ``encryption``, ``json_lib``
     and ``client_name``  parameters in the extra field of your connection
@@ -54,7 +55,7 @@ class ExasolHook(DbApiHook):
         self.schema = kwargs.pop("schema", None)
 
     def get_conn(self) -> ExaConnection:
-        conn_id = getattr(self, self.conn_name_attr)
+        conn_id = self.get_conn_id()
         conn = self.get_connection(conn_id)
         conn_args = {
             "dsn": f"{conn.host}:{conn.port}",
@@ -73,7 +74,8 @@ class ExasolHook(DbApiHook):
     def get_pandas_df(
         self, sql, parameters: Iterable | Mapping[str, Any] | None = None, **kwargs
     ) -> pd.DataFrame:
-        """Execute the SQL and return a Pandas dataframe.
+        """
+        Execute the SQL and return a Pandas dataframe.
 
         :param sql: The sql statement to be executed (str) or a list of
             sql statements to execute.
@@ -91,7 +93,8 @@ class ExasolHook(DbApiHook):
         sql: str | list[str],
         parameters: Iterable | Mapping[str, Any] | None = None,
     ) -> list[dict | tuple[Any, ...]]:
-        """Execute the SQL and return a set of records.
+        """
+        Execute the SQL and return a set of records.
 
         :param sql: the sql statement to be executed (str) or a list of
             sql statements to execute
@@ -101,7 +104,8 @@ class ExasolHook(DbApiHook):
             return cur.fetchall()
 
     def get_first(self, sql: str | list[str], parameters: Iterable | Mapping[str, Any] | None = None) -> Any:
-        """Execute the SQL and return the first resulting row.
+        """
+        Execute the SQL and return the first resulting row.
 
         :param sql: the sql statement to be executed (str) or a list of
             sql statements to execute
@@ -117,7 +121,8 @@ class ExasolHook(DbApiHook):
         query_params: dict | None = None,
         export_params: dict | None = None,
     ) -> None:
-        """Export data to a file.
+        """
+        Export data to a file.
 
         :param filename: Path to the file to which the data has to be exported
         :param query_or_table: the sql statement to be executed or table name to export
@@ -138,7 +143,8 @@ class ExasolHook(DbApiHook):
 
     @staticmethod
     def get_description(statement: ExaStatement) -> Sequence[Sequence]:
-        """Copied implementation from DB2-API wrapper.
+        """
+        Get description; copied implementation from DB2-API wrapper.
 
         For more info, see
         https://github.com/exasol/pyexasol/blob/master/docs/DBAPI_COMPAT.md#db-api-20-wrapper
@@ -161,7 +167,7 @@ class ExasolHook(DbApiHook):
             )
         return cols
 
-    @overload
+    @overload  # type: ignore[override]
     def run(
         self,
         sql: str | Iterable[str],
@@ -170,8 +176,7 @@ class ExasolHook(DbApiHook):
         handler: None = ...,
         split_statements: bool = ...,
         return_last: bool = ...,
-    ) -> None:
-        ...
+    ) -> None: ...
 
     @overload
     def run(
@@ -182,8 +187,7 @@ class ExasolHook(DbApiHook):
         handler: Callable[[Any], T] = ...,
         split_statements: bool = ...,
         return_last: bool = ...,
-    ) -> T | list[T]:
-        ...
+    ) -> tuple | list[tuple] | list[list[tuple] | tuple] | None: ...
 
     def run(
         self,
@@ -193,8 +197,9 @@ class ExasolHook(DbApiHook):
         handler: Callable[[Any], T] | None = None,
         split_statements: bool = False,
         return_last: bool = True,
-    ) -> T | list[T] | None:
-        """Run a command or a list of commands.
+    ) -> tuple | list[tuple] | list[list[tuple] | tuple] | None:
+        """
+        Run a command or a list of commands.
 
         Pass a list of SQL statements to the SQL parameter to get them to
         execute sequentially.
@@ -231,7 +236,9 @@ class ExasolHook(DbApiHook):
                 with closing(conn.execute(sql_statement, parameters)) as exa_statement:
                     self.log.info("Running statement: %s, parameters: %s", sql_statement, parameters)
                     if handler is not None:
-                        result = handler(exa_statement)
+                        result = self._make_common_data_structure(  # type: ignore[attr-defined]
+                            handler(exa_statement)
+                        )
                         if return_single_query_results(sql, return_last, split_statements):
                             _last_result = result
                             _last_columns = self.get_description(exa_statement)
@@ -253,7 +260,8 @@ class ExasolHook(DbApiHook):
             return results
 
     def set_autocommit(self, conn, autocommit: bool) -> None:
-        """Set the autocommit flag on the connection.
+        """
+        Set the autocommit flag on the connection.
 
         :param conn: Connection to set autocommit setting to.
         :param autocommit: The autocommit setting to set.
@@ -261,12 +269,13 @@ class ExasolHook(DbApiHook):
         if not self.supports_autocommit and autocommit:
             self.log.warning(
                 "%s connection doesn't support autocommit but autocommit activated.",
-                getattr(self, self.conn_name_attr),
+                self.get_conn_id(),
             )
         conn.set_autocommit(autocommit)
 
     def get_autocommit(self, conn) -> bool:
-        """Get autocommit setting for the provided connection.
+        """
+        Get autocommit setting for the provided connection.
 
         :param conn: Connection to get autocommit setting from.
         :return: connection autocommit setting. True if ``autocommit`` is set
@@ -280,7 +289,8 @@ class ExasolHook(DbApiHook):
 
     @staticmethod
     def _serialize_cell(cell, conn=None) -> Any:
-        """Override to disable cell serialization.
+        """
+        Override to disable cell serialization.
 
         Exasol will adapt all arguments to the ``execute()`` method internally,
         hence we return cell without any conversion.

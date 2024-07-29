@@ -27,6 +27,8 @@ from airflow.operators.empty import EmptyOperator
 from tests.test_utils.asserts import assert_queries_count
 from tests.test_utils.db import clear_db_datasets
 
+pytestmark = pytest.mark.db_test
+
 
 class TestDatasetEndpoint:
     @pytest.fixture(autouse=True)
@@ -49,7 +51,7 @@ class TestGetDatasets(TestDatasetEndpoint):
         session.commit()
         assert session.query(DatasetModel).count() == 2
 
-        with assert_queries_count(8):
+        with assert_queries_count(10):
             response = admin_client.get("/object/datasets_summary")
 
         assert response.status_code == 200

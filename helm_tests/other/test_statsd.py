@@ -102,7 +102,7 @@ class TestStatsd:
             values=values,
             show_only=["templates/statsd/statsd-deployment.yaml"],
         )
-        expected_result = revision_history_limit if revision_history_limit else global_revision_history_limit
+        expected_result = revision_history_limit or global_revision_history_limit
         assert jmespath.search("spec.revisionHistoryLimit", docs[0]) == expected_result
 
     def test_scheduler_name(self):
@@ -243,8 +243,9 @@ class TestStatsd:
         mappings_yml = jmespath.search('data."mappings.yml"', docs[0])
         mappings_yml_obj = yaml.safe_load(mappings_yml)
 
-        assert "airflow_dagrun_dependency_check" == mappings_yml_obj["mappings"][0]["name"]
-        assert "airflow_pool_starving_tasks" == mappings_yml_obj["mappings"][-1]["name"]
+        names = [mapping["name"] for mapping in mappings_yml_obj["mappings"]]
+        assert "airflow_dagrun_dependency_check" in names
+        assert "airflow_pool_starving_tasks" in names
 
     def test_statsd_configmap_when_exist_extra_mappings(self):
         extra_mapping = {
@@ -351,7 +352,7 @@ class TestStatsdServiceAccount:
         )
         assert jmespath.search("automountServiceAccountToken", docs[0]) is True
 
-    def test_overriden_automount_service_account_token(self):
+    def test_overridden_automount_service_account_token(self):
         docs = render_chart(
             values={
                 "statsd": {

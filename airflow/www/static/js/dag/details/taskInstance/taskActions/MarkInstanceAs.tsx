@@ -50,6 +50,7 @@ import { SimpleStatus } from "../../../StatusBox";
 import ActionButton from "./ActionButton";
 import ActionModal from "./ActionModal";
 
+const canEditTaskInstance = getMetaValue("can_edit_taskinstance") === "True";
 const canEdit = getMetaValue("can_edit") === "True";
 const dagId = getMetaValue("dag_id");
 
@@ -107,6 +108,7 @@ const MarkAsModal = ({
       upstream,
       downstream,
       mapIndexes,
+      enabled: isOpen,
     }
   );
 
@@ -287,7 +289,7 @@ const MarkInstanceAs = ({
           transition="all 0.2s"
           title={markLabel}
           aria-label={markLabel}
-          disabled={!canEdit}
+          disabled={!canEdit || !canEditTaskInstance}
           {...otherProps}
         >
           <Flex>
@@ -296,24 +298,18 @@ const MarkInstanceAs = ({
           </Flex>
         </MenuButton>
         <MenuList>
-          <MenuItem
-            onClick={markAsFailed}
-            isDisabled={!isMappedSummary && currentState === "failed"}
-          >
+          <MenuItem onClick={markAsFailed}>
             <SimpleStatus state="failed" mr={2} />
             failed
           </MenuItem>
-          <MenuItem
-            onClick={markAsSuccess}
-            isDisabled={!isMappedSummary && currentState === "success"}
-          >
+          <MenuItem onClick={markAsSuccess}>
             <SimpleStatus state="success" mr={2} />
             success
           </MenuItem>
         </MenuList>
       </Menu>
       {/* Only load modal is user can edit */}
-      {canEdit && (
+      {canEdit && canEditTaskInstance && (
         <MarkAsModal
           runId={runId}
           taskId={taskId}

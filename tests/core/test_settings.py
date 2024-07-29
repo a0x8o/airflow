@@ -17,15 +17,22 @@
 # under the License.
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
 import tempfile
+from argparse import Namespace
 from unittest import mock
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from airflow.exceptions import AirflowClusterPolicyViolation
+from airflow.__main__ import configure_internal_api
+from airflow.api_internal.internal_api_call import InternalApiConfig
+from airflow.configuration import conf
+from airflow.exceptions import AirflowClusterPolicyViolation, AirflowConfigException
+from airflow.settings import _ENABLE_AIP_44, TracebackSession, is_usage_data_collection_enabled
+from airflow.utils.session import create_session
 from tests.test_utils.config import conf_vars
 
 SETTINGS_FILE_POLICY = """
@@ -59,6 +66,25 @@ def task_must_have_owners(task: BaseOperator):
             Current value: {task.owner}'''
         )
 """
+
+
+@pytest.fixture
+def clear_internal_api():
+    InternalApiConfig._use_internal_api = False
+    InternalApiConfig._internal_api_endpoint = ""
+    from airflow import settings
+
+    old_engine = settings.engine
+    old_session = settings.Session
+    old_conn = settings.SQL_ALCHEMY_CONN
+    try:
+        yield
+    finally:
+        InternalApiConfig._use_internal_api = False
+        InternalApiConfig._internal_api_endpoint = ""
+        settings.engine = old_engine
+        settings.Session = old_session
+        settings.SQL_ALCHEMY_CONN = old_conn
 
 
 class SettingsContext:
@@ -214,3 +240,133 @@ class TestUpdatedConfigNames:
         session_lifetime_config = settings.get_session_lifetime_config()
         default_timeout_minutes = 30 * 24 * 60
         assert session_lifetime_config == default_timeout_minutes
+
+
+_local_db_path_error = pytest.raises(AirflowConfigException, match=r"Cannot use relative path:")
+
+
+@pytest.mark.parametrize(
+    ["value", "expectation"],
+    [
+        ("sqlite:///./relative_path.db", _local_db_path_error),
+        ("sqlite:///relative/path.db", _local_db_path_error),
+        pytest.param(
+            "sqlite:///C:/path/to/db",
+            _local_db_path_error,
+            marks=pytest.mark.skipif(sys.platform.startswith("win"), reason="Skip on Windows"),
+        ),
+        pytest.param(
+            r"sqlite:///C:\path\to\db",
+            _local_db_path_error,
+            marks=pytest.mark.skipif(sys.platform.startswith("win"), reason="Skip on Windows"),
+        ),
+        ("sqlite://", contextlib.nullcontext()),
+    ],
+)
+def test_sqlite_relative_path(value, expectation):
+    from airflow import settings
+
+    with patch("os.environ", {"_AIRFLOW_SKIP_DB_TESTS": "true"}), patch(
+        "airflow.settings.SQL_ALCHEMY_CONN", value
+    ), patch("airflow.settings.Session"), patch("airflow.settings.engine"):
+        with expectation:
+            settings.configure_orm()
+
+
+class TestEngineArgs:
+    @staticmethod
+    @patch("airflow.settings.conf")
+    @patch("airflow.settings.is_sqlalchemy_v1")
+    def test_encoding_present_in_v1(is_v1, mock_conf):
+        from airflow import settings
+
+        is_v1.return_value = True
+        mock_conf.getjson.return_value = {}
+
+        engine_args = settings.prepare_engine_args()
+
+        assert "encoding" in engine_args
+
+    @staticmethod
+    @patch("airflow.settings.conf")
+    @patch("airflow.settings.is_sqlalchemy_v1")
+    def test_encoding_absent_in_v2(is_v1, mock_conf):
+        from airflow import settings
+
+        is_v1.return_value = False
+        mock_conf.getjson.return_value = {}
+
+        engine_args = settings.prepare_engine_args()
+
+        assert "encoding" not in engine_args
+
+
+@pytest.mark.skipif(not _ENABLE_AIP_44, reason="AIP-44 is disabled")
+@conf_vars(
+    {
+        ("core", "database_access_isolation"): "true",
+        ("core", "internal_api_url"): "http://localhost:8888",
+        ("database", "sql_alchemy_conn"): "none://",
+    }
+)
+def test_get_traceback_session_if_aip_44_enabled(clear_internal_api):
+    configure_internal_api(Namespace(subcommand="worker"), conf)
+    assert InternalApiConfig.get_use_internal_api() is True
+
+    with create_session() as session:
+        assert isinstance(session, TracebackSession)
+
+        # no error just to create the "session"
+        # but below, when we try to use, it will raise
+
+        with pytest.raises(
+            RuntimeError,
+            match="TracebackSession object was used but internal API is enabled.",
+        ):
+            session.execute()
+
+
+@pytest.mark.skipif(not _ENABLE_AIP_44, reason="AIP-44 is disabled")
+@conf_vars(
+    {
+        ("core", "database_access_isolation"): "true",
+        ("core", "internal_api_url"): "http://localhost:8888",
+        ("database", "sql_alchemy_conn"): "none://",
+    }
+)
+@patch("airflow.utils.session.TracebackSession.__new__")
+def test_create_session_ctx_mgr_no_call_methods(mock_new, clear_internal_api):
+    configure_internal_api(Namespace(subcommand="worker"), conf)
+    m = MagicMock()
+    mock_new.return_value = m
+
+    assert InternalApiConfig.get_use_internal_api() is True
+
+    with create_session() as session:
+        assert isinstance(session, MagicMock)
+        assert session == m
+    method_calls = [x[0] for x in m.method_calls]
+    assert method_calls == []  # commit and close not called when using internal API
+
+
+@pytest.mark.parametrize(
+    "env_var, conf_setting, is_enabled",
+    [
+        ("false", "True", False),  # env forces disable
+        ("false", "False", False),  # Both force disable
+        ("False ", "False", False),  # Both force disable
+        ("true", "True", True),  # Both enable
+        ("true", "False", False),  # Conf forces disable
+        (None, "True", True),  # Default env, conf enables
+        (None, "False", False),  # Default env, conf disables
+    ],
+)
+def test_usage_data_collection_disabled(env_var, conf_setting, is_enabled, clear_internal_api):
+    conf_patch = conf_vars({("usage_data_collection", "enabled"): conf_setting})
+
+    if env_var is not None:
+        with conf_patch, patch.dict(os.environ, {"SCARF_ANALYTICS": env_var}):
+            assert is_usage_data_collection_enabled() == is_enabled
+    else:
+        with conf_patch:
+            assert is_usage_data_collection_enabled() == is_enabled
