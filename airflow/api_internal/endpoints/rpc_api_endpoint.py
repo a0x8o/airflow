@@ -35,6 +35,7 @@ from jwt import (
 
 from airflow.api_connexion.exceptions import PermissionDenied
 from airflow.configuration import conf
+from airflow.exceptions import AirflowException
 from airflow.jobs.job import Job, most_recent_job
 from airflow.models.dagcode import DagCode
 from airflow.models.taskinstance import _record_task_map_for_downstreams
@@ -52,6 +53,7 @@ log = logging.getLogger(__name__)
 
 @functools.lru_cache
 def initialize_method_map() -> dict[str, Callable]:
+    from airflow.api.common.trigger_dag import trigger_dag
     from airflow.cli.commands.task_command import _get_ti_db_access
     from airflow.dag_processing.manager import DagFileProcessorManager
     from airflow.dag_processing.processor import DagFileProcessor
@@ -91,6 +93,7 @@ def initialize_method_map() -> dict[str, Callable]:
         _add_log,
         _xcom_pull,
         _record_task_map_for_downstreams,
+        trigger_dag,
         DagCode.remove_deleted_code,
         DagModel.deactivate_deleted_dags,
         DagModel.get_paused_dag_ids,
@@ -120,7 +123,7 @@ def initialize_method_map() -> dict[str, Callable]:
         MetastoreBackend._fetch_variable,
         XCom.get_value,
         XCom.get_one,
-        XCom.get_many,
+        # XCom.get_many, # Not supported because it returns query
         XCom.clear,
         XCom.set,
         Variable.set,
@@ -234,5 +237,10 @@ def internal_airflow_api(body: dict[str, Any]) -> APIResponse:
             response = json.dumps(output_json) if output_json is not None else None
             log.info("Sending response: %s", response)
             return Response(response=response, headers={"Content-Type": "application/json"})
+    except AirflowException as e:  # In case of AirflowException transport the exception class back to caller
+        exception_json = BaseSerialization.serialize(e, use_pydantic_models=True)
+        response = json.dumps(exception_json)
+        log.info("Sending exception response: %s", response)
+        return Response(response=response, headers={"Content-Type": "application/json"})
     except Exception:
         return log_and_build_error_response(message=f"Error executing method '{method_name}'.", status=500)
